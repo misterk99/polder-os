@@ -84,4 +84,5 @@ tint2 -c $C/tint2rc >/tmp/proto-tint2.log 2>&1 &
 rm -f /tmp/osb-shelf.pid /tmp/osb-clipd.pid
 for k in '<Alt>Print' '<Shift>Print' 'Print'; do xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/$k" -r 2>/dev/null; done   # Print -> our capture bar (keyd)
 (sleep 3; OSB_LOCK_CACHE=/tmp/osb-lockbg python3 $C/lock/lockui.py --prerender >/tmp/osb-lockbg.log 2>&1) &   # Revision 16: blurred lock bg   # Revision 12: live settings, auto theme, ICS sync
+(sleep 4; command -v kdeconnectd >/dev/null && QT_QPA_PLATFORM=offscreen kdeconnectd >/tmp/kdeconnectd.log 2>&1) &   # Revision 28: Telefoon (KDE Connect, ~41 MB PSS)
 (sleep 6; python3 $C/welcome/welkom.py --first-run) &   # Revision 24: Welkom bij Polder OS (only until welcome_done)

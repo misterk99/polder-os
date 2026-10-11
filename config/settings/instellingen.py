@@ -24,6 +24,7 @@ SECTIONS = [('personalisatie', 'preferences-desktop-wallpaper-symbolic', 'Person
             ('datum', 'preferences-system-time-symbolic', 'Datum en tijd'),
             ('weer', 'weather-few-clouds-symbolic', 'Weer'),
             ('webapps', 'web-browser-symbolic', 'Webapps'),
+            ('telefoon', 'phone-symbolic', 'Telefoon'),
             ('over', 'help-about-symbolic', 'Over Polder OS')]
 FEED_COLORS = [('Blauw', '#0b57d0'), ('Groen', '#188038'), ('Rood', '#d93025'), ('Oranje', '#e8710a'), ('Paars', '#9334e6'), ('Grijs', '#5f6368')]
 
@@ -332,6 +333,40 @@ class App(Gtk.Window):
             rb = Gtk.Button(label='Verwijderen'); rb.connect('clicked', lambda _b, a=a: (WA.remove(a['id']), setattr(self, 'w_last', f"‘{a['name']}’ verwijderd."), self.show('webapps'))); r.pack_start(rb, False, False, 0)
             c2.pack_start(r, False, False, 0)
             if i < len(apps) - 1: c2.pack_start(Gtk.Separator(), False, False, 0)
+
+    # Revision 28: Telefoon (KDE Connect) ----------------------------------------------------------
+    def page_telefoon(self, o):
+        import phone as PH
+        c = self.card(o, 'Telefoon')
+        if not PH.available():
+            self.row(c, 'KDE Connect is niet geïnstalleerd', 'Installeer het pakket kdeconnect (zit in de Polder OS ISO).', last=True, err=True); return
+        if not PH.running(): PH.start()
+        rb = Gtk.Button(label='Vernieuwen'); rb.connect('clicked', lambda *a: (PH.refresh(), GLib.timeout_add(1500, lambda: self.cur == 'telefoon' and self.show('telefoon'))))
+        self.row(c, 'Telefoon koppelen', 'Installeer de app "KDE Connect" op je Android-telefoon of iPhone en zorg dat beide op hetzelfde wifi-netwerk zitten.', rb, last=True)
+        devs = PH.devices() if PH.running() else []
+        paired = [d for d in devs if d['paired']]; others = [d for d in devs if not d['paired'] and d['reachable']]
+        for d in paired:
+            pc = self.card(o, d['name'])
+            st = ('Verbonden' if d['reachable'] else 'Niet bereikbaar') + (f" · batterij {d['battery']}%" + (' (laadt op)' if d['charging'] else '') if d['reachable'] and d['battery'] not in (None, -1) else '')
+            ub = Gtk.Button(label='Ontkoppelen'); ub.connect('clicked', lambda _b, i=d['id']: (PH.unpair(i), self.show('telefoon')))
+            self.row(pc, 'Status', st, ub)
+            for name, title, sub in PH.PLUGINS:
+                on = PH.plugin_enabled(d['id'], name)
+                if on is None: continue
+                self.row(pc, title, sub, self.switch(on, lambda v, i=d['id'], n=name: PH.set_plugin(i, n, v)))
+            fb = Gtk.Button(label='Laten overgaan'); fb.set_sensitive(d['reachable']); fb.connect('clicked', lambda _b, i=d['id']: PH.ring(i))
+            self.row(pc, 'Telefoon zoeken', 'Je telefoon gaat over, ook als hij op stil staat.', fb, last=True)
+        c2 = self.card(o, 'Beschikbare apparaten')
+        if not PH.running(): self.row(c2, 'KDE Connect-dienst draait niet', 'Kon kdeconnectd niet starten.', last=True, err=True)
+        elif not others: self.row(c2, 'Geen apparaten gevonden', 'Open KDE Connect op je telefoon. Firewall: poorten 1714–1764 (TCP/UDP) moeten open staan.', last=True)
+        for k, d in enumerate(others):
+            if d['pair_requested']:
+                b = Gtk.Button(label='Accepteren'); b.connect('clicked', lambda _b, i=d['id']: (PH.accept(i), self.show('telefoon')))
+                sub = f"Koppelverzoek · controleer dat deze code ook op je telefoon staat: {d['verification']}" if d['verification'] else 'Koppelverzoek ontvangen'
+            else:
+                b = Gtk.Button(label='Koppelen'); b.connect('clicked', lambda _b, i=d['id']: (PH.pair(i), GLib.timeout_add(1500, lambda: self.show('telefoon'))))
+                sub = 'Klaar om te koppelen' + (f" · code {d['verification']}" if d['verification'] else '')
+            self.row(c2, d['name'], sub, b, last=k == len(others) - 1)
 
     def page_over(self, o):
         c = self.card(o, 'Over Polder OS')

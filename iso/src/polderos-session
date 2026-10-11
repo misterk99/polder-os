@@ -61,6 +61,7 @@ fi
 sleep 1; tint2 -c $C/tint2rc >"$LOG/tint2.log" 2>&1 &
 rm -f /tmp/osb-shelf.pid /tmp/osb-clipd.pid
 (sleep 3; OSB_LOCK_CACHE=/tmp/osb-lockbg python3 $C/lock/lockui.py --prerender) &
+(sleep 4; command -v kdeconnectd >/dev/null && QT_QPA_PLATFORM=offscreen kdeconnectd >/tmp/kdeconnectd.log 2>&1) &   # Revision 28: Telefoon (KDE Connect, ~41 MB PSS)
 (sleep 6; python3 $C/welcome/welkom.py --first-run) &   # Revision 24: Welkom bij Polder OS (only until welcome_done)
 # keep the session alive while the shelf/WM run; logging out = killing this script (Afmelden)
 wait

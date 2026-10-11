@@ -16,3 +16,6 @@ nano less bash-completion man-db
 # Revision 26: automatic updates
 unattended-upgrades
 apt-listchanges
+
+# Revision 28: Telefoon (KDE Connect daemon + cli; --no-install-recommends keeps Plasma out)
+kdeconnect

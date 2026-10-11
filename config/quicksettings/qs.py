@@ -57,6 +57,13 @@ TILES += [
     ('cap', 'camera-photo-symbolic', 'Schermopname', 'Screenshot of video', False, True),
     ('dnd', 'notifications-disabled-symbolic', 'Niet storen', None, N.load().get('dnd', False), True),
 ]
+# Revision 28: 'Telefoon' tile only when a phone is paired (KDE Connect); battery % from the daemon, never invented
+try:
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'osb')); import phone as PH
+    _ph = next((d for d in PH.devices() if d['paired']), None) if PH.running() else None
+except Exception: _ph = None
+if _ph:
+    TILES.append(('phone', 'phone-symbolic', _ph['name'], (f"{_ph['battery']}%" if _ph['reachable'] and _ph['battery'] not in (None, -1) else ('Verbonden' if _ph['reachable'] else 'Niet bereikbaar')), _ph['reachable'], True))
 PAGES = [TILES]
 
 class QS(Gtk.Window):
@@ -236,6 +243,7 @@ class QS(Gtk.Window):
         elif key == 'night': OSBS.update(night_light=on)            # osb-settingsd applies xrandr gamma
         elif key == 'dark': OSBS.update(theme='dark' if on else 'light')  # osb-settingsd regenerates + reloads everything
         elif key == 'kbd': self.quit(); run('python3', SETTINGS_APP, 'toetsenbord')
+        elif key == 'phone': self.quit(); run('python3', SETTINGS_APP, 'telefoon')
 
     def slider(self, icon, val, cb, trailing):
         row = Gtk.Box(spacing=8)
