@@ -1,0 +1,10 @@
+* { font: "Roboto 12"; background-color: transparent; text-color: #1f1f1f; }
+window { width: 640px; location: south west; anchor: south west; x-offset: 10px; y-offset: -62px; border: 0px; padding: 0px; background-color: transparent; background-image: url("/workspace/osbuilder/config/launcher-bg.png", none); }
+mainbox { background-color: #f8f9fc; border-radius: 22px; padding: 18px; }
+inputbar { background-color: #e8eef7; border-radius: 20px; padding: 10px 16px; children: [entry]; }
+entry { placeholder: "Zoek op je apparaat, in apps, op internet..."; placeholder-color: #5f6368; }
+listview { columns: 5; lines: 3; layout: vertical; spacing: 10px; margin: 14px 0 0 0; fixed-height: true; }
+element { orientation: vertical; padding: 10px; border-radius: 14px; }
+element selected { background-color: #d3e3fd; text-color: #041e49; }
+element-icon { size: 48px; horizontal-align: 0.5; }
+element-text { horizontal-align: 0.5; font: "Roboto 10"; text-color: inherit; }

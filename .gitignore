@@ -1,0 +1,7 @@
+iso/build/
+*.iso
+__pycache__/
+*.pyc
+*.ppm
+qemu.log
+iso/shots/

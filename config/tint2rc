@@ -1,0 +1,94 @@
+# --- backgrounds (must come first) ---
+# 1 panel: surface
+rounded = 0
+border_width = 0
+background_color = #f8f9fc 100
+border_color = #000000 0
+# 2 task button
+rounded = 20
+border_width = 0
+background_color = #ffffff 0
+border_color = #000000 0
+background_color_hover = #e8eef7 100
+# 3 active task
+rounded = 20
+border_width = 0
+background_color = #d3e3fd 100
+border_color = #000000 0
+# 4 status pill
+rounded = 18
+border_width = 0
+background_color = #e8eef7 100
+border_color = #000000 0
+
+# ChromeOS-style shelf: launcher left, pinned apps + tasks centered, status right
+panel_items = EFSEEEE
+panel_size = 100% 52
+panel_margin = 0 0
+panel_padding = 8 8 8
+panel_position = bottom center horizontal
+panel_layer = bottom
+panel_background_id = 1
+font_shadow = 0
+
+
+execp = new
+execp_command = echo /workspace/osbuilder/config/launcher-icon.png
+execp_has_icon = 1
+execp_icon_w = 26
+execp_icon_h = 26
+execp_lclick_command = /workspace/osbuilder/config/launcher/launcher-toggle.sh
+execp_padding = 10 0
+execp_background_id = 0
+
+systray_padding = 6 0 6
+systray_background_id = 0
+time1_format = %H:%M
+time1_font = Roboto Medium 11
+clock_font_color = #1f1f1f 100
+clock_padding = 14 6
+clock_background_id = 4
+
+execp = new
+execp_command = /workspace/osbuilder/config/status/render-status.sh kb
+execp_interval = 60
+execp_has_icon = 1
+execp_icon_w = 0
+execp_icon_h = 0
+execp_continuous = 0
+execp_padding = 0 0
+execp_background_id = 0
+execp_lclick_command = setxkbmap -query | rofi -e "$(cat)"
+
+execp = new
+execp_command = /workspace/osbuilder/config/status/render-status.sh weather
+execp_interval = 60
+execp_has_icon = 1
+execp_icon_w = 0
+execp_icon_h = 0
+execp_continuous = 0
+execp_padding = 0 0
+execp_background_id = 0
+execp_lclick_command = python3 /workspace/osbuilder/config/calendar/cal.py --weather
+
+execp = new
+execp_command = /workspace/osbuilder/config/status/render-status.sh date
+execp_interval = 300
+execp_has_icon = 1
+execp_icon_w = 0
+execp_icon_h = 0
+execp_continuous = 0
+execp_padding = 0 0
+execp_background_id = 0
+execp_lclick_command = python3 /workspace/osbuilder/config/calendar/cal.py
+
+execp = new
+execp_command = /workspace/osbuilder/config/status/tray-watch.sh
+execp_interval = 0
+execp_has_icon = 1
+execp_icon_w = 0
+execp_icon_h = 0
+execp_continuous = 1
+execp_padding = 0 0
+execp_background_id = 0
+execp_lclick_command = python3 /workspace/osbuilder/config/quicksettings/qs.py

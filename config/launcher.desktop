@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=Launcher
+Exec=rofi -show drun -show-icons -icon-theme Papirus -theme /workspace/osbuilder/config/launcher.rasi
+Icon=view-app-grid-symbolic
+Type=Application
