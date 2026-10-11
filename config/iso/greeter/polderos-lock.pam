@@ -1,0 +1,2 @@
+# /etc/pam.d/polderos-lock (optional; lock.py uses service 'login' on the prototype box)
+@include common-auth

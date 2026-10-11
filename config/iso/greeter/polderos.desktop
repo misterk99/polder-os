@@ -1,0 +1,7 @@
+# /usr/share/xsessions/polderos.desktop
+[Desktop Entry]
+Name=Polder OS
+Comment=ChromeOS-achtige desktop
+Exec=/usr/share/polderos/start-session.sh
+Type=Application
+DesktopNames=PolderOS;XFCE
