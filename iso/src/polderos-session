@@ -1,0 +1,59 @@
+#!/bin/bash
+# Polder OS X session (ISO). Started by LightDM via /usr/share/xsessions/polderos.desktop.
+# Adapted from the prototype's config/start-session.sh: no Xvfb, no test accounts, no sample files, real $HOME.
+# The prototype writes generated files (palette, themes, backdrops) next to its code, so every user gets a
+# private copy of /usr/share/polderos/config in ~/.local/share/polderos (refreshed when the system version changes).
+SYS=/usr/share/polderos/config; C=$HOME/.local/share/polderos; LOG=$HOME/.cache/polderos; mkdir -p "$LOG"
+exec >"$LOG/session.log" 2>&1
+export POLDEROS_ISO=1
+VER=$(cat /usr/share/polderos/VERSION)
+if [ "$(cat "$C/.version" 2>/dev/null)" != "$VER" ]; then
+  rm -rf "$C"; mkdir -p "$C"; cp -a "$SYS/." "$C/"
+  HU=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$HOME")
+  grep -rlI --exclude-dir=__pycache__ -e /workspace/osbuilder -e /tmp/protohome -e /tmp/osb-files "$C" | while read -r f; do
+    sed -i -e "s|/workspace/osbuilder/config|$C|g" -e "s|/tmp/protohome/chromium|$HOME/.config/chromium|g" \
+           -e "s|/tmp/protohome|$HOME|g" -e "s|/tmp/osb-files/Mijn%20bestanden|$HU|g" -e "s|/tmp/osb-files/Mijn bestanden|$HOME|g" "$f"; done
+  printf '#!/bin/sh\nexec thunar "${1:-$HOME}"\n' > "$C/files/run-files.sh"; chmod +x "$C/files/run-files.sh"
+  echo "$VER" > "$C/.version"
+fi
+export OSB_FILES_HOME=$HOME XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config} XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
+X=$XDG_CONFIG_HOME; A=$XDG_DATA_HOME/applications
+LC_ALL=nl_NL.UTF-8 xdg-user-dirs-update 2>/dev/null; mkdir -p "$HOME"/{Downloads,Muziek,Afbeeldingen,"Video's"}
+mkdir -p $X/gtk-3.0 $X/xfce4/xfconf/xfce-perchannel-xml $X/Thunar $A /tmp/osb-lockbg 2>/dev/null; chmod 1777 /tmp/osb-lockbg 2>/dev/null
+cp $C/gtkrc-settings.ini $X/gtk-3.0/settings.ini
+[ -f $X/gtk-3.0/bookmarks ] || cp $C/files/bookmarks $X/gtk-3.0/
+cp -n $C/files/thunar.xml $X/xfce4/xfconf/xfce-perchannel-xml/; cp $C/files/uca.xml $X/Thunar/
+[ -n "$DBUS_SESSION_BUS_ADDRESS" ] || eval $(dbus-launch --sh-syntax)
+echo "$DBUS_SESSION_BUS_ADDRESS" > /tmp/osb-session-bus
+mkdir -p $X/osb; [ -f $X/osb/settings.json ] || python3 -c "import sys; sys.path.insert(0,'$C/osb'); import osbsettings as S; S.save(S.load())"
+python3 $C/osb/apply.py palette
+cp $C/settings/instellingen.desktop $C/files/files.desktop $C/store/polder-store.desktop $A/
+for p in /usr/share/applications/xfce-*settings*.desktop /usr/share/applications/xfce4-{accessibility,color,mime}-settings.desktop /usr/share/applications/xfce4-settings-editor.desktop /usr/share/applications/{rofi,rofi-theme-selector,tint2,tint2conf,picom,thunar-settings,thunar,thunar-bulk-rename,xfce4-file-manager}.desktop; do [ -f "$p" ] && { grep -v "^NoDisplay" "$p"; echo NoDisplay=true; } > $A/$(basename $p); done
+lxpolkit &   # polkit agent: password prompt for Polder Store installs
+xfsettingsd --sm-client-disable &
+sleep 1
+xq(){ xfconf-query -c "$1" -p "$2" -n -t "$3" -s "$4" 2>/dev/null || xfconf-query -c "$1" -p "$2" -s "$4"; }
+xq xsettings /Net/ThemeName string PolderOS-GTK-$(cat $X/osb/gtkslot 2>/dev/null || echo 1)
+xq xsettings /Net/IconThemeName string Papirus; xq xsettings /Gtk/FontName string "Roboto 10"
+xq xfwm4 /general/theme string PolderOS; xq xfwm4 /general/button_layout string "|HMC"; xq xfwm4 /general/title_font string "Roboto Medium 10"
+xq xfwm4 /general/tile_on_move bool true; xq xfwm4 /general/use_compositing bool false
+for p in "/xfwm4/custom/<Alt>Tab" "/xfwm4/custom/<Alt><Shift>Tab" "/xfwm4/default/<Alt>Tab" "/xfwm4/default/<Alt><Shift>Tab"; do xq xfce4-keyboard-shortcuts "$p" string empty; done
+for k in '<Alt>Print' '<Shift>Print' 'Print'; do xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/$k" -r 2>/dev/null; done
+xfwm4 --compositor=off --sm-client-disable &
+sleep 1; wmctrl -n 2
+# Revision 23: compositor for rounded corners + subtle shadows on app windows. picom.conf excludes our own panels
+# (WM_CLASS *.py, docks, desktop, override-redirect): picom clipping/shadowing those broke shelf/QS drawing in 0.20.
+picom --config $C/picom.conf -b
+feh --bg-fill $C/wallpaper.png
+python3 $C/notify/osb-notifyd.py >"$LOG/notifyd.log" 2>&1 &
+sleep 1; tint2 -c $C/tint2rc >"$LOG/tint2.log" 2>&1 &
+rm -f /tmp/osb-shelf.pid /tmp/osb-clipd.pid
+sleep 1; python3 $C/shelf/shelf.py >"$LOG/shelf.log" 2>&1 &
+python3 $C/clip/clipd.py >"$LOG/clipd.log" 2>&1 &
+python3 $C/wm/keyd.py >"$LOG/keyd.log" 2>&1 &
+python3 $C/osb/osb-settingsd.py >"$LOG/settingsd.log" 2>&1 &
+(sleep 3; OSB_LOCK_CACHE=/tmp/osb-lockbg python3 $C/lock/lockui.py --prerender) &
+python3 $C/launcher/launcher.py >"$LOG/launcher.log" 2>&1 &
+(sleep 6; python3 $C/welcome/welkom.py --first-run) &   # Revision 24: Welkom bij Polder OS (only until welcome_done)
+# keep the session alive while the shelf/WM run; logging out = killing this script (Afmelden)
+wait

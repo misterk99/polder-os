@@ -1,0 +1,2 @@
+#!/bin/sh
+for f in boot/grub/grub.cfg boot/grub/*.cfg; do [ -f "$f" ] && sed -i 's/Live system/Polder OS Live/g' "$f"; done; true

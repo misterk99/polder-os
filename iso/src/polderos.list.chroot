@@ -1,0 +1,14 @@
+# Polder OS 0.20 package list (trixie, --apt-recommends false so everything needed is listed)
+linux-image-amd64 live-boot live-config live-config-systemd user-setup iproute2 systemd-sysv sudo locales console-setup keyboard-configuration tzdata
+firmware-linux-free firmware-misc-nonfree firmware-realtek firmware-iwlwifi firmware-atheros
+network-manager wpasupplicant bluez dbus-x11 dbus-user-session pkexec polkitd udisks2 gvfs ca-certificates curl apt-transport-https
+pipewire pipewire-pulse wireplumber pipewire-alsa pulseaudio-utils alsa-utils brightnessctl
+xserver-xorg xserver-xorg-video-all xserver-xorg-input-all xinit x11-utils x11-xserver-utils x11-xkb-utils xauth
+lightdm gir1.2-lightdm-1 xfwm4 xfce4-settings xfconf tint2 rofi thunar thunar-volman xfce4-terminal picom feh
+chromium chromium-l10n python3 python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-glib-2.0 gir1.2-gdkpixbuf-2.0 gir1.2-pango-1.0 gir1.2-rsvg-2.0
+python3-xlib python3-icalendar python3-recurring-ical-events python3-pampy python3-dbus python3-requests python3-pil
+xclip ffmpeg mpv mpv-mpris libnotify-bin wmctrl xdotool imagemagick librsvg2-bin librsvg2-common xdg-user-dirs xdg-utils
+fonts-roboto fonts-noto-color-emoji papirus-icon-theme arc-theme adwaita-icon-theme hicolor-icon-theme shared-mime-info
+flatpak packagekit packagekit-tools appstream gir1.2-packagekitglib-1.0 gir1.2-appstream-1.0 gir1.2-flatpak-1.0 lxpolkit
+calamares calamares-settings-debian squashfs-tools rsync cryptsetup dosfstools e2fsprogs btrfs-progs os-prober grub-efi-amd64 grub-pc-bin efibootmgr
+nano less bash-completion man-db
