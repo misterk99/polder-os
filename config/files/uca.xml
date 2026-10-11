@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<actions>
+<action><icon>package-x-generic</icon><name>Zippen</name><unique-id>osb-zip</unique-id><command>zip -r %n.zip %N</command><description>Selectie zippen</description><patterns>*</patterns><directories/><audio-files/><image-files/><other-files/><text-files/><video-files/></action>
+</actions>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="thunar" version="1.0">
+  <property name="default-view" type="string" value="ThunarDetailsView"/>
+  <property name="last-view" type="string" value="ThunarDetailsView"/>
+  <property name="last-location-bar" type="string" value="ThunarLocationButtons"/>
+  <property name="last-side-pane" type="string" value="ThunarShortcutsPane"/>
+  <property name="last-separator-position" type="int" value="230"/>
+  <property name="last-window-width" type="int" value="1000"/>
+  <property name="last-window-height" type="int" value="600"/>
+  <property name="last-details-view-visible-columns" type="string" value="THUNAR_COLUMN_NAME,THUNAR_COLUMN_SIZE,THUNAR_COLUMN_TYPE,THUNAR_COLUMN_DATE_MODIFIED"/>
+  <property name="last-details-view-column-order" type="string" value="THUNAR_COLUMN_NAME,THUNAR_COLUMN_SIZE,THUNAR_COLUMN_TYPE,THUNAR_COLUMN_DATE_MODIFIED"/>
+  <property name="last-details-view-column-widths" type="string" value="50,380,50,100,160,50,50,220,50,50,50,50,50"/>
+  <property name="last-menubar-visible" type="bool" value="false"/>
+  <property name="last-statusbar-visible" type="bool" value="false"/>
+  <property name="misc-date-style" type="string" value="THUNAR_DATE_STYLE_SHORT"/>
+  <property name="misc-small-toolbar-icons" type="bool" value="false"/>
+  <property name="shortcuts-icon-size" type="string" value="THUNAR_ICON_SIZE_24"/>
+  <property name="last-details-view-zoom-level" type="string" value="THUNAR_ZOOM_LEVEL_50_PERCENT"/>
+  <property name="hidden-bookmarks" type="array">
+    <value type="string" value="computer:///"/>
+    <value type="string" value="trash:///"/>
+    <value type="string" value="network:///"/>
+    <value type="string" value="file:///"/>
+  </property>
+  <property name="hidden-devices" type="array">
+    <value type="string" value="file:///"/>
+  </property>
+</channel>

@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Bestanden
+Exec=/workspace/osbuilder/config/files/run-files.sh
+Icon=system-file-manager
+Type=Application
+StartupWMClass=Thunar
