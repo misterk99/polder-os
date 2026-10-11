@@ -23,6 +23,8 @@
 - Polder Store: software center for Debian (PackageKit) and Flathub (Flatpak) apps
 - Webapps: install any site as its own app with its real icon
 - "Welkom bij Polder OS" first-run tour; rounded windows via picom
+- Light: all always-running services in one `polder-shell` process (~70 MB PSS)
+- Automatic updates (unattended-upgrades + Flatpak timer) with a reboot notification
 - Bootable live ISO (Debian live-build) with Calamares installer
 
 ## Quick start: prototype session

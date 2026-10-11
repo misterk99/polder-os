@@ -36,8 +36,11 @@ def theme(s):
     sh('xfconf-query', '-c', 'xfwm4', '-p', '/general/theme', '-s', 'Default')  # xfwm4 only reloads on a name change
     sh('xfconf-query', '-c', 'xfwm4', '-p', '/general/theme', '-s', 'PolderOS')
     for p in ('quicksettings/qs.py', 'calendar/cal.py'): sh('pkill', '-f', p)  # popups are short-lived; reopen in new colours
-    sh('pkill', '-f', 'notify/osb-notifyd.py')                              # restart daemon (history lives in state.json)
-    spawn('python3', os.path.join(C, 'notify/osb-notifyd.py'), log='/tmp/osb-notifyd.log')
+    if os.environ.get('POLDER_SHELL'):    # Revision 27: notifications live in polder-shell -> reload its CSS in place
+        import shellipc; shellipc.send('notify-reload')
+    else:
+        sh('pkill', '-f', 'notify/osb-notifyd.py')                              # restart daemon (history lives in state.json)
+        spawn('python3', os.path.join(C, 'notify/osb-notifyd.py'), log='/tmp/osb-notifyd.log')
     os.makedirs('/tmp/osb-lockbg', exist_ok=True); os.chmod('/tmp/osb-lockbg', 0o1777)   # shared with the box-only lock test account
     spawn('env', 'OSB_LOCK_CACHE=/tmp/osb-lockbg', 'python3', os.path.join(C, 'lock/lockui.py'), '--prerender', log='/tmp/osb-lockbg.log')  # blurred lock bg
 

@@ -45,15 +45,22 @@ sleep 1; wmctrl -n 2
 # (WM_CLASS *.py, docks, desktop, override-redirect): picom clipping/shadowing those broke shelf/QS drawing in 0.20.
 picom --config $C/picom.conf -b
 feh --bg-fill $C/wallpaper.png
-python3 $C/notify/osb-notifyd.py >"$LOG/notifyd.log" 2>&1 &
+# Revision 27: polder-shell = notify + shelf + launcher + clipboard + settingsd + keyd in ONE process (one GTK loop).
+# Supervisor restarts it if it exits; POLDER_SHELL=0 starts the old separate processes instead (fallback).
+if [ "${POLDER_SHELL:-1}" = 1 ]; then
+  rm -f /tmp/polder-shell.pid
+  (while true; do python3 $C/shell/polder-shell.py >>"$LOG/polder-shell.log" 2>&1; rm -f /tmp/polder-shell.pid; sleep 2; done) &
+else
+  python3 $C/notify/osb-notifyd.py >"$LOG/notifyd.log" 2>&1 &
+  python3 $C/shelf/shelf.py >"$LOG/shelf.log" 2>&1 &
+  python3 $C/clip/clipd.py >"$LOG/clipd.log" 2>&1 &
+  python3 $C/wm/keyd.py >"$LOG/keyd.log" 2>&1 &
+  python3 $C/osb/osb-settingsd.py >"$LOG/settingsd.log" 2>&1 &
+  python3 $C/launcher/launcher.py >"$LOG/launcher.log" 2>&1 &
+fi
 sleep 1; tint2 -c $C/tint2rc >"$LOG/tint2.log" 2>&1 &
 rm -f /tmp/osb-shelf.pid /tmp/osb-clipd.pid
-sleep 1; python3 $C/shelf/shelf.py >"$LOG/shelf.log" 2>&1 &
-python3 $C/clip/clipd.py >"$LOG/clipd.log" 2>&1 &
-python3 $C/wm/keyd.py >"$LOG/keyd.log" 2>&1 &
-python3 $C/osb/osb-settingsd.py >"$LOG/settingsd.log" 2>&1 &
 (sleep 3; OSB_LOCK_CACHE=/tmp/osb-lockbg python3 $C/lock/lockui.py --prerender) &
-python3 $C/launcher/launcher.py >"$LOG/launcher.log" 2>&1 &
 (sleep 6; python3 $C/welcome/welkom.py --first-run) &   # Revision 24: Welkom bij Polder OS (only until welcome_done)
 # keep the session alive while the shelf/WM run; logging out = killing this script (Afmelden)
 wait

@@ -31,7 +31,7 @@ def reboot_watch():
             if n == 'reboot':
                 if os.environ.get('POLDEROS_ISO'): subprocess.Popen(['systemctl', 'reboot'])
                 else: print('reboot requested (prototype box: not rebooting)', flush=True)
-        elif not r and seen:
+        elif not r and (seen or os.path.exists(st)):   # also clears a stale state file left by a restarted shell
             seen = None
             try: os.remove(st)
             except OSError: pass
@@ -83,4 +83,4 @@ def main():
         if time.time() - last_wx > 1800:   # Revision 25: Polder Weer, every 30 min (Open-Meteo)
             last_wx = time.time(); threading.Thread(target=weather_fetch, daemon=True).start()
 
-main()
+if __name__ == '__main__': main()

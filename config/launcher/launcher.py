@@ -204,7 +204,7 @@ class Launcher(Gtk.Window):
             self.bgprov.load_from_data(f"#lwin {{ background-image: url('{out}'); background-color: transparent; }}".encode())
 
     def toggle(self, *a):
-        self.hide_l() if self.get_visible() else self.show_l(); return True
+        self.hide_l() if self.get_mapped() else self.show_l(); return True   # mapped, not visible: robust inside polder-shell
 
     def show_l(self):
         self.refresh_style(); self.entry.set_text(''); self.stack.set_visible_child_name('grid')

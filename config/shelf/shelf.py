@@ -10,7 +10,7 @@ from gi.repository import Gtk, Gdk, GLib, Gio
 from Xlib import display as xdisplay, X
 import osbsettings as S, osbnotify as N, popmenu, mpris, json, time
 H = 52; PID = '/tmp/osb-shelf.pid'
-SKIPCLS = {'tint2', 'qs.py', 'osb-notifyd.py', 'launcher.py', 'shelf.py', 'cal.py', 'overview.py', 'clipd.py', 'xfdesktop', 'lock.py'}
+SKIPCLS = {'tint2', 'polder-shell.py', 'qs.py', 'osb-notifyd.py', 'launcher.py', 'shelf.py', 'cal.py', 'overview.py', 'clipd.py', 'xfdesktop', 'lock.py'}
 
 def css():
     P = N.palette()

@@ -89,7 +89,7 @@ class Clip(Gtk.Window):
 
     # ----- popup -----
     def toggle(self, *a):
-        if self.get_visible(): self.hide_c()
+        if self.get_mapped(): self.hide_c()
         elif S.load().get('clipboard_history', True): self.show_c()
         return True
 

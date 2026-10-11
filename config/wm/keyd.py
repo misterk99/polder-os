@@ -28,7 +28,9 @@ def snapper():
             except Exception as ex: print('snap', ex)
         time.sleep(1.5)
 threading.Thread(target=snapper, daemon=True).start()
+DISPATCH = None   # Revision 27: set by polder-shell -> launcher/clip toggles go straight to the shell's main loop
 def launch(mode):
+    if DISPATCH and mode in ('launcher', 'clip'): DISPATCH(mode); return
     if mode == 'shortcuts':   # Ctrl+Alt+/ -> sneltoetsen overview (toggle)
         subprocess.Popen([sys.executable, os.path.join(HERE, '..', 'shortcuts', 'sneltoetsen.py')], start_new_session=True); return
     if mode == 'capture':   # Print / Ctrl+Shift+F5 -> capture bar (or stop a running recording)

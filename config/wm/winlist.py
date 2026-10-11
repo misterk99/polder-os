@@ -1,6 +1,6 @@
 """Window list helpers (wmctrl/xdotool/ImageMagick) for overview + alt-tab."""
 import subprocess, os, hashlib
-SKIP = {'tint2', 'qs.py', 'osb-notifyd.py', 'rofi'}
+SKIP = {'tint2', 'polder-shell.py', 'qs.py', 'osb-notifyd.py', 'rofi'}
 APPNAMES = {'chromium': 'Chromium', 'thunar': 'Bestanden', 'xfce4-terminal': 'Terminal',
             'xfce4-settings-manager': 'Instellingen'}
 ICONS = {'chromium': 'chromium-browser', 'thunar': 'system-file-manager', 'xfce4-terminal': 'utilities-terminal',

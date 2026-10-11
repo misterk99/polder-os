@@ -198,3 +198,10 @@ _History reconstructed from the development log; intermediate file states were n
 - `config/osb/updates.py`: shared logic. `osb-settingsd` watches `/var/run/reboot-required` and sends the notification "Opnieuw opstarten om bij te werken" with the action "Nu opnieuw opstarten"; it also writes `/tmp/osb-update.json`.
 - Indicators: an up-arrow on the shelf time pill and an "Update" pill in the Quick Settings header (reboot only on the ISO).
 - Instellingen › Over › Updates: automatic-updates toggle (root helper `polder-autoupdate` via pkexec + polkit policy), last update (unattended-upgrades log or apt history), "Nu controleren" (PackageKit refresh + update count, plus Flatpak count), link to Polder Store › Updates (`store.py updates`).
+
+## Rev 27: polder-shell (merged services)
+
+- `config/shell/polder-shell.py`: notifications, shelf (+ desktop window), launcher, clipboard history, settings daemon and hotkeys (keyd) run in ONE process with one GTK main loop. settingsd and keyd run in threads; their actions reach the main loop via `GLib.idle_add`.
+- Each module starts in its own try/except; thread modules are restarted after a crash. The session scripts run a supervisor loop that restarts polder-shell; `POLDER_SHELL=0` starts the old separate processes.
+- One IPC channel replaces the per-process SIGUSR1/SIGUSR2 toggles: unix socket `osb/shellipc.py` with `launcher | clip | clip-clear | notify-reload | ping`. Callers updated (`launcher-toggle.sh`, `clip-toggle.sh` with fallback, keyd, Instellingen, apply.py).
+- Memory (PSS): 175 MB for the six Python services → 61–72 MB for polder-shell (184 → ~75 MB including tint2 + picom).

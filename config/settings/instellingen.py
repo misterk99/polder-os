@@ -267,7 +267,7 @@ class App(Gtk.Window):
         self.row(c, 'Klembordgeschiedenis', 'Super+V toont de laatste 10 gekopieerde items (tekst en afbeeldingen). Wachtwoorden uit wachtwoordmanagers worden overgeslagen.',
                  self.switch(S.load().get('clipboard_history', True), lambda v: S.update(clipboard_history=v)))
         cb = Gtk.Button(label='Geschiedenis wissen'); cb.get_style_context().add_class('btn')
-        cb.connect('clicked', lambda *a: subprocess.run(['pkill', '-USR2', '-f', 'clip/clipd.py'], timeout=3))
+        cb.connect('clicked', lambda *a: __import__('shellipc').send('clip-clear') or subprocess.run(['pkill', '-USR2', '-f', 'clip/clipd.py'], timeout=3))
         self.row(c, 'Klembordgeschiedenis wissen', 'Verwijdert alle opgeslagen items.', cb, last=True)
 
     def page_datum(self, o):

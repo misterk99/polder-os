@@ -120,7 +120,7 @@ class Daemon:
         open(N.BUSFILE, 'w').write(os.environ['DBUS_SESSION_BUS_ADDRESS'])
         self.state = N.load(); self.next_id = max([h['id'] for h in self.state['history']] + [0]) + 1
         self.popups = []  # list of (id, window)
-        prov = Gtk.CssProvider(); prov.load_from_data(CSS.encode())
+        self.prov = prov = Gtk.CssProvider(); prov.load_from_data(CSS.encode())
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), prov, 800)
         self.bgprov = Gtk.CssProvider(); Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), self.bgprov, 900)
         self.bgrules = {}
