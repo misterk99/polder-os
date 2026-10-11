@@ -87,6 +87,10 @@ class QS(Gtk.Window):
         mn = ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'][d.month-1]
         hdr.pack_start(self.pill(f'{dn} {d.day} {mn}', 'x-office-calendar-symbolic'), False, False, 0)
         hdr.pack_end(self.pill(OSBS.VERSION, None), False, False, 0)
+        if os.path.exists('/tmp/osb-update.json'):   # Revision 26: ChromeOS 'Update' pill -> reboot (ISO) after confirmation via notification action
+            up = self.pill('Update', 'go-up-symbolic'); up.get_style_context().add_class('active'); up.set_tooltip_text('Opnieuw opstarten om bij te werken')
+            up.connect('clicked', lambda *a: (subprocess.Popen(['systemctl', 'reboot']) if os.environ.get('POLDEROS_ISO') else print('update pill: reboot (prototype: skipped)', flush=True)))
+            hdr.pack_end(up, False, False, 0)
         panel.pack_start(hdr, False, False, 0)
         # Revision 18: MPRIS media card (only when a player has something playing/paused; hidden otherwise)
         P = N.palette(); mc = Gtk.CssProvider(); mc.load_from_data(f'''

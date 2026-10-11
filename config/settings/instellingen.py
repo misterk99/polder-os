@@ -351,6 +351,38 @@ class App(Gtk.Window):
         self.row(c, 'Scherm', f'{scr.get_width()} × {scr.get_height()}')
         wb = Gtk.Button(label='Openen'); wb.connect('clicked', lambda *x: subprocess.Popen([sys.executable, os.path.join(C, 'welcome', 'welkom.py')], start_new_session=True))
         self.row(c, 'Welkom bij Polder OS', 'De rondleiding van de eerste keer opnieuw bekijken.', wb, last=True)
+        self.updates_card(o)
+
+    def updates_card(self, o):   # Revision 26: automatic updates
+        import updates as U
+        c = self.card(o, 'Updates')
+        en = U.auto_enabled()
+        if en is None: self.row(c, 'Automatische updates', 'unattended-upgrades is niet ingesteld op dit systeem (wel in de Polder OS ISO).')
+        else:
+            def toggle(v):
+                def work():
+                    ok = U.set_auto(v); GLib.idle_add(lambda: (setattr(self, 'upd_msg', None if ok else 'Wijzigen mislukt (geen toestemming).'), self.show('over')))
+                threading.Thread(target=work, daemon=True).start()
+            self.row(c, 'Automatische updates', 'Beveiligings- en stabiele updates \'s nachts installeren (unattended-upgrades) en Flatpak-apps dagelijks bijwerken.', self.switch(en, toggle))
+        lu = U.last_update()
+        self.row(c, 'Laatst bijgewerkt', time.strftime('%d-%m-%Y %H:%M', time.localtime(lu[0])) + f' (bron: {lu[1]})' if lu else 'Nog nooit (geen updategeschiedenis gevonden)')
+        rb = U.reboot_required()
+        if rb: self.row(c, 'Opnieuw opstarten vereist', 'Updates zijn geïnstalleerd; start opnieuw op om ze te gebruiken.', err=True)
+        nb = Gtk.Button(label='Nu controleren')
+        def check(*a):
+            self.upd_msg = 'Controleren…'; self.show('over')
+            def done(r):
+                parts = []
+                if r['apt'] is not None: parts.append(f"{r['apt']} Debian-update(s)")
+                if r['flatpak'] is not None: parts.append(f"{r['flatpak']} Flatpak-update(s)")
+                msg = ', '.join(parts) or 'Controleren mislukt'
+                if r['error'] and r['apt'] is None: msg += f" · {r['error'][:90]}"
+                GLib.idle_add(lambda: (setattr(self, 'upd_msg', msg + ' · ' + time.strftime('%H:%M')), self.cur == 'over' and self.show('over')))
+            U.check(done)
+        nb.connect('clicked', check)
+        self.row(c, 'Controleren op updates', getattr(self, 'upd_msg', None) or 'Via PackageKit (Debian) en Flatpak.', nb)
+        sb = Gtk.Button(label='Openen'); sb.connect('clicked', lambda *a: subprocess.Popen([sys.executable, os.path.join(C, 'store', 'store.py'), 'updates'], start_new_session=True))
+        self.row(c, 'Updates in Polder Store', 'Bekijk en installeer beschikbare updates.', sb, last=True)
 
     def quit(self, *a):
         try: os.remove(PID)

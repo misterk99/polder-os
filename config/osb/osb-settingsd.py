@@ -16,6 +16,28 @@ def weather_fetch():
     except Exception as e: print('weather', e, flush=True)
     subprocess.Popen(['pkill', '-USR1', '-x', 'tint2'])   # re-run executors -> pill updates (or hides) now
 
+def reboot_watch():
+    """Revision 26: when /var/run/reboot-required appears, one real notification with a reboot action + state file for QS/shelf."""
+    import json, updates as U
+    seen = None
+    while True:
+        r = U.reboot_required(); st = '/tmp/osb-update.json'
+        if r and r['since'] != seen:
+            seen = r['since']; json.dump(r, open(st, 'w'))
+            subprocess.Popen(['pkill', '-USR1', '-x', 'tint2'])
+            n = subprocess.run(['notify-send', '-a', 'Systeem', '-i', 'system-software-update-symbolic', '-A', 'reboot=Nu opnieuw opstarten', '--wait',
+                                'Opnieuw opstarten om bij te werken', 'Er zijn updates geïnstalleerd' + (f" ({', '.join(r['pkgs'][:3])})" if r['pkgs'] else '') + '.'],
+                               capture_output=True, text=True).stdout.strip()
+            if n == 'reboot':
+                if os.environ.get('POLDEROS_ISO'): subprocess.Popen(['systemctl', 'reboot'])
+                else: print('reboot requested (prototype box: not rebooting)', flush=True)
+        elif not r and seen:
+            seen = None
+            try: os.remove(st)
+            except OSError: pass
+            subprocess.Popen(['pkill', '-USR1', '-x', 'tint2'])
+        time.sleep(30)
+
 def idle_lock():
     """Auto-lock: poll X idle time (XScreenSaver extension via python-xlib) every 5 s."""
     try:
@@ -36,6 +58,7 @@ def idle_lock():
 
 def main():
     threading.Thread(target=idle_lock, daemon=True).start()
+    threading.Thread(target=reboot_watch, daemon=True).start()
     s = S.load()
     if not os.path.exists(S.FILE): S.save(s)
     A.kbd(s); A.night(s)

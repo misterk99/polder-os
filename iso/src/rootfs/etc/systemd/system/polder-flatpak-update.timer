@@ -1,0 +1,8 @@
+[Unit]
+Description=Polder OS: Flatpak apps dagelijks bijwerken
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=2h
+Persistent=true
+[Install]
+WantedBy=timers.target

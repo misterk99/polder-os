@@ -36,6 +36,8 @@ case $1 in
    if command -v nmcli >/dev/null && q=$(nmcli -t -f IN-USE,SIGNAL dev wifi 2>/dev/null | awk -F: '$1=="*"{print $2}') && [ -n "$q" ]; then
      SIG=excellent; [ $q -lt 80 ] && SIG=good; [ $q -lt 60 ] && SIG=ok; [ $q -lt 30 ] && SIG=weak
      icon $S/status/network-wireless-signal-$SIG-symbolic.svg /tmp/osb-wifi.png; PARTS="$PARTS ( -size 10x20 xc:none ) /tmp/osb-wifi.png"; fi
+   # Revision 26: pending-reboot indicator (up arrow) after automatic updates
+   if [ -f /tmp/osb-update.json ]; then icon $(ls $S/*/go-up-symbolic.svg | head -1) /tmp/osb-upd.png; PARTS="$PARTS ( -size 4x20 xc:none ) /tmp/osb-upd.png"; fi
    f=$(ls -d /sys/class/power_supply/BAT* 2>/dev/null | head -1)
    if [ -n "$f" ]; then BL=$(( ($(cat $f/capacity)+5)/10*10 )); icon $S/status/battery-level-$BL-symbolic.svg /tmp/osb-bat.png; PARTS="$PARTS ( -size 4x20 xc:none ) /tmp/osb-bat.png"; fi
    TF=%H:%M; [ "$(setting clock24 1)" = 0 ] && TF=%-I:%M

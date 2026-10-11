@@ -1,0 +1,4 @@
+#!/bin/sh
+# Root helper (pkexec): enable/disable unattended-upgrades. Only writes this one file.
+case "$1" in on) v=1;; off) v=0;; *) echo "usage: $0 on|off" >&2; exit 2;; esac
+printf 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Download-Upgradeable-Packages "%s";\nAPT::Periodic::Unattended-Upgrade "%s";\nAPT::Periodic::AutocleanInterval "7";\n' $v $v > /etc/apt/apt.conf.d/20auto-upgrades

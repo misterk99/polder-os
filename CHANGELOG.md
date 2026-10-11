@@ -191,3 +191,10 @@ _History reconstructed from the development log; intermediate file states were n
 - `config/webapps/webapps.py` (install/list/remove, CLI too): icon comes from the site itself: Web App Manifest (largest) → apple-touch-icon / `<link rel=icon>` → `/favicon.ico` (largest .ico frame), saved as 128 px …
 - Creates `$XDG_DATA_HOME/applications/polder-webapp-<id>.desktop`: `chromium --user-data-dir=~/.config/polder-webapps --app=URL --class=PolderWebApp-<id>`. All webapps share one profile, which is separate from the …
 - Window matching: Chromium names `--app` windows with WM_CLASS instance `<host>` or `<host>_<path with / → _>` (`music.youtube.com`, `outlook.live.com__mail`). That is the StartupWMClass. The `--class` only takes …
+
+## Rev 26: automatic updates
+
+- ISO: `unattended-upgrades` (security + stable updates, nightly via apt-daily timers, never auto-reboots) and `polder-flatpak-update.timer` (daily `flatpak update --system`).
+- `config/osb/updates.py`: shared logic. `osb-settingsd` watches `/var/run/reboot-required` and sends the notification "Opnieuw opstarten om bij te werken" with the action "Nu opnieuw opstarten"; it also writes `/tmp/osb-update.json`.
+- Indicators: an up-arrow on the shelf time pill and an "Update" pill in the Quick Settings header (reboot only on the ISO).
+- Instellingen › Over › Updates: automatic-updates toggle (root helper `polder-autoupdate` via pkexec + polkit policy), last update (unattended-upgrades log or apt history), "Nu controleren" (PackageKit refresh + update count, plus Flatpak count), link to Polder Store › Updates (`store.py updates`).

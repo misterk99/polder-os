@@ -12,3 +12,7 @@ fonts-roboto fonts-noto-color-emoji papirus-icon-theme arc-theme adwaita-icon-th
 flatpak packagekit packagekit-tools appstream gir1.2-packagekitglib-1.0 gir1.2-appstream-1.0 gir1.2-flatpak-1.0 lxpolkit
 calamares calamares-settings-debian squashfs-tools rsync cryptsetup dosfstools e2fsprogs btrfs-progs os-prober grub-efi-amd64 grub-pc-bin efibootmgr
 nano less bash-completion man-db
+
+# Revision 26: automatic updates
+unattended-upgrades
+apt-listchanges

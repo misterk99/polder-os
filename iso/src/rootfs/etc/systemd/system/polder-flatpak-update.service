@@ -1,0 +1,9 @@
+[Unit]
+Description=Polder OS: Flatpak apps bijwerken
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/flatpak update --system --noninteractive --assumeyes
+Nice=10
+IOSchedulingClass=idle

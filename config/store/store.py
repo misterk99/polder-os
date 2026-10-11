@@ -421,4 +421,6 @@ class Store(Gtk.Window):
         self.back.set_visible(bool(self.history))
 
 if __name__ == '__main__':
-    Store(); Gtk.main()
+    st = Store()
+    if 'updates' in sys.argv[1:]: GLib.idle_add(lambda: st.tabs['updates'].set_active(True))   # Revision 26: deep link from Instellingen
+    Gtk.main()
