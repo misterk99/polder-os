@@ -1,0 +1,6 @@
+// Polder OS: members of 'sudo' may install/update software after entering their own password once
+// (auth_admin_keep caches it for a few minutes). The agent is lxpolkit, started by polderos-session.
+polkit.addRule(function(action, subject) {
+  if ((action.id.indexOf("org.freedesktop.packagekit.") == 0 || action.id.indexOf("org.freedesktop.Flatpak.") == 0) && subject.isInGroup("sudo"))
+    return polkit.Result.AUTH_ADMIN_KEEP;
+});

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Polder Store
+GenericName=Software
+Comment=Apps zoeken, installeren en bijwerken (Debian en Flathub)
+Exec=python3 /workspace/osbuilder/config/store/store.py
+Icon=system-software-install
+Terminal=false
+Type=Application
+Categories=System;PackageManager;
+Keywords=apps;software;installeren;store;winkel;flatpak;updates;
+StartupWMClass=polder-store
