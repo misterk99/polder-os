@@ -14,6 +14,7 @@ CMD = {
     'clip': f'{C}/clip/clip-toggle.sh',
     'shortcuts': f'python3 {C}/shortcuts/sneltoetsen.py',
     'overview': '@overview',
+    'desk prev': '@desk-prev', 'desk next': '@desk-next', 'move prev': '@move-prev', 'move next': '@move-next',   # Rev 34h
 }
 for sc in ST.KEYD:
     if sc.get('tap'): continue                       # Super tap = launcher: built into the compositor

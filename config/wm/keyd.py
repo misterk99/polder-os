@@ -43,6 +43,8 @@ def launch(mode):
         subprocess.Popen([os.path.join(HERE, '..', 'lock', 'lock-now.sh')], start_new_session=True); return
     if mode == 'launcher':
         subprocess.Popen([os.path.join(HERE, '..', 'launcher', 'launcher-toggle.sh')]); return
+    if mode.startswith('desk ') or mode.startswith('move '):   # Rev 34h: Super+[ ] / Super+Shift+[ ] (xfwm4 desks via wmctrl)
+        subprocess.Popen([sys.executable, os.path.join(HERE, 'desks.py'), *mode.split()]); return
     if mode.startswith('snap '):
         side = mode.split()[1]
         subprocess.Popen([sys.executable, os.path.join(HERE, 'snap.py'), side])

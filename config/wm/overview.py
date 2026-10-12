@@ -113,7 +113,11 @@ class Overview(Base):
             box.get_style_context().add_class('desk')
             if d == cur: box.get_style_context().add_class('current')
             mini = Gtk.Image.new_from_file(self.desk_mini(d)); box.pack_start(mini, False, False, 0)
-            box.pack_start(Gtk.Label(label=f'Bureau {d + 1}'), False, False, 0)
+            lr = Gtk.Box(spacing=4, halign=Gtk.Align.CENTER); lr.pack_start(Gtk.Label(label=f'Bureau {d + 1}'), False, False, 0)
+            if WL.desks() > 1 and (WAY or d == WL.desks() - 1):   # Rev 34h: remove desk (its windows go to the neighbour desk)
+                xb = Gtk.Button(); xb.add(Gtk.Image.new_from_icon_name('window-close-symbolic', Gtk.IconSize.MENU)); xb.get_style_context().add_class('x')
+                xb.set_tooltip_text('Bureau verwijderen'); xb.connect('clicked', lambda *_, d=d: self.del_desk(d)); lr.pack_start(xb, False, False, 0)
+            box.pack_start(lr, False, False, 0)
             ev.add(box); ev.connect('button-release-event', lambda w, e, d=d: self.switch(d)); self.desk_evs.append((ev, box))
             # drop target: move a dragged window to this desk
             ev.drag_dest_set(Gtk.DestDefaults.ALL, [Gtk.TargetEntry.new('osb-win', DNDFLAG, 0)], Gdk.DragAction.MOVE)
@@ -210,6 +214,10 @@ class Overview(Base):
         if WAY: WL.move_to_desk(wid, d)
         else: subprocess.run(['wmctrl', '-i', '-r', hex(wid), '-t', str(d)])
         self.quit()
+    def del_desk(self, d):
+        if WAY: WL.wl_cmd(f'deldesk {d}')
+        else: subprocess.run(['wmctrl', '-n', str(WL.desks() - 1)])   # xfwm4 only removes the last desk; its windows move left
+        self.quit(); return True
     def new_desk(self, *a):
         if WAY: WL.new_desk(); self.quit(); return
         n = WL.desks(); subprocess.run(['wmctrl', '-n', str(n + 1)]); subprocess.run(['wmctrl', '-s', str(n)]); self.quit()

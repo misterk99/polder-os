@@ -681,7 +681,8 @@ static int dump_windows(int sig, void *data) {
 static void switch_desk(struct server *s, int d) {
 	if (d < 0 || d >= s->ndesks) return;
 	s->cur_desk = d; struct view *v;
-	wl_list_for_each(v, &s->views, link) view_sync_enabled(v);
+	/* Rev 34h: the shelf (foreign-toplevel) lists only this desk's windows, like ChromeOS */
+	wl_list_for_each(v, &s->views, link) { view_sync_enabled(v); if (v->mapped && v->desk == d) ftl_create(v); else ftl_destroy(v); }
 	struct wlr_surface *fs = s->seat->keyboard_state.focused_surface; bool keep = false;
 	wl_list_for_each(v, &s->views, link) if (v->mapped && view_shown(v) && view_surface(v) == fs) keep = true;
 	if (fs && wlr_layer_surface_v1_try_from_wlr_surface(fs)) keep = true;   /* the overview itself */
@@ -782,7 +783,7 @@ static void run_command(struct server *s, char *line) {
 	}
 	else if (!strcmp(cmd, "movedesk") && n >= 3) {
 		struct view *v = view_by_id(s, a);
-		if (v && b >= 0 && b < s->ndesks) { v->desk = b; view_sync_enabled(v);
+		if (v && b >= 0 && b < s->ndesks) { v->desk = b; view_sync_enabled(v); if (b != s->cur_desk) ftl_destroy(v);
 			if (b != s->cur_desk && s->seat->keyboard_state.focused_surface == view_surface(v)) switch_desk(s, s->cur_desk); }
 	}
 	else wlr_log(WLR_ERROR, "unknown command '%s'", line);
@@ -840,6 +841,13 @@ static bool internal_action(struct server *s, const char *a) {
 		struct timespec now; clock_gettime(CLOCK_MONOTONIC, &now);
 		double dt = (now.tv_sec - s->alttab_t.tv_sec) + (now.tv_nsec - s->alttab_t.tv_nsec) / 1e9;
 		if (dt > 1.5) { s->alttab_t = now; spawn_overview(s, a[7] ? "alttab back" : "alttab"); }
+		return true;
+	}
+	if (!strncmp(a, "@desk-", 6) || !strncmp(a, "@move-", 6)) {   /* Rev 34h: Super+[ ] / Super+Shift+[ ] */
+		int t = s->cur_desk + (strstr(a, "next") ? 1 : -1);
+		if (t < 0 || t >= s->ndesks) return true;
+		if (a[1] == 'm' && v) { v->desk = t; view_sync_enabled(v); }
+		switch_desk(s, t); if (a[1] == 'm' && v) focus_view(v);
 		return true;
 	}
 	if (!strcmp(a, "@overview")) { if (s->overview_cmd) spawn_overview(s, "overview"); return true; }

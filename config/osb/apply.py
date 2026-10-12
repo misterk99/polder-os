@@ -29,8 +29,24 @@ def palette(s):
         try: os.remove(f)
         except OSError: pass
 
+def wayland_theme(s):
+    """Rev 34h: live theme on polder-comp. GTK3 Wayland apps follow GSettings (org.gnome.desktop.interface, dconf) live;
+    X11 apps under Xwayland follow XSETTINGS from xsettingsd (HUP = reload). The shelf/desktop reload palette.env + wallpaper.png by mtime."""
+    slot = open(os.path.expanduser('~/.config/osb/gtkslot')).read().strip()
+    dark = S.effective_theme(s) == 'dark'; name = f'PolderOS-GTK-{slot}'
+    for k, v in (('gtk-theme', name), ('color-scheme', 'prefer-dark' if dark else 'default'), ('icon-theme', 'Papirus'), ('font-name', 'Roboto 10')):
+        sh('gsettings', 'set', 'org.gnome.desktop.interface', k, v)
+    conf = os.path.expanduser('~/.config/xsettingsd/xsettingsd.conf'); os.makedirs(os.path.dirname(conf), exist_ok=True)
+    open(conf, 'w').write(f'Net/ThemeName "{name}"\nNet/IconThemeName "Papirus"\nGtk/FontName "Roboto 10"\nGtk/ApplicationPreferDarkTheme {int(dark)}\n')
+    if os.environ.get('DISPLAY'):   # Xwayland
+        if sh('pkill', '-HUP', '-x', 'xsettingsd') == '' and subprocess.run(['pgrep', '-x', 'xsettingsd'], capture_output=True).returncode != 0:
+            spawn('xsettingsd', '-c', conf, log='/tmp/xsettingsd.log')
+    for p in ('quicksettings/qs.py', 'calendar/cal.py'): sh('pkill', '-f', p)
+    sh('pkill', '-f', 'notify/osb-notifyd.py'); spawn('python3', os.path.join(C, 'notify/osb-notifyd.py'), log='/tmp/osb-notifyd.log')
+
 def theme(s):
     palette(s)
+    if os.environ.get('POLDER_COMP') and os.environ.get('WAYLAND_DISPLAY'): wayland_theme(s); return
     sh('feh', '--bg-fill', os.path.join(C, 'wallpaper.png'))
     sh('pkill', '-USR1', '-x', 'tint2')                                     # shelf reload
     sh('xfconf-query', '-c', 'xfwm4', '-p', '/general/theme', '-s', 'Default')  # xfwm4 only reloads on a name change
