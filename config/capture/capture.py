@@ -11,6 +11,8 @@ from gi.repository import Gtk, Gdk, GLib, GdkPixbuf
 import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), '..', 'osb')); import rgba as RGBA   # Rev 29.2: real rounded corners
 import cairo
 import osbsettings as S, osbnotify as N, popmenu
+import layershell as LSH   # Rev 34d: polder-comp = wlr-screencopy (grim / wf-recorder) + layer surfaces
+WL = bool(os.environ.get('POLDER_COMP') and os.environ.get('WAYLAND_DISPLAY'))
 FILES_HOME = os.environ.get('OSB_FILES_HOME', '/tmp/osb-files/Mijn bestanden')
 REC = '/tmp/osb-rec.json'; SHELF = 52
 
@@ -24,8 +26,22 @@ def dirs():
     vid = base or os.path.join(FILES_HOME, "Video's", 'Schermopnamen')
     return shot, vid
 
+def wl_windows():
+    """polder-comp: SIGUSR2 makes it dump visible windows (topmost first, window geometry) to polder-windows.json."""
+    f = os.path.join(os.environ.get('XDG_RUNTIME_DIR', '/tmp'), 'polder-windows.json')
+    try:
+        m0 = os.path.getmtime(f) if os.path.exists(f) else 0
+        os.kill(int(os.environ['POLDER_COMP_PID']), signal.SIGUSR2)
+        for _ in range(20):
+            if os.path.exists(f) and os.path.getmtime(f) != m0: break
+            time.sleep(0.05)
+        skip = {'polder-shelf', 'sneltoetsen.py'}
+        return [dict(id=i, title=w['title'], x=w['x'], y=w['y'], w=w['w'], h=w['h']) for i, w in enumerate(json.load(open(f))) if w['app_id'] not in skip]
+    except Exception as e: print('wl_windows', e, flush=True); return []
+
 def windows():
     """Normal windows on the current desk, topmost first, with frame geometry (x, y, w, h)."""
+    if WL: return wl_windows()
     out = []
     try:
         cur = [l.split()[0] for l in subprocess.run(['wmctrl', '-d'], capture_output=True, text=True, timeout=3).stdout.splitlines() if ' * ' in l][0]
@@ -69,7 +85,8 @@ def css():
 class Overlay(Gtk.Window):
     """Fullscreen layer over the frozen screen: dims everything except the selection (region / window / full)."""
     def __init__(self, app):
-        super().__init__(type=Gtk.WindowType.POPUP); self.app = app
+        super().__init__(type=Gtk.WindowType.TOPLEVEL if WL else Gtk.WindowType.POPUP); self.app = app
+        if WL: LSH.setup(self, 'polder-capture', layer='overlay', anchors=('left', 'right', 'top', 'bottom'), exclusive=-1, keyboard='exclusive')
         self.move(0, 0); self.set_size_request(app.sw, app.sh)
         self.da = Gtk.DrawingArea(); self.da.connect('draw', self.draw)
         self.da.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.BUTTON_RELEASE_MASK | Gdk.EventMask.POINTER_MOTION_MASK)
@@ -137,11 +154,16 @@ class Overlay(Gtk.Window):
 class App:
     def __init__(self):
         scr = Gdk.Screen.get_default(); self.sw, self.sh = scr.get_width(), scr.get_height()
-        root = Gdk.get_default_root_window(); self.frozen = Gdk.pixbuf_get_from_window(root, 0, 0, self.sw, self.sh)
+        if WL:   # frozen frame via wlr-screencopy (grim), taken before our overlay maps
+            tmp = os.path.join(os.environ.get('XDG_RUNTIME_DIR', '/tmp'), 'polder-capture-frozen.png')
+            subprocess.run(['grim', tmp], timeout=10); self.frozen = GdkPixbuf.Pixbuf.new_from_file(tmp); os.remove(tmp)
+            self.sw, self.sh = self.frozen.get_width(), self.frozen.get_height()
+        else:
+            root = Gdk.get_default_root_window(); self.frozen = Gdk.pixbuf_get_from_window(root, 0, 0, self.sw, self.sh)
         self.wins = windows(); self.mode = 'shot'; self.source = 'region'
         prov = Gtk.CssProvider(); prov.load_from_data(css().encode()); Gtk.StyleContext.add_provider_for_screen(scr, prov, 850)
         self.ov = Overlay(self); self.ov.show_all()
-        self.bar = Gtk.Window(type=Gtk.WindowType.POPUP); self.bar.set_name('barwin'); RGBA.enable(self.bar)
+        self.bar = Gtk.Window(type=Gtk.WindowType.TOPLEVEL if WL else Gtk.WindowType.POPUP); self.bar.set_name('barwin'); RGBA.enable(self.bar)
         b = Gtk.Box(spacing=4); b.set_name('bar'); self.bar.add(b)
         seg1 = Gtk.Box(spacing=2); seg1.get_style_context().add_class('seg'); self.mbtn = {}
         for k, icon, tip in (('shot', 'camera-photo-symbolic', 'Screenshot'), ('video', 'camera-video-symbolic', 'Schermopname (video)')):
@@ -161,6 +183,7 @@ class App:
         self._busy = False; self.mbtn['shot'].set_active(True); self.sbtn['region'].set_active(True)
         b.show_all(); bw, bh = b.get_preferred_size()[1].width, b.get_preferred_size()[1].height
         self.bx, self.by = (self.sw - bw) // 2, self.sh - SHELF - bh - 16
+        if WL: LSH.setup(self.bar, 'polder-capture-bar', layer='overlay', anchors=('bottom',), margins={'bottom': SHELF + 16}, exclusive=-1, keyboard='none')
         bg = '/tmp/osb-capbar-bg.png'
         if RGBA.active(self.bar):
             p2 = Gtk.CssProvider(); p2.load_from_data(b'#barwin { background: transparent; background-image: none; }'); self.bar.get_style_context().add_provider(p2, 905)
@@ -180,6 +203,7 @@ class App:
         self.bar.get_style_context().add_provider(p, 901); self.bar.queue_draw()
 
     def grab(self):
+        if WL: return False   # the overlay layer has exclusive keyboard interactivity
         st = Gdk.Display.get_default().get_default_seat().grab(self.ov.get_window(), Gdk.SeatCapabilities.KEYBOARD, True, None, None, None, None)
         return st != Gdk.GrabStatus.SUCCESS
 
@@ -211,9 +235,9 @@ class App:
         items = [(None, f'Opslaan in: {os.path.basename(shot)}' + ('' if s.get('capture_dir') else ' / Schermopnamen'), None),
                  ('folder-symbolic', 'Map wijzigen…', choose_dir)]
         if s.get('capture_dir'): items.append(('edit-undo-symbolic', 'Standaardmappen herstellen', lambda: S.update(capture_dir='')))
-        items += [None, ('object-select-symbolic' if ptr else None, 'Muisaanwijzer tonen (video)', toggle_ptr)]
+        if not WL: items += [None, ('object-select-symbolic' if ptr else None, 'Muisaanwijzer tonen (video)', toggle_ptr)]   # wf-recorder can't draw the pointer
         # no audio stack in this session (no PulseAudio/PipeWire) -> microphone option hidden, not faked
-        a = btn.get_allocation(); x, y = self.bar.get_window().get_origin()[1:]
+        a = btn.get_allocation(); x, y = (self.bx, self.by) if WL else self.bar.get_window().get_origin()[1:]
         popmenu.PopMenu(items, x + a.x, y - 8, anchor='above', title='Schermopname', on_close=lambda: self.grab() and False)
 
     def key(self, w, e):
@@ -235,7 +259,8 @@ class App:
         if self.mode == 'shot':
             os.makedirs(shot, exist_ok=True); path = os.path.join(shot, f'Schermafbeelding {stamp}.png')
             self.frozen.new_subpixbuf(x, y, w, h).savev(path, 'png', [], [])
-            subprocess.Popen(['sh', '-c', 'xclip -selection clipboard -t image/png -i "$0" >/dev/null 2>&1 &', path])   # xclip keeps owning the clipboard
+            if WL: subprocess.Popen(['sh', '-c', 'wl-copy -t image/png < "$0" >/dev/null 2>&1', path])   # wl-copy forks and keeps serving it
+            else: subprocess.Popen(['sh', '-c', 'xclip -selection clipboard -t image/png -i "$0" >/dev/null 2>&1 &', path])   # xclip keeps owning the clipboard
             self.notify('Schermafbeelding gemaakt', 'Ook gekopieerd naar het klembord.', path, shot)
             self.quit(); return
         # video: even sizes for x264
@@ -243,7 +268,10 @@ class App:
         ptr = '1' if S.load().get('capture_pointer', False) else '0'
         ff = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'x11grab', '-draw_mouse', ptr, '-framerate', '20', '-video_size', f'{w}x{h}',
               '-i', f"{os.environ.get('DISPLAY', ':0')}+{x},{y}", '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-threads', '2', '-crf', '28', '-pix_fmt', 'yuv420p', '-t', '3600', path]
+        if WL:   # wlr-screencopy recorder; SIGINT finalizes the file like ffmpeg
+            ff = ['wf-recorder', '-y', '-g', f'{x},{y} {w}x{h}', '-r', '20', '-c', 'libx264', '-p', 'preset=ultrafast', '-p', 'crf=28', '-x', 'yuv420p', '-f', path]
         self.hide_all()
+        if WL: time.sleep(0.3)   # let the overlay unmap before the first frame
         subprocess.Popen([sys.executable, os.path.abspath(__file__), '--record', json.dumps(ff)], start_new_session=True,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         GLib.timeout_add(300, Gtk.main_quit)
@@ -252,7 +280,8 @@ class App:
         notify(title, body, image, folder)
 
     def hide_all(self):
-        Gdk.Display.get_default().get_default_seat().ungrab(); self.bar.hide(); self.ov.hide()
+        if not WL: Gdk.Display.get_default().get_default_seat().ungrab()
+        self.bar.hide(); self.ov.hide()
         Gdk.Display.get_default().flush()
 
     def quit(self):

@@ -632,6 +632,29 @@ static void new_lock(struct wl_listener *l, void *d) {
  * Source: $POLDER_KEYS file, else the output of `python3 $POLDER_CONFIG/wm/wlkeys.py`. '@x' = internal action. */
 struct binding { uint32_t mods; xkb_keysym_t sym; char *cmd; };
 static struct binding bindings[64]; static int nbindings;
+/* Rev 34d: SIGUSR2 -> $XDG_RUNTIME_DIR/polder-windows.json: visible windows (topmost first) with geometry, for the
+ * capture bar's 'Venster' mode (foreign-toplevel has no geometry). Pid in $POLDER_COMP_PID. */
+static void json_str(FILE *f, const char *t) {
+	fputc('"', f);
+	for (; *t; t++) { if (*t == '"' || *t == '\\') fputc('\\', f); if ((unsigned char)*t >= 0x20) fputc(*t, f); }
+	fputc('"', f);
+}
+static const char *view_title(struct view *v); static const char *view_appid(struct view *v);
+static int dump_windows(int sig, void *data) {
+	(void)sig; struct server *s = data; char path[512], tmp[520];
+	snprintf(path, sizeof path, "%s/polder-windows.json", getenv("XDG_RUNTIME_DIR") ? getenv("XDG_RUNTIME_DIR") : "/tmp");
+	snprintf(tmp, sizeof tmp, "%s.tmp", path);
+	FILE *f = fopen(tmp, "w"); if (!f) return 0;
+	fputc('[', f); bool first = true; struct view *v;
+	wl_list_for_each(v, &s->views, link) {
+		if (!v->mapped || v->minimized) continue;
+		struct wlr_box b; view_box(v, &b);
+		fprintf(f, "%s{\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"app_id\":", first ? "" : ",", b.x, b.y, b.width, b.height);
+		json_str(f, view_appid(v)); fputs(",\"title\":", f); json_str(f, view_title(v)); fputc('}', f); first = false;
+	}
+	fputs("]\n", f); fclose(f); rename(tmp, path);
+	return 0;
+}
 static void load_bindings(void) {
 	FILE *f = NULL; bool pipe = false; char buf[1024];
 	if (getenv("POLDER_KEYS")) f = fopen(getenv("POLDER_KEYS"), "r");
@@ -920,8 +943,10 @@ int main(int argc, char *argv[]) {
 	setenv("WLR_HEADLESS_OUTPUTS", "0", 0); /* we add our own 1366x768 output */
 	setenv("GTK_IM_MODULE", "gtk-im-context-simple", 0);   /* no text-input-v3 yet: GTK3 wayland IM would swallow typed text */
 	load_bindings();
+	{ char pid[16]; snprintf(pid, sizeof pid, "%d", (int)getpid()); setenv("POLDER_COMP_PID", pid, 1); }
 	setenv("POLDER_COMP", "1", 1);   /* Rev 34b: lets session scripts pick the Wayland code paths (lock, idle, ...) */
 	s.backend = wlr_backend_autocreate(wl_display_get_event_loop(s.display), NULL);
+	wl_event_loop_add_signal(wl_display_get_event_loop(s.display), SIGUSR2, dump_windows, &s);   /* Rev 34d */
 	if (!s.backend) { wlr_log(WLR_ERROR, "no backend"); return 1; }
 #ifdef POLDER_SCENEFX
 	s.renderer = fx_renderer_create(s.backend);

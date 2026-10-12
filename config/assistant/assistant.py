@@ -131,13 +131,7 @@ class Assistant(Gtk.Window):
         self.entry.grab_focus()
 
     def hide_a(self):
-        if LSH.active(self):
-            self.save()
-            # Wayland: once polder-comp dismissed the panel (layer_surface.closed) gtk-layer-shell can't map it again in this
-            # process, so a hidden assistant simply exits; the next Super+A / --show starts a fresh one (conversation resets).
-            try: os.remove(PIDF)
-            except OSError: pass
-            Gtk.main_quit(); return True
+        if LSH.active(self): self.save()   # transcript also survives a session restart (30 min)
         self.hide(); return True
     def maybe_hide(self):
         if self.get_visible() and not self.is_active() and not self.modal and not self.busy: self.hide_a()
