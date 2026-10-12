@@ -2,17 +2,17 @@
 set -e
 # branding
 cat > /usr/lib/os-release <<'R'
-PRETTY_NAME="Polder OS 0.30"
+PRETTY_NAME="Polder OS 0.30.1"
 NAME="Polder OS"
-VERSION_ID="0.30"
-VERSION="0.30"
+VERSION_ID="0.30.1"
+VERSION="0.30.1"
 VERSION_CODENAME=trixie
 ID=polderos
 ID_LIKE=debian
 HOME_URL="https://github.com/"
 R
 ln -sf ../usr/lib/os-release /etc/os-release
-echo "Polder OS 0.30 \\n \\l" > /etc/issue
+echo "Polder OS 0.30.1 \\n \\l" > /etc/issue
 # Dutch locale available (UI is Dutch), keep en_US too
 sed -i 's/^# *\(nl_NL.UTF-8\)/\1/; s/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen; locale-gen
 # only our X session; lightdm greeter = ours
@@ -26,8 +26,8 @@ chmod -R a+rX /usr/share/polderos
 B=/etc/calamares/branding/debian
 if [ -d $B ]; then
   sed -i -e 's/productName: *.*/productName:         "Polder OS"/' -e 's/shortProductName: *.*/shortProductName:    "Polder OS"/' \
-         -e 's/version: *.*/version:             "0.30"/' -e 's/shortVersion: *.*/shortVersion:        "0.30"/' \
-         -e 's/versionedName: *.*/versionedName:       "Polder OS 0.30"/' -e 's/shortVersionedName: *.*/shortVersionedName:  "Polder OS 0.30"/' \
+         -e 's/version: *.*/version:             "0.30.1"/' -e 's/shortVersion: *.*/shortVersion:        "0.30.1"/' \
+         -e 's/versionedName: *.*/versionedName:       "Polder OS 0.30.1"/' -e 's/shortVersionedName: *.*/shortVersionedName:  "Polder OS 0.30.1"/' \
          -e 's/bootloaderEntryName: *.*/bootloaderEntryName: "PolderOS"/' $B/branding.desc
   cp /usr/share/polderos/config/brand/polderos-logo.png $B/ 2>/dev/null && sed -i 's/productLogo: *.*/productLogo:         "polderos-logo.png"/; s/productIcon: *.*/productIcon:         "polderos-logo.png"/' $B/branding.desc
   for f in /usr/share/applications/install-debian.desktop /usr/share/applications/calamares-install-debian.desktop; do [ -f $f ] && sed -i 's/^Name=.*/Name=Polder OS installeren/; s/^Name\[.*//' $f; done

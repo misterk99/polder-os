@@ -4,7 +4,7 @@ import os, json, copy, datetime
 CFG = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 FILE = os.environ.get('OSB_SETTINGS') or os.path.expanduser('~/.config/osb/settings.json')
 CACHE = os.path.expanduser('~/.cache/osb')
-VERSION = 'Polder OS 0.30'
+VERSION = 'Polder OS 0.30.1'
 DEFAULTS = {
     'theme': 'light',            # light | dark | auto (licht 07:00-19:00)
     'accent': 'blauw',

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Polder OS ISO build (Debian live-build, trixie amd64). Usage: sudo ./build.sh   (log: build/build.log)
 set -e
-ISO=$(cd "$(dirname "$0")" && pwd); P=$ISO/..; B=$ISO/build; VER=0.30
+ISO=$(cd "$(dirname "$0")" && pwd); P=$ISO/..; B=$ISO/build; VER=0.30.1
 mkdir -p $B; cd $B
 lb clean >/dev/null 2>&1 || true
 rm -rf config
@@ -11,7 +11,7 @@ lb config --distribution trixie --architectures amd64 --binary-images iso-hybrid
   --apt-recommends false --apt-options "--yes -o Acquire::Retries=10" \
   --debian-installer none --firmware-chroot false --firmware-binary false \
   --bootappend-live "boot=live components quiet splash locales=nl_NL.UTF-8 keyboard-layouts=us timezone=Europe/Amsterdam username=polder user-fullname=Polder hostname=polderos" \
-  --iso-application "Polder OS" --iso-volume "POLDEROS_${VER/./_}" --iso-publisher "Polder OS" \
+  --iso-application "Polder OS" --iso-volume "POLDEROS_${VER//./_}" --iso-publisher "Polder OS" \
   --bootloaders grub-pc,grub-efi --image-name polderos-$VER --memtest none --cache true
 cp $ISO/src/polderos.list.chroot config/package-lists/
 # our code + session + branding
@@ -28,6 +28,6 @@ cp $ISO/src/hooks/* config/hooks/normal/
 # boot menus: title + wallpaper
 mkdir -p config/bootloaders; cp -a /usr/share/live/build/bootloaders/grub-pc config/bootloaders/
 convert $P/config/wallpapers/polderheuvel.png -resize 800x600! -fill black -colorize 35% config/bootloaders/grub-pc/splash.png
-sed -i 's/^title-text:.*/title-text: "Polder OS 0.30"/' config/bootloaders/grub-pc/live-theme/theme.txt
+sed -i 's/^title-text:.*/title-text: "Polder OS 0.30.1"/' config/bootloaders/grub-pc/live-theme/theme.txt
 date +%s > build.start
 lb build

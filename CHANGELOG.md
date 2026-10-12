@@ -239,3 +239,7 @@ _History reconstructed from the development log; intermediate file states were n
 
 - ISO version 0.30 with everything up to Rev 30; adds libsecret-tools, gnome-keyring, git, gh, python3-cryptography, age
 - Launcher finds the Weer/Webapps/Telefoon/Assistent/Sync settings; assistant hides after opening an app
+
+## ISO 0.30.1
+
+- Rebuild with the launcher and assistant fixes; release notes in `RELEASE-NOTES-0.30.1.md`
