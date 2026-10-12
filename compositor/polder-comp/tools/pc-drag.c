@@ -20,6 +20,7 @@ static void mv(struct wl_display *dpy, struct zwlr_virtual_pointer_v1 *p, int x,
 }
 int main(int argc, char **argv) {
 	if (argc < 5) { fprintf(stderr, "usage: pc-drag X1 Y1 X2 Y2 [steps] [W H]\n"); return 1; }
+	uint32_t btn = getenv("PC_BUTTON") ? strtoul(getenv("PC_BUTTON"), NULL, 0) : 0x110;   /* 0x111 = right */
 	int x1 = atoi(argv[1]), y1 = atoi(argv[2]), x2 = atoi(argv[3]), y2 = atoi(argv[4]);
 	int steps = argc > 5 ? atoi(argv[5]) : 20, W = argc > 7 ? atoi(argv[6]) : 1366, H = argc > 7 ? atoi(argv[7]) : 768;
 	struct wl_display *dpy = wl_display_connect(NULL); if (!dpy) { perror("connect"); return 1; }
@@ -27,8 +28,8 @@ int main(int argc, char **argv) {
 	if (!mgr) { fprintf(stderr, "no virtual pointer manager\n"); return 1; }
 	struct zwlr_virtual_pointer_v1 *p = zwlr_virtual_pointer_manager_v1_create_virtual_pointer(mgr, seat);
 	mv(dpy, p, x1, y1, W, H);
-	zwlr_virtual_pointer_v1_button(p, t++, 0x110, 1); zwlr_virtual_pointer_v1_frame(p); wl_display_roundtrip(dpy); usleep(50000);
+	zwlr_virtual_pointer_v1_button(p, t++, btn, 1); zwlr_virtual_pointer_v1_frame(p); wl_display_roundtrip(dpy); usleep(50000);
 	for (int i = 1; i <= steps; i++) mv(dpy, p, x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps, W, H);
-	zwlr_virtual_pointer_v1_button(p, t++, 0x110, 0); zwlr_virtual_pointer_v1_frame(p); wl_display_roundtrip(dpy);
+	zwlr_virtual_pointer_v1_button(p, t++, btn, 0); zwlr_virtual_pointer_v1_frame(p); wl_display_roundtrip(dpy);
 	zwlr_virtual_pointer_v1_destroy(p); wl_display_roundtrip(dpy); wl_display_disconnect(dpy); return 0;
 }

@@ -6,7 +6,7 @@
  * - Polder palette (POLDER_PALETTE=palette.env) for the background colour
  * - Super tap -> POLDER_LAUNCHER, Super+Return -> POLDER_TERMINAL, Super+Q close, Alt+Tab cycle, Super+Shift+Esc quit
  * - screencopy + xdg-output (grim), virtual keyboard/pointer (wtype, tests), xdg-decoration (client-side) */
-#define _POSIX_C_SOURCE 200112L
+#define _POSIX_C_SOURCE 200809L
 #include <assert.h>
 #include <getopt.h>
 #include <stdbool.h>
@@ -38,6 +38,7 @@
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_screencopy_v1.h>
+#include <wlr/types/wlr_foreign_toplevel_management_v1.h>
 #include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/types/wlr_virtual_keyboard_v1.h>
 #include <wlr/types/wlr_virtual_pointer_v1.h>
@@ -88,7 +89,8 @@ struct server {
 	float bg_color[4];
 	bool super_alone;
 	const char *launcher, *terminal;
-	struct wlr_box usable;   /* output area minus layer-shell exclusive zones */
+	struct wlr_box usable;
+	struct wlr_foreign_toplevel_manager_v1 *ftm;   /* Rev 33: shelf task list on Wayland */   /* output area minus layer-shell exclusive zones */
 };
 
 struct output { struct wl_list link; struct server *server; struct wlr_output *wlr; struct wl_listener frame, request_state, destroy; };
@@ -105,7 +107,9 @@ struct view {
 #else
 	struct wlr_scene_rect *shadow[4];
 #endif
-	bool mapped, placed;
+	bool mapped, placed, minimized;
+	struct wlr_foreign_toplevel_handle_v1 *ftl; char *ftl_title, *ftl_appid;
+	struct wl_listener ftl_activate, ftl_close, ftl_minimize, request_minimize;
 	bool has_target; int tx, ty;   /* desired window-geometry origin; re-applied on commit because CSD geometry changes (GTK drops shadows when tiled) */
 	int snap;               /* SNAP_NONE/LEFT/RIGHT/MAX */
 	struct wlr_box saved;   /* geometry before snapping */
@@ -202,8 +206,10 @@ static void focus_view(struct view *v) {
 	struct server *s = v->server; struct wlr_seat *seat = s->seat;
 	struct wlr_surface *surf = view_surface(v), *prev = seat->keyboard_state.focused_surface;
 	if (!surf) return;
+	if (v->minimized) { v->minimized = false; wlr_scene_node_set_enabled(&v->tree->node, true); if (v->ftl) wlr_foreign_toplevel_handle_v1_set_minimized(v->ftl, false); if (v->type == VIEW_X11) wlr_xwayland_surface_set_minimized(v->xs, false); }
 	wlr_scene_node_raise_to_top(&v->tree->node);
 	wl_list_remove(&v->link); wl_list_insert(&s->views, &v->link);
+	{ struct view *o; wl_list_for_each(o, &s->views, link) if (o->ftl) wlr_foreign_toplevel_handle_v1_set_activated(o->ftl, o == v); }
 	if (prev == surf) return;
 	struct view *pv;
 	wl_list_for_each(pv, &s->views, link) if (pv != v && pv->mapped && view_surface(pv) == prev) view_activate(pv, false);
@@ -310,6 +316,53 @@ static void view_snap(struct view *v, int mode) {
 	wlr_log(WLR_INFO, "snap %d -> %d,%d %dx%d", mode, t.x, t.y, t.width, t.height);
 }
 
+static const char *view_title(struct view *v) { const char *t = v->type == VIEW_XDG ? v->xdg->title : v->xs->title; return t ? t : ""; }
+static const char *view_appid(struct view *v) { const char *t = v->type == VIEW_XDG ? v->xdg->app_id : v->xs->class; return t ? t : ""; }
+static void ftl_sync(struct view *v) {   /* push title/app_id changes to the foreign-toplevel handle */
+	if (!v->ftl) return;
+	if (!v->ftl_title || strcmp(v->ftl_title, view_title(v))) { free(v->ftl_title); v->ftl_title = strdup(view_title(v)); wlr_foreign_toplevel_handle_v1_set_title(v->ftl, v->ftl_title); }
+	if (!v->ftl_appid || strcmp(v->ftl_appid, view_appid(v))) { free(v->ftl_appid); v->ftl_appid = strdup(view_appid(v)); wlr_foreign_toplevel_handle_v1_set_app_id(v->ftl, v->ftl_appid); }
+}
+static void focus_view(struct view *v);
+static void view_minimize(struct view *v, bool on) {
+	if (v->minimized == on) return;
+	v->minimized = on; wlr_scene_node_set_enabled(&v->tree->node, !on);
+	if (v->ftl) wlr_foreign_toplevel_handle_v1_set_minimized(v->ftl, on);
+	if (v->type == VIEW_X11) wlr_xwayland_surface_set_minimized(v->xs, on);
+	struct server *s = v->server;
+	if (on) {   /* send it to the back of the focus order and focus the next visible window */
+		wl_list_remove(&v->link); wl_list_insert(s->views.prev, &v->link);
+		if (v->ftl) wlr_foreign_toplevel_handle_v1_set_activated(v->ftl, false);
+		if (s->seat->keyboard_state.focused_surface == view_surface(v)) wlr_seat_keyboard_clear_focus(s->seat);
+		struct view *n; wl_list_for_each(n, &s->views, link) if (!n->minimized) { focus_view(n); break; }
+	}
+}
+static void ftl_on_activate(struct wl_listener *l, void *d) { struct view *v = wl_container_of(l, v, ftl_activate); (void)d; focus_view(v); }
+static void ftl_on_close(struct wl_listener *l, void *d) {
+	struct view *v = wl_container_of(l, v, ftl_close); (void)d;
+	if (v->type == VIEW_XDG) wlr_xdg_toplevel_send_close(v->xdg); else wlr_xwayland_surface_close(v->xs);
+}
+static void ftl_on_minimize(struct wl_listener *l, void *d) {
+	struct view *v = wl_container_of(l, v, ftl_minimize); struct wlr_foreign_toplevel_handle_v1_minimized_event *e = d;
+	if (e->minimized) view_minimize(v, true); else focus_view(v);
+}
+static void xdg_on_request_minimize(struct wl_listener *l, void *d) { struct view *v = wl_container_of(l, v, request_minimize); (void)d; if (v->mapped) view_minimize(v, true); }
+static void ftl_create(struct view *v) {
+	struct server *s = v->server; if (!s->ftm || v->ftl) return;
+	v->ftl = wlr_foreign_toplevel_handle_v1_create(s->ftm);
+	struct output *o; wl_list_for_each(o, &s->outputs, link) wlr_foreign_toplevel_handle_v1_output_enter(v->ftl, o->wlr);
+	v->ftl_activate.notify = ftl_on_activate; wl_signal_add(&v->ftl->events.request_activate, &v->ftl_activate);
+	v->ftl_close.notify = ftl_on_close; wl_signal_add(&v->ftl->events.request_close, &v->ftl_close);
+	v->ftl_minimize.notify = ftl_on_minimize; wl_signal_add(&v->ftl->events.request_minimize, &v->ftl_minimize);
+	ftl_sync(v);
+}
+static void ftl_destroy(struct view *v) {
+	if (!v->ftl) return;
+	wl_list_remove(&v->ftl_activate.link); wl_list_remove(&v->ftl_close.link); wl_list_remove(&v->ftl_minimize.link);
+	wlr_foreign_toplevel_handle_v1_destroy(v->ftl); v->ftl = NULL;
+	free(v->ftl_title); free(v->ftl_appid); v->ftl_title = v->ftl_appid = NULL;
+}
+
 static void view_map(struct wl_listener *l, void *d) {
 	struct view *v = wl_container_of(l, v, map); (void)d;
 	struct server *s = v->server;
@@ -325,6 +378,7 @@ static void view_map(struct wl_listener *l, void *d) {
 	v->mapped = true; wlr_scene_node_set_enabled(&v->tree->node, true);
 	if (!v->placed && (v->type == VIEW_XDG || (v->xs->x == 0 && v->xs->y == 0))) view_place(v);
 	wl_list_insert(&s->views, &v->link);
+	ftl_create(v);
 	view_update_decor(v); focus_view(v);
 }
 static void view_unmap(struct wl_listener *l, void *d) {
@@ -332,6 +386,7 @@ static void view_unmap(struct wl_listener *l, void *d) {
 	if (v == v->server->grabbed) { v->server->mode = CUR_PASS; v->server->grabbed = NULL; }
 	if (v->type == VIEW_X11 && v->content) { wlr_scene_node_destroy(&v->content->node); v->content = NULL; }
 	if (v->mapped && !(v->type == VIEW_X11 && v->xs->override_redirect)) wl_list_remove(&v->link);
+	ftl_destroy(v); v->minimized = false;
 	v->mapped = false;
 	if (!wl_list_empty(&v->server->views)) { struct view *n = wl_container_of(v->server->views.next, n, link); focus_view(n); }
 }
@@ -345,7 +400,7 @@ static void view_commit(struct wl_listener *l, void *d) {
 		struct wlr_box g; view_geometry(v, &g);
 		wlr_scene_node_set_position(&v->tree->node, v->tx - g.x, v->ty - g.y);
 	}
-	if (v->mapped) view_update_decor(v);
+	if (v->mapped) { view_update_decor(v); ftl_sync(v); }
 }
 static void view_request_move(struct wl_listener *l, void *d) { struct view *v = wl_container_of(l, v, request_move); (void)d; begin_grab(v, CUR_MOVE, 0); }
 static void view_request_resize(struct wl_listener *l, void *d) {
@@ -356,7 +411,8 @@ static void view_request_resize(struct wl_listener *l, void *d) {
 static void view_destroy(struct wl_listener *l, void *d) {
 	struct view *v = wl_container_of(l, v, destroy); (void)d;
 	wl_list_remove(&v->destroy.link); wl_list_remove(&v->request_move.link); wl_list_remove(&v->request_resize.link);
-	if (v->type == VIEW_XDG) { wl_list_remove(&v->map.link); wl_list_remove(&v->unmap.link); wl_list_remove(&v->commit.link); }
+	ftl_destroy(v);
+	if (v->type == VIEW_XDG) { wl_list_remove(&v->map.link); wl_list_remove(&v->unmap.link); wl_list_remove(&v->commit.link); wl_list_remove(&v->request_minimize.link); }
 	else { wl_list_remove(&v->associate.link); wl_list_remove(&v->dissociate.link); wl_list_remove(&v->request_configure.link); wl_list_remove(&v->request_activate.link); }
 	wlr_scene_node_destroy(&v->tree->node);
 	free(v);
@@ -375,18 +431,28 @@ static void new_xdg_toplevel(struct wl_listener *l, void *d) {
 	v->destroy.notify = view_destroy; wl_signal_add(&t->events.destroy, &v->destroy);
 	v->request_move.notify = view_request_move; wl_signal_add(&t->events.request_move, &v->request_move);
 	v->request_resize.notify = view_request_resize; wl_signal_add(&t->events.request_resize, &v->request_resize);
+	v->request_minimize.notify = xdg_on_request_minimize; wl_signal_add(&t->events.request_minimize, &v->request_minimize);
 }
 
 struct popup { struct wlr_xdg_popup *p; struct wl_listener commit, destroy; };
-static void popup_commit(struct wl_listener *l, void *d) { struct popup *p = wl_container_of(l, p, commit); (void)d; if (p->p->base->initial_commit) wlr_xdg_surface_schedule_configure(p->p->base); }
-static void popup_destroy(struct wl_listener *l, void *d) { struct popup *p = wl_container_of(l, p, destroy); (void)d; wl_list_remove(&p->commit.link); wl_list_remove(&p->destroy.link); free(p); }
-static void new_xdg_popup(struct wl_listener *l, void *d) {
-	(void)l; struct wlr_xdg_popup *xp = d; struct popup *p = calloc(1, sizeof(*p)); p->p = xp;
+static void popup_attach(struct popup *p) {   /* parent may be NULL at creation (layer-shell get_popup comes later) */
+	struct wlr_xdg_popup *xp = p->p;
+	if (xp->base->data || !xp->parent) return;
 	struct wlr_xdg_surface *parent = wlr_xdg_surface_try_from_wlr_surface(xp->parent);
 	struct wlr_scene_tree *pt = NULL;
 	if (parent) pt = parent->data;
 	else { struct wlr_layer_surface_v1 *pl = wlr_layer_surface_v1_try_from_wlr_surface(xp->parent); if (pl) pt = pl->data; }
 	if (pt) xp->base->data = wlr_scene_xdg_surface_create(pt, xp->base);
+}
+static void popup_commit(struct wl_listener *l, void *d) {
+	struct popup *p = wl_container_of(l, p, commit); (void)d;
+	popup_attach(p);
+	if (p->p->base->initial_commit) wlr_xdg_surface_schedule_configure(p->p->base);
+}
+static void popup_destroy(struct wl_listener *l, void *d) { struct popup *p = wl_container_of(l, p, destroy); (void)d; wl_list_remove(&p->commit.link); wl_list_remove(&p->destroy.link); free(p); }
+static void new_xdg_popup(struct wl_listener *l, void *d) {
+	(void)l; struct wlr_xdg_popup *xp = d; struct popup *p = calloc(1, sizeof(*p)); p->p = xp;
+	popup_attach(p);
 	p->commit.notify = popup_commit; wl_signal_add(&xp->base->surface->events.commit, &p->commit);
 	p->destroy.notify = popup_destroy; wl_signal_add(&xp->events.destroy, &p->destroy);
 }
@@ -622,6 +688,15 @@ static void cursor_button(struct wl_listener *l, void *d) {
 		return;
 	}
 	if (v) focus_view(v);
+	else if (surf) {   /* Rev 33: clicking a layer-shell panel with keyboard interactivity (on_demand/exclusive) focuses it */
+		struct wlr_layer_surface_v1 *ls = wlr_layer_surface_v1_try_from_wlr_surface(wlr_surface_get_root_surface(surf));
+		if (ls && ls->current.keyboard_interactive != ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE &&
+				s->seat->keyboard_state.focused_surface != ls->surface) {
+			struct wlr_keyboard *k = wlr_seat_get_keyboard(s->seat);
+			if (k) wlr_seat_keyboard_notify_enter(s->seat, ls->surface, k->keycodes, k->num_keycodes, &k->modifiers);
+			else wlr_seat_keyboard_notify_enter(s->seat, ls->surface, NULL, 0, NULL);
+		}
+	}
 	wlr_seat_pointer_notify_button(s->seat, e->time_msec, e->button, e->state);
 }
 static void cursor_axis(struct wl_listener *l, void *d) {
@@ -709,6 +784,7 @@ int main(int argc, char *argv[]) {
 	struct wlr_xdg_decoration_manager_v1 *deco = wlr_xdg_decoration_manager_v1_create(s.display);
 	s.new_deco.notify = new_deco; wl_signal_add(&deco->events.new_toplevel_decoration, &s.new_deco);
 	wlr_screencopy_manager_v1_create(s.display);
+	s.ftm = wlr_foreign_toplevel_manager_v1_create(s.display);
 	wlr_xdg_output_manager_v1_create(s.display, s.output_layout);
 	s.cursor = wlr_cursor_create(); wlr_cursor_attach_output_layout(s.cursor, s.output_layout);
 	s.xcursor = wlr_xcursor_manager_create(NULL, 24);

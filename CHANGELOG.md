@@ -2,6 +2,8 @@
 
 _History reconstructed from the development log; intermediate file states were not preserved. Each revision lists its main changes._
 
+## Rev 33 (3+4) — polder-comp: wlr-foreign-toplevel-management (titel, app_id, actief, minimaliseren; activeren/sluiten/minimaliseren op verzoek) + helper tools/polder-toplevels (JSON-regels); plank toont Wayland-vensters en kan activeren/minimaliseren/herstellen/sluiten. Klik op een layer-shell-paneel met on_demand-toetsenbord geeft focus. Contextmenu’s als overlay-layer op Wayland. Fix: crash bij xdg-popup zonder ouder (gtk-layer-shell tooltips).
+
 ## Rev 32c — scenefx echt gezien: polder-comp (scenefx-build) op de GLES2-renderer (llvmpipe, virtio-gpu, DRM-backend) in qemu; afgeronde hoeken r=12 + gaussische schaduw (screenshots 125–127). Fixes: scenefx moet vóór wlroots gelinkt worden (beide exporteren wlr_scene_*), CSD-marges clippen op de venstergeometrie, schaduw pas tonen bij echte grootte; crash-backtrace-handler.
 
 ## Rev 32d — Plank (shelf + bureaublad), Snelle instellingen en launcher draaien als layer-shell-surfaces (gtk-layer-shell, osb/layershell.py) op polder-comp; op X11 ongewijzigd. Compositor: exclusive zones voor maximaliseren, focus terug na sluiten layer-surface, toetsenbordfocus zonder actief toetsenbord, GTK_IM_MODULE=simple (nog geen text-input-v3). OSB_RUNDIR voor PID-bestanden.

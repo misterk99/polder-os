@@ -8,6 +8,32 @@ for d in ('osb', 'notify'): sys.path.insert(0, os.path.join(C, d))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
 from gi.repository import Gtk, Gdk, GLib, Gio
 from Xlib import display as xdisplay, X
+import shutil
+
+class WlTasks:
+    """Rev 33: running windows on Wayland (polder-comp) via wlr-foreign-toplevel-management. The protocol is spoken by
+    the small C helper polder-toplevels (JSON lines out, commands in), so no pywayland dependency."""
+    def __init__(self, on_change):
+        exe = os.environ.get('POLDER_TOPLEVELS') or shutil.which('polder-toplevels') or \
+              os.path.join(C, '..', 'compositor', 'polder-comp', 'tools', 'polder-toplevels')
+        self.tl = {}; self.on_change = on_change
+        self.p = subprocess.Popen([exe], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1); self.buf = b''
+        GLib.io_add_watch(self.p.stdout.fileno(), GLib.PRIORITY_DEFAULT, GLib.IO_IN | GLib.IO_HUP, self.read)
+    def read(self, src, cond):
+        data = os.read(self.p.stdout.fileno(), 65536)   # raw read: a buffered readline() would strand queued lines
+        if not data: return False
+        self.buf += data
+        *lines, self.buf = self.buf.split(b'\n')
+        for line in lines:
+            try: ev = json.loads(line)
+            except ValueError: continue
+            if ev['ev'] == 'state': self.tl[ev['id']] = ev
+            elif ev['ev'] == 'closed': self.tl.pop(ev['id'], None)
+        self.on_change(); return True
+    def send(self, cmd, wid):
+        try: self.p.stdin.write(f'{cmd} {wid}\n'); self.p.stdin.flush()
+        except (BrokenPipeError, OSError) as e: print('toplevels', e, flush=True)
+    def active(self): return next((i for i, t in self.tl.items() if t['activated']), 0)
 import osbsettings as S, osbnotify as N, popmenu, mpris, json, time
 import layershell as LSH   # Rev 32d: layer-shell on polder-comp (Wayland), no-op on X11
 H = 52; PID = os.path.join(LSH.rundir(), 'osb-shelf.pid')
@@ -110,8 +136,9 @@ class Shelf(Gtk.Window):
         self.media.add(mb); mb.show_all(); self.media.set_no_show_all(True); self.media.connect('clicked', self.media_toggle)
         self.extra.pack_start(self.rec, False, False, 0); self.extra.pack_start(self.media, False, False, 0); self.mstate = None; self.mpoll = 0
         self.db = AppDB(); Gio.AppInfoMonitor.get().connect('changed', lambda *a: (self.db.reload(), self.render(force=True)))
-        self.x = xdisplay.Display(); self.root = self.x.screen().root
-        self.A = {n: self.x.intern_atom(n) for n in ('_NET_CLIENT_LIST_STACKING', '_NET_ACTIVE_WINDOW', '_NET_CURRENT_DESKTOP', '_NET_WM_DESKTOP',
+        self.wl = WlTasks(lambda: GLib.idle_add(self.render)) if LSH.wayland() else None
+        if not self.wl: self.x = xdisplay.Display(); self.root = self.x.screen().root
+        self.A = {} if self.wl else {n: self.x.intern_atom(n) for n in ('_NET_CLIENT_LIST_STACKING', '_NET_ACTIVE_WINDOW', '_NET_CURRENT_DESKTOP', '_NET_WM_DESKTOP',
                   '_NET_WM_WINDOW_TYPE', '_NET_WM_WINDOW_TYPE_NORMAL', '_NET_WM_WINDOW_TYPE_DIALOG', '_NET_WM_STATE', '_NET_WM_STATE_SKIP_TASKBAR', '_NET_WM_STATE_HIDDEN')}
         self.sig = None; self.setm = None; self.menu = None
         self.desk = Desktop(self.sw, self.sh)
@@ -124,6 +151,14 @@ class Shelf(Gtk.Window):
 
     def windows(self):
         """[(wid, app_id or 'cls:<class>', class, hidden)] topmost first, current desk, normal windows only."""
+        if self.wl:
+            out = []
+            for i, t in sorted(self.wl.tl.items()):   # creation order: icons must not jump when focus changes
+                aid = t['app_id'] or t['title']
+                if aid.lower() in SKIPCLS: continue
+                did = next((d for d in (aid + '.desktop', aid.lower() + '.desktop') if d in self.db.apps), None)
+                out.append((i, did or self.db.for_class(aid, aid) or f'cls:{aid}', aid, t['minimized']))
+            return out
         desk = (self.prop(self.root, '_NET_CURRENT_DESKTOP') or [0])[0]; out = []
         for wid in reversed(self.prop(self.root, '_NET_CLIENT_LIST_STACKING')):
             w = self.x.create_resource_object('window', wid)
@@ -179,7 +214,7 @@ class Shelf(Gtk.Window):
         try: m = os.path.getmtime(S.FILE)
         except OSError: m = 0
         if m != self.setm: self.setm = m; self.pinned = [p for p in S.load().get('pinned', []) if p in self.db.apps]; force = True
-        self.wins = self.windows(); act = (self.prop(self.root, '_NET_ACTIVE_WINDOW') or [0])[0]
+        self.wins = self.windows(); act = self.wl.active() if self.wl else (self.prop(self.root, '_NET_ACTIVE_WINDOW') or [0])[0]
         self.active_app = next((a for wid, a, c, h in self.wins if wid == act), None)
         running = []
         for wid, a, c, h in self.wins:
@@ -214,6 +249,7 @@ class Shelf(Gtk.Window):
         if e.button == 1 and e.type == Gdk.EventType.BUTTON_PRESS:
             ws = self.app_windows(app)
             if not ws: self.launch(app)
+            elif self.wl: self.wl.send('minimize' if self.active_app == app else 'activate', ws[0][0])
             elif self.active_app == app: subprocess.run(['xdotool', 'windowminimize', str(ws[0][0])], timeout=3)
             else: subprocess.run(['wmctrl', '-i', '-a', hex(ws[0][0])], timeout=3)
             GLib.timeout_add(250, self.tick); return True
@@ -233,8 +269,9 @@ class Shelf(Gtk.Window):
             items.append(('window-new-symbolic', 'Nieuw venster', lambda: self.launch(app)))
         if ws:
             items.append(None); items.append(('window-close-symbolic', 'Sluiten' if len(ws) == 1 else f'Sluiten ({len(ws)} vensters)',
-                                              lambda: [subprocess.run(['wmctrl', '-i', '-c', hex(w[0])], timeout=3) for w in ws]))
+                                              lambda: [self.wl.send('close', w[0]) if self.wl else subprocess.run(['wmctrl', '-i', '-c', hex(w[0])], timeout=3) for w in ws]))
         a = b.get_allocation(); ox, oy = self.get_window().get_origin()[1:]
+        if LSH.active(self): ox, oy = (self.sw - self.get_allocated_width()) // 2, self.sh - H   # layer surface: origin is ours to compute
         self.menu = popmenu.PopMenu(items, ox + a.x, oy - 6, anchor='above', title=ai.get_display_name() if ai else app[4:])
 
     def set_pin(self, app, on):

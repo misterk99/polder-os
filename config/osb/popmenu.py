@@ -7,6 +7,7 @@ import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
 from gi.repository import Gtk, Gdk, GLib
 import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), '..', 'osb')); import rgba as RGBA   # Rev 29.2: real rounded corners
 import osbnotify as N
+import layershell as LSH   # Rev 33: on polder-comp the menu is an overlay layer surface
 
 _prov = None
 def _style():
@@ -27,7 +28,7 @@ def _style():
 
 class PopMenu(Gtk.Window):
     def __init__(self, items, x, y, anchor='above', title=None, on_close=None):
-        super().__init__(type=Gtk.WindowType.POPUP); _style(); self.on_close = on_close; self.closed = False
+        super().__init__(type=Gtk.WindowType.TOPLEVEL if LSH.wayland() else Gtk.WindowType.POPUP); _style(); self.on_close = on_close; self.closed = False
         self.set_name('pmwin'); RGBA.enable(self)
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL); card.set_name('pmcard'); card.set_size_request(210, -1)
         self.add(card)
@@ -54,9 +55,12 @@ class PopMenu(Gtk.Window):
         except subprocess.TimeoutExpired: pass
         self.bgp = Gtk.CssProvider(); self.bgp.load_from_data(b'#pmwin { background: transparent; background-image: none; }' if RGBA.active(self) else f"#pmwin {{ background-image: url('{bg}'); background-color: {N.palette()['SURFACE']}; }}".encode())
         self.get_style_context().add_provider(self.bgp, 960)
-        self.move(x, y); self.resize(w, h); self.show_all()
+        if LSH.setup(self, 'polder-menu', layer='overlay', anchors=('left', 'top'), margins={'left': x, 'top': y}, exclusive=0, keyboard='on_demand'):
+            # no seat grab on Wayland: close when focus moves elsewhere (another window/panel clicked) or on Escape
+            self.resize(w, h); self.show_all(); self.connect('focus-out-event', lambda *a: GLib.timeout_add(80, self.close) and False)
+        else:
+            self.move(x, y); self.resize(w, h); self.show_all(); GLib.timeout_add(60, self.grab)
         self.connect('button-press-event', self.on_press); self.connect('key-press-event', self.on_key)
-        GLib.timeout_add(60, self.grab)
 
     def grab(self):
         if self.closed: return False
@@ -73,6 +77,6 @@ class PopMenu(Gtk.Window):
         return False
 
     def close(self):
-        if self.closed: return
+        if self.closed: return False
         self.closed = True; Gdk.Display.get_default().get_default_seat().ungrab(); self.destroy()
         if self.on_close: GLib.idle_add(self.on_close)
