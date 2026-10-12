@@ -218,3 +218,7 @@ _History reconstructed from the development log; intermediate file states were n
 - Offline Dutch/English intents that really act: theme, apps, calendar, volume, brightness, wifi, bluetooth, niet storen, lock, screenshot, weather, file search
 - Instellingen › Assistent: optional OpenAI / Gemini / Claude key (keyring or 0600 file), model, real connection test
 - Cloud answers stream and can call the same system actions (confirmation for lock and turning wifi/bluetooth off)
+
+## Rev 29.1: echt afgeronde assistent
+
+- Assistant panel uses a real ARGB window: transparent corners composited by picom over any window (wallpaper-backdrop only as no-compositor fallback)

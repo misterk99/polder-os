@@ -42,6 +42,10 @@ class Assistant(Gtk.Window):
         self.bgprov = Gtk.CssProvider(); Gtk.StyleContext.add_provider_for_screen(scr, self.bgprov, 900)
         self.palm = self.wpm = None; self.history = []; self.busy = False; self.modal = False
         self.set_size_request(W, H)
+        vis = scr.get_rgba_visual()   # Rev 29.1: real ARGB window -> compositor shows true transparent corners over any window
+        self.argb = bool(vis and scr.is_composited())
+        if vis: self.set_visual(vis)
+        self.set_app_paintable(True); self.connect('draw', self.on_draw)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10); box.set_name('abox'); self.add(box)
         hd = Gtk.Box(spacing=8); ic = Gtk.Image.new_from_icon_name('starred-symbolic', Gtk.IconSize.LARGE_TOOLBAR); hd.pack_start(ic, False, False, 0)
         t = Gtk.Label(label='Polder Assistent', xalign=0); t.set_name('ahead'); hd.pack_start(t, False, False, 0)
@@ -61,12 +65,19 @@ class Assistant(Gtk.Window):
     def refresh_style(self):
         pal = os.path.join(C, 'palette.env'); wp = os.path.join(C, 'wallpaper.png')
         if os.path.getmtime(pal) != self.palm: self.palm = os.path.getmtime(pal); self.prov.load_from_data(css().encode())
-        if os.path.exists(wp) and os.path.getmtime(wp) != self.wpm:   # wallpaper backdrop = rounded corners without compositor
+        if self.argb: self.bgprov.load_from_data(b'#awin { background: transparent; }')
+        elif os.path.exists(wp) and os.path.getmtime(wp) != self.wpm:   # no compositor: fall back to wallpaper backdrop   # wallpaper backdrop = rounded corners without compositor
             self.wpm = os.path.getmtime(wp); out = f'/tmp/osb-assistant-bg-{int(self.wpm)}.png'
             subprocess.run(['convert', wp, '-crop', f'{W}x{H}+{self.x}+{self.y}', '+repage', out], timeout=10)
             self.bgprov.load_from_data(f"#awin {{ background-image: url('{out}'); background-color: transparent; }}".encode())
         cfg = L.config()
         self.mode.set_text(f'{L.PROVIDERS[cfg[0]][0]} · {cfg[1]}' if cfg and cfg[2] else 'Lokaal · geen sleutel')
+
+    def on_draw(self, w, cr):
+        import cairo
+        if self.argb:
+            cr.set_operator(cairo.OPERATOR_SOURCE); cr.set_source_rgba(0, 0, 0, 0); cr.paint(); cr.set_operator(cairo.OPERATOR_OVER)
+        return False   # children (#abox: rounded background, radius 24) draw on top
 
     def welcome(self):
         for c in self.conv.get_children(): c.destroy()
@@ -90,6 +101,8 @@ class Assistant(Gtk.Window):
         self.hide_a() if self.get_mapped() else self.show_a(); return True
 
     def show_a(self):
+        scr = self.get_screen(); comp = scr.is_composited() and scr.get_rgba_visual() is not None
+        if comp != self.argb: self.argb = comp; self.wpm = None
         self.refresh_style(); self.move(self.x, self.y); self.show()
         self.present_with_time(GdkX11.x11_get_server_time(self.get_window())); self.entry.grab_focus()
 
