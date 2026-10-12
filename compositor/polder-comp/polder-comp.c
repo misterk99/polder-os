@@ -85,6 +85,7 @@ struct server {
 	float bg_color[4];
 	bool super_alone;
 	const char *launcher, *terminal;
+	struct wlr_box usable;   /* output area minus layer-shell exclusive zones */
 };
 
 struct output { struct wl_list link; struct server *server; struct wlr_output *wlr; struct wl_listener frame, request_state, destroy; };
@@ -101,7 +102,10 @@ struct view {
 #else
 	struct wlr_scene_rect *shadow[4];
 #endif
-	bool mapped;
+	bool mapped, placed;
+	bool has_target; int tx, ty;   /* desired window-geometry origin; re-applied on commit because CSD geometry changes (GTK drops shadows when tiled) */
+	int snap;               /* SNAP_NONE/LEFT/RIGHT/MAX */
+	struct wlr_box saved;   /* geometry before snapping */
 	struct wl_listener map, unmap, commit, destroy, request_move, request_resize, associate, dissociate, request_configure, request_activate;
 };
 
@@ -128,7 +132,9 @@ static void read_palette(struct server *s) {
 /* ---------------- views ---------------- */
 static struct wlr_surface *view_surface(struct view *v) { return v->type == VIEW_XDG ? v->xdg->base->surface : v->xs->surface; }
 static void view_geometry(struct view *v, struct wlr_box *b) {
-	if (v->type == VIEW_XDG) wlr_xdg_surface_get_geometry(v->xdg->base, b);
+	/* wlr_scene_xdg_surface_create already shifts the surface by -geometry, so the view tree's
+	 * origin IS the window-geometry origin: report x=y=0 to avoid double offsets (Rev 32 fix) */
+	if (v->type == VIEW_XDG) { wlr_xdg_surface_get_geometry(v->xdg->base, b); b->x = 0; b->y = 0; }
 	else *b = (struct wlr_box){ 0, 0, v->xs->width, v->xs->height };
 }
 static void view_activate(struct view *v, bool on) {
@@ -198,8 +204,18 @@ static struct view *view_at(struct server *s, double lx, double ly, struct wlr_s
 	return t ? t->node.data : NULL;
 }
 
+enum { SNAP_NONE, SNAP_LEFT, SNAP_RIGHT, SNAP_MAX };
+static void view_box(struct view *v, struct wlr_box *b);
+static void view_set_size(struct view *v, int x, int y, int w, int h);
 static void begin_grab(struct view *v, enum cursor_mode mode, uint32_t edges) {
 	struct server *s = v->server; s->grabbed = v; s->mode = mode;
+	if (mode == CUR_MOVE && v->snap != SNAP_NONE) {
+		struct wlr_box b; view_box(v, &b); double fx = b.width ? (s->cursor->x - b.x) / b.width : 0.5;
+		struct wlr_box sv = v->saved; v->snap = SNAP_NONE;
+		if (v->type == VIEW_XDG) { wlr_xdg_toplevel_set_maximized(v->xdg, false); wlr_xdg_toplevel_set_tiled(v->xdg, 0); }
+		else wlr_xwayland_surface_set_maximized(v->xs, false);
+		view_set_size(v, s->cursor->x - fx * sv.width, b.y, sv.width, sv.height);
+	}
 	if (mode == CUR_MOVE) { s->grab_x = s->cursor->x - v->tree->node.x; s->grab_y = s->cursor->y - v->tree->node.y; return; }
 	struct wlr_box g; view_geometry(v, &g);
 	double bx = v->tree->node.x + g.x + ((edges & WLR_EDGE_RIGHT) ? g.width : 0);
@@ -212,7 +228,65 @@ static void view_set_size(struct view *v, int x, int y, int w, int h) {
 	if (v->type == VIEW_XDG) {
 		struct wlr_box g; view_geometry(v, &g);
 		wlr_scene_node_set_position(&v->tree->node, x - g.x, y - g.y); wlr_xdg_toplevel_set_size(v->xdg, w, h);
+		v->has_target = true; v->tx = x; v->ty = y;
 	} else { wlr_scene_node_set_position(&v->tree->node, x, y); wlr_xwayland_surface_configure(v->xs, x, y, w, h); }
+}
+
+#define GAP 8
+static void view_box(struct view *v, struct wlr_box *b) {   /* window geometry in layout coords */
+	struct wlr_box g; view_geometry(v, &g);
+	b->x = v->tree->node.x + g.x; b->y = v->tree->node.y + g.y; b->width = g.width; b->height = g.height;
+}
+static struct wlr_box usable_area(struct server *s) {
+	if (s->usable.width > 0) return s->usable;
+	struct wlr_box b = {0, 0, 1366, 768}; struct output *o;
+	wl_list_for_each(o, &s->outputs, link) { wlr_output_layout_get_box(s->output_layout, o->wlr, &b); break; }
+	return b;
+}
+static void view_move_to(struct view *v, int x, int y) {
+	struct wlr_box g; view_geometry(v, &g);
+	if (v->type == VIEW_XDG) { wlr_scene_node_set_position(&v->tree->node, x - g.x, y - g.y); v->has_target = true; v->tx = x; v->ty = y; }
+	else { wlr_scene_node_set_position(&v->tree->node, x, y); wlr_xwayland_surface_configure(v->xs, x, y, v->xs->width, v->xs->height); }
+}
+/* smart placement: centre the first window in the usable area, cascade later ones
+ * by 32px whenever the spot is already taken; always keep the window on screen */
+static void view_place(struct view *v) {
+	struct server *s = v->server; struct wlr_box u = usable_area(s), g; view_geometry(v, &g);
+	int w = g.width, h = g.height;
+	if (w > u.width - 2 * GAP) w = u.width - 2 * GAP;
+	if (h > u.height - 2 * GAP) h = u.height - 2 * GAP;
+	if (w != g.width || h != g.height) view_set_size(v, u.x + GAP, u.y + GAP, w, h);
+	int x = u.x + (u.width - w) / 2, y = u.y + (u.height - h) / 2;
+	for (int tries = 0; tries < 12; tries++) {
+		bool taken = false; struct view *o;
+		wl_list_for_each(o, &s->views, link) {
+			if (o == v || !o->mapped) continue;
+			struct wlr_box ob; view_box(o, &ob);
+			if (abs(ob.x - x) < 24 && abs(ob.y - y) < 24) { taken = true; break; }
+		}
+		if (!taken) break;
+		x += 32; y += 32;
+		if (x + w > u.x + u.width || y + h > u.y + u.height) { x = u.x + GAP + tries * 8; y = u.y + GAP + tries * 8; }
+	}
+	view_move_to(v, x, y); v->placed = true;
+}
+static void view_snap(struct view *v, int mode) {
+	if (v->snap == SNAP_NONE && mode != SNAP_NONE) view_box(v, &v->saved);
+	struct wlr_box u = usable_area(v->server), t;
+	switch (mode) {
+	case SNAP_LEFT:  t = (struct wlr_box){ u.x + GAP, u.y + GAP, u.width / 2 - GAP - GAP / 2, u.height - 2 * GAP }; break;
+	case SNAP_RIGHT: t = (struct wlr_box){ u.x + u.width / 2 + GAP / 2, u.y + GAP, u.width / 2 - GAP - GAP / 2, u.height - 2 * GAP }; break;
+	case SNAP_MAX:   t = u; break;
+	default: if (v->snap == SNAP_NONE) return; t = v->saved; break;
+	}
+	if (v->type == VIEW_XDG) {
+		wlr_xdg_toplevel_set_maximized(v->xdg, mode == SNAP_MAX);
+		wlr_xdg_toplevel_set_tiled(v->xdg, mode == SNAP_LEFT ? (WLR_EDGE_TOP|WLR_EDGE_BOTTOM|WLR_EDGE_RIGHT) :
+			mode == SNAP_RIGHT ? (WLR_EDGE_TOP|WLR_EDGE_BOTTOM|WLR_EDGE_LEFT) : mode == SNAP_MAX ? 15 : 0);
+	} else wlr_xwayland_surface_set_maximized(v->xs, mode == SNAP_MAX);
+	v->snap = mode;
+	view_set_size(v, t.x, t.y, t.width, t.height);
+	wlr_log(WLR_INFO, "snap %d -> %d,%d %dx%d", mode, t.x, t.y, t.width, t.height);
 }
 
 static void view_map(struct wl_listener *l, void *d) {
@@ -227,6 +301,7 @@ static void view_map(struct wl_listener *l, void *d) {
 		wlr_scene_node_set_position(&v->tree->node, v->xs->x, v->xs->y);
 	}
 	v->mapped = true; wlr_scene_node_set_enabled(&v->tree->node, true);
+	if (!v->placed && (v->type == VIEW_XDG || (v->xs->x == 0 && v->xs->y == 0))) view_place(v);
 	wl_list_insert(&s->views, &v->link);
 	view_update_decor(v); focus_view(v);
 }
@@ -242,9 +317,11 @@ static void view_commit(struct wl_listener *l, void *d) {
 	struct view *v = wl_container_of(l, v, commit); (void)d;
 	if (v->type == VIEW_XDG && v->xdg->base->initial_commit) {
 		wlr_xdg_toplevel_set_size(v->xdg, 0, 0);
-		/* cascade new windows a little */
-		static int n = 0; wlr_scene_node_set_position(&v->tree->node, 60 + (n % 6) * 40, 50 + (n % 6) * 30); n++;
 		return;
+	}
+	if (v->mapped && v->type == VIEW_XDG && v->has_target) {
+		struct wlr_box g; view_geometry(v, &g);
+		wlr_scene_node_set_position(&v->tree->node, v->tx - g.x, v->ty - g.y);
 	}
 	if (v->mapped) view_update_decor(v);
 }
@@ -340,6 +417,7 @@ static void arrange_layers(struct server *s) {
 					wlr_scene_layer_surface_v1_configure(ly->sls, &full, &usable);
 		}
 		wlr_scene_rect_set_size(s->bg, full.width, full.height);
+		s->usable = usable;
 	}
 }
 static void layer_commit(struct wl_listener *l, void *d) {
@@ -383,6 +461,13 @@ static bool keybinding(struct server *s, xkb_keysym_t sym, uint32_t mods) {
 	if ((mods & WLR_MODIFIER_LOGO) && (mods & WLR_MODIFIER_SHIFT) && sym == XKB_KEY_Escape) { wl_display_terminate(s->display); return true; }
 	if (mods & WLR_MODIFIER_LOGO) {
 		if (sym == XKB_KEY_Return) { spawn(s, s->terminal); return true; }
+		if (sym == XKB_KEY_Left || sym == XKB_KEY_Right || sym == XKB_KEY_Up || sym == XKB_KEY_Down) {
+			if (wl_list_empty(&s->views)) return true;
+			struct view *v = wl_container_of(s->views.next, v, link);
+			int m = sym == XKB_KEY_Left ? SNAP_LEFT : sym == XKB_KEY_Right ? SNAP_RIGHT : sym == XKB_KEY_Up ? SNAP_MAX : SNAP_NONE;
+			if (m == v->snap && m != SNAP_NONE) m = SNAP_NONE;   /* pressing again restores */
+			view_snap(v, m); return true;
+		}
 		if (sym == XKB_KEY_q || sym == XKB_KEY_Q) {
 			if (wl_list_empty(&s->views)) return true;
 			struct view *v = wl_container_of(s->views.next, v, link);
@@ -462,6 +547,7 @@ static void request_set_selection(struct wl_listener *l, void *d) {
 /* ---------------- pointer ---------------- */
 static void process_motion(struct server *s, uint32_t time) {
 	if (s->mode == CUR_MOVE) { wlr_scene_node_set_position(&s->grabbed->tree->node, s->cursor->x - s->grab_x, s->cursor->y - s->grab_y);
+		s->grabbed->has_target = false;
 		if (s->grabbed->type == VIEW_X11) wlr_xwayland_surface_configure(s->grabbed->xs, s->grabbed->tree->node.x, s->grabbed->tree->node.y, s->grabbed->xs->width, s->grabbed->xs->height);
 		return; }
 	if (s->mode == CUR_RESIZE) {
@@ -488,7 +574,14 @@ static void cursor_motion_abs(struct wl_listener *l, void *d) {
 static void cursor_button(struct wl_listener *l, void *d) {
 	struct server *s = wl_container_of(l, s, cursor_button); struct wlr_pointer_button_event *e = d;
 	if (e->state == WL_POINTER_BUTTON_STATE_RELEASED) {
-		if (s->mode != CUR_PASS) { s->mode = CUR_PASS; s->grabbed = NULL; return; }
+		if (s->mode != CUR_PASS) {
+			if (s->mode == CUR_MOVE && s->grabbed) {   /* drag to an edge: snap */
+				struct wlr_box u = usable_area(s); int m = SNAP_NONE;
+				if (s->cursor->x <= u.x + 4) m = SNAP_LEFT; else if (s->cursor->x >= u.x + u.width - 5) m = SNAP_RIGHT;
+				else if (s->cursor->y <= u.y + 4) m = SNAP_MAX;
+				if (m != SNAP_NONE) view_snap(s->grabbed, m);
+			}
+			s->mode = CUR_PASS; s->grabbed = NULL; return; }
 		wlr_seat_pointer_notify_button(s->seat, e->time_msec, e->button, e->state); return;
 	}
 	double sx, sy; struct wlr_surface *surf = NULL;
