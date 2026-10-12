@@ -292,6 +292,7 @@ static void view_snap(struct view *v, int mode) {
 static void view_map(struct wl_listener *l, void *d) {
 	struct view *v = wl_container_of(l, v, map); (void)d;
 	struct server *s = v->server;
+	if (v->type == VIEW_X11) wlr_log(WLR_INFO, "map x11 '%s' %dx%d+%d+%d or=%d", v->xs->title ? v->xs->title : "", v->xs->width, v->xs->height, v->xs->x, v->xs->y, v->xs->override_redirect);
 	if (v->type == VIEW_X11) {
 		v->content = wlr_scene_subsurface_tree_create(v->tree, v->xs->surface);
 		if (v->xs->override_redirect) {   /* menus/tooltips: place exactly, no shadow, no focus steal */
