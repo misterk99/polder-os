@@ -2,6 +2,8 @@
 
 _History reconstructed from the development log; intermediate file states were not preserved. Each revision lists its main changes._
 
+## Rev 32d — Plank (shelf + bureaublad), Snelle instellingen en launcher draaien als layer-shell-surfaces (gtk-layer-shell, osb/layershell.py) op polder-comp; op X11 ongewijzigd. Compositor: exclusive zones voor maximaliseren, focus terug na sluiten layer-surface, toetsenbordfocus zonder actief toetsenbord, GTK_IM_MODULE=simple (nog geen text-input-v3). OSB_RUNDIR voor PID-bestanden.
+
 ## Rev 32b — polder-comp: sneltoetsen echt getest met wtype (Super+Return, Alt+Tab, Super+Q, Super-tik → launcher via Xwayland); tests/keybindings.sh.
 
 ## Rev 32a — polder-comp: slimme vensterplaatsing (centreren + cascade), snappen (Super+Links/Rechts/Omhoog, slepen naar schermrand), fix dubbele xdg-geometry-offset; test-tool tools/pc-drag (wlr-virtual-pointer).

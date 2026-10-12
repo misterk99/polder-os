@@ -7,12 +7,15 @@ import os, re, sys, ast, operator, signal, threading, time, subprocess, urllib.p
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in ('osb', 'notify'): sys.path.insert(0, os.path.join(C, d))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0'); gi.require_version('GdkX11', '3.0')
-from gi.repository import Gtk, Gdk, GLib, Gio, Pango, GdkX11
+from gi.repository import Gtk, Gdk, GLib, Gio, Pango
+try: from gi.repository import GdkX11
+except ImportError: GdkX11 = None
 import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), '..', 'osb')); import rgba as RGBA   # Rev 29.2: real rounded corners
 import osbnotify as N
 import osbsettings as S, popmenu
 DND = [Gtk.TargetEntry.new('osb-app', Gtk.TargetFlags.SAME_APP, 0)]
-PID = '/tmp/osb-launcher.pid'
+import layershell as LSH   # Rev 32d
+PID = os.path.join(LSH.rundir(), 'osb-launcher.pid')
 W, H, MARGIN, SHELF = 640, 500, 10, 62
 FILES_HOME = os.environ.get('OSB_FILES_HOME', '/tmp/osb-files/Mijn bestanden')   # what the Files app shows as home
 SETTINGS = os.path.join(C, 'settings', 'instellingen.py')
@@ -126,7 +129,9 @@ class Launcher(Gtk.Window):
         self.prov = Gtk.CssProvider(); Gtk.StyleContext.add_provider_for_screen(scr, self.prov, 800)
         self.bgprov = Gtk.CssProvider(); Gtk.StyleContext.add_provider_for_screen(scr, self.bgprov, 900)
         self.palm = self.wpm = None
-        RGBA.enable(self); self.set_size_request(W, H); self.move(MARGIN, self.sh - SHELF - H)
+        RGBA.enable(self); self.set_size_request(W, H)
+        if not LSH.setup(self, 'polder-launcher', layer='overlay', anchors=('left', 'bottom'), margins={'left': MARGIN, 'bottom': SHELF}, exclusive=0, keyboard='exclusive'):
+            self.move(MARGIN, self.sh - SHELF - H)
         self.files = FileIndex(); self.apps = []; self.load_apps()
         Gio.AppInfoMonitor.get().connect('changed', lambda *a: self.load_apps())
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12); box.set_name('lbox'); self.add(box)
@@ -215,7 +220,8 @@ class Launcher(Gtk.Window):
 
     def show_l(self):
         self.refresh_style(); self.entry.set_text(''); self.stack.set_visible_child_name('grid')
-        self.move(MARGIN, self.sh - SHELF - H); self.show(); self.present_with_time(GdkX11.x11_get_server_time(self.get_window()))
+        if LSH.active(self): self.show(); self.present()
+        else: self.move(MARGIN, self.sh - SHELF - H); self.show(); self.present_with_time(GdkX11.x11_get_server_time(self.get_window()))
         self.entry.grab_focus(); GLib.timeout_add(250, self.grab)
         try: os.utime('/tmp/osb-launcher.shown', None)
         except OSError: open('/tmp/osb-launcher.shown', 'w').close()
@@ -224,6 +230,7 @@ class Launcher(Gtk.Window):
         Gdk.Display.get_default().get_default_seat().ungrab(); self.hide(); return True
 
     def grab(self):
+        if LSH.active(self): return False   # layer-shell: exclusive keyboard focus instead of a seat grab
         if self.get_visible():
             Gdk.Display.get_default().get_default_seat().grab(self.get_window(), Gdk.SeatCapabilities.ALL_POINTING, True, None, None, None, None)
         return False

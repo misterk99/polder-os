@@ -127,6 +127,8 @@ static void read_palette(struct server *s) {
 		if (sscanf(line, "SURFACE=#%02x%02x%02x", &r, &g, &b) == 3) { s->bg_color[0] = r / 255.f; s->bg_color[1] = g / 255.f; s->bg_color[2] = b / 255.f; }
 	}
 	if (f) fclose(f);
+	unsigned r, g, b; const char *o = getenv("POLDER_BG");   /* override, e.g. a contrasting colour for corner tests */
+	if (o && sscanf(o, "#%02x%02x%02x", &r, &g, &b) == 3) { s->bg_color[0] = r / 255.f; s->bg_color[1] = g / 255.f; s->bg_color[2] = b / 255.f; }
 }
 
 /* ---------------- views ---------------- */
@@ -190,7 +192,9 @@ static void focus_view(struct view *v) {
 	wl_list_for_each(pv, &s->views, link) if (pv != v && pv->mapped && view_surface(pv) == prev) view_activate(pv, false);
 	view_activate(v, true);
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
+	/* enter even without a keyboard (e.g. the last virtual keyboard went away): the next one inherits the focus */
 	if (kb) wlr_seat_keyboard_notify_enter(seat, surf, kb->keycodes, kb->num_keycodes, &kb->modifiers);
+	else wlr_seat_keyboard_notify_enter(seat, surf, NULL, 0, NULL);
 }
 
 static struct view *view_at(struct server *s, double lx, double ly, struct wlr_surface **surface, double *sx, double *sy) {
@@ -433,9 +437,16 @@ static void layer_map(struct wl_listener *l, void *d) {
 	if (ly->ls->current.keyboard_interactive) {
 		struct wlr_keyboard *kb = wlr_seat_get_keyboard(ly->server->seat);
 		if (kb) wlr_seat_keyboard_notify_enter(ly->server->seat, ly->ls->surface, kb->keycodes, kb->num_keycodes, &kb->modifiers);
+		else wlr_seat_keyboard_notify_enter(ly->server->seat, ly->ls->surface, NULL, 0, NULL);
 	}
 }
-static void layer_unmap(struct wl_listener *l, void *d) { struct layer *ly = wl_container_of(l, ly, unmap); (void)d; arrange_layers(ly->server); }
+static void layer_unmap(struct wl_listener *l, void *d) {
+	struct layer *ly = wl_container_of(l, ly, unmap); (void)d; struct server *s = ly->server; arrange_layers(s);
+	if (s->seat->keyboard_state.focused_surface == ly->ls->surface) {   /* give focus back to the top window */
+		wlr_seat_keyboard_clear_focus(s->seat);
+		if (!wl_list_empty(&s->views)) { struct view *v = wl_container_of(s->views.next, v, link); focus_view(v); }
+	}
+}
 static void layer_destroy(struct wl_listener *l, void *d) {
 	struct layer *ly = wl_container_of(l, ly, destroy); (void)d;
 	wl_list_remove(&ly->link); wl_list_remove(&ly->commit.link); wl_list_remove(&ly->map.link); wl_list_remove(&ly->unmap.link); wl_list_remove(&ly->destroy.link);
@@ -645,6 +656,7 @@ int main(int argc, char *argv[]) {
 	read_palette(&s);
 	s.display = wl_display_create();
 	setenv("WLR_HEADLESS_OUTPUTS", "0", 0); /* we add our own 1366x768 output */
+	setenv("GTK_IM_MODULE", "gtk-im-context-simple", 0);   /* no text-input-v3 yet: GTK3 wayland IM would swallow typed text */
 	s.backend = wlr_backend_autocreate(wl_display_get_event_loop(s.display), NULL);
 	if (!s.backend) { wlr_log(WLR_ERROR, "no backend"); return 1; }
 #ifdef POLDER_SCENEFX

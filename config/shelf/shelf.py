@@ -9,7 +9,8 @@ import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
 from gi.repository import Gtk, Gdk, GLib, Gio
 from Xlib import display as xdisplay, X
 import osbsettings as S, osbnotify as N, popmenu, mpris, json, time
-H = 52; PID = '/tmp/osb-shelf.pid'
+import layershell as LSH   # Rev 32d: layer-shell on polder-comp (Wayland), no-op on X11
+H = 52; PID = os.path.join(LSH.rundir(), 'osb-shelf.pid')
 SKIPCLS = {'tint2', 'polder-shell.py', 'qs.py', 'osb-notifyd.py', 'launcher.py', 'shelf.py', 'cal.py', 'overview.py', 'clipd.py', 'xfdesktop', 'lock.py'}
 
 def css():
@@ -54,7 +55,9 @@ class Desktop(Gtk.Window):
         super().__init__(type=Gtk.WindowType.TOPLEVEL, title='Polder Bureaublad')
         self.set_name('desk'); self.set_decorated(False); self.set_type_hint(Gdk.WindowTypeHint.DESKTOP)
         self.stick(); self.set_skip_taskbar_hint(True); self.set_skip_pager_hint(True)
-        self.move(0, 0); self.set_size_request(sw, sh); self.prov = Gtk.CssProvider(); self.get_style_context().add_provider(self.prov, 900)
+        if not LSH.setup(self, 'polder-desktop', layer='background', anchors=('left', 'right', 'top', 'bottom'), exclusive=-1):
+            self.move(0, 0); self.set_size_request(sw, sh)
+        self.prov = Gtk.CssProvider(); self.get_style_context().add_provider(self.prov, 900)
         self.wpm = None; self.refresh()
         self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK); self.connect('button-press-event', self.on_press)
         self.connect('delete-event', lambda *a: True); self.show_all()
@@ -66,7 +69,9 @@ class Desktop(Gtk.Window):
         if m != self.wpm:
             self.wpm = m; out = f'/tmp/osb-desk-{int(m)}.png'   # new path per change: GTK caches images by URL
             import shutil, glob
-            for f in glob.glob('/tmp/osb-desk-*.png'): os.remove(f)
+            for f in glob.glob('/tmp/osb-desk-*.png'):
+                try: os.remove(f)
+                except OSError: pass
             shutil.copyfile(wp, out)
             self.prov.load_from_data(f"#desk {{ background-image: url('{out}'); background-size: cover; background-color: #000; }}".encode())
             self.queue_draw()
@@ -89,6 +94,7 @@ class Shelf(Gtk.Window):
         self.set_name('shelf'); self.set_decorated(False); self.set_type_hint(Gdk.WindowTypeHint.DOCK)
         self.set_keep_above(True); self.stick(); self.set_skip_taskbar_hint(True); self.set_skip_pager_hint(True); self.set_resizable(False)
         scr = Gdk.Screen.get_default(); self.sw, self.sh = scr.get_width(), scr.get_height()
+        LSH.setup(self, 'polder-shelf', layer='top', anchors=('bottom',), exclusive=H)   # centred at the bottom, reserves H px
         self.prov = Gtk.CssProvider(); Gtk.StyleContext.add_provider_for_screen(scr, self.prov, 800); self.palm = None
         outer = Gtk.Box(spacing=8); self.add(outer)
         self.box = Gtk.Box(spacing=4); self.box.set_border_width(4); outer.pack_start(self.box, False, False, 0)
@@ -185,7 +191,8 @@ class Shelf(Gtk.Window):
         for ch in self.box.get_children(): ch.destroy()
         for a in order: self.box.pack_start(self.button(a, a in running), False, False, 0)
         self.box.show_all(); w = self.get_child().get_preferred_size()[1].width
-        self.resize(max(w, 1), H); self.move((self.sw - w) // 2, self.sh - H)
+        self.resize(max(w, 1), H)
+        if not LSH.active(self): self.move((self.sw - w) // 2, self.sh - H)
         if not self.get_visible(): self.show_all()
 
     def button(self, app, running):

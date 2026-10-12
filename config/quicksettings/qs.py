@@ -13,7 +13,8 @@ except Exception as e:
     ND = None; print('notify module', e)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PID = '/tmp/osb-qs.pid'
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'osb')); import layershell as LSH   # Rev 32d
+PID = os.path.join(LSH.rundir(), 'osb-qs.pid')
 W, H, MARGIN_R, SHELF = 420, 0, 10, 62
 GAP = 8; TOP_MARGIN = 10
 
@@ -75,7 +76,9 @@ class QS(Gtk.Window):
         self.set_type_hint(Gdk.WindowTypeHint.DIALOG); self.set_name('qswin'); RGBA.enable(self)
         scr = Gdk.Screen.get_default(); sw, sh = scr.get_width(), scr.get_height()  # fine for X11 single monitor
         self.x, self.y = sw - W - MARGIN_R, sh - SHELF - H
-        self.set_size_request(W, -1); self.set_resizable(False); self.move(self.x, self.y)
+        self.set_size_request(W, -1); self.set_resizable(False)
+        if not LSH.setup(self, 'polder-quicksettings', layer='overlay', anchors=('right', 'bottom'), margins={'right': MARGIN_R, 'bottom': SHELF}, exclusive=0, keyboard='on_demand'):
+            self.move(self.x, self.y)
         css = Gtk.CssProvider(); css.load_from_path(os.path.join(HERE, 'qs.css'))
         Gtk.StyleContext.add_provider_for_screen(scr, css, 800)
         if ND:
@@ -217,7 +220,8 @@ class QS(Gtk.Window):
         self.resize(W, 1)
         self.H = self.get_preferred_size()[1].height
         self.x, self.y = self.sw - W - MARGIN_R, self.sh - SHELF - self.H
-        self.move(self.x, self.y); self.make_backdrop()
+        if not LSH.active(self): self.move(self.x, self.y)
+        self.make_backdrop()
 
     def clear_all(self, *a):
         try: N.call('ClearAll')
