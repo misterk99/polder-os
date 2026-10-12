@@ -1,7 +1,7 @@
 #!/bin/bash
 # Polder OS ISO build (Debian live-build, trixie amd64). Usage: sudo ./build.sh   (log: build/build.log)
 set -e
-ISO=$(cd "$(dirname "$0")" && pwd); P=$ISO/..; B=$ISO/build; VER=0.20
+ISO=$(cd "$(dirname "$0")" && pwd); P=$ISO/..; B=$ISO/build; VER=0.30
 mkdir -p $B; cd $B
 lb clean >/dev/null 2>&1 || true
 rm -rf config
@@ -28,6 +28,6 @@ cp $ISO/src/hooks/* config/hooks/normal/
 # boot menus: title + wallpaper
 mkdir -p config/bootloaders; cp -a /usr/share/live/build/bootloaders/grub-pc config/bootloaders/
 convert $P/config/wallpapers/polderheuvel.png -resize 800x600! -fill black -colorize 35% config/bootloaders/grub-pc/splash.png
-sed -i 's/^title-text:.*/title-text: "Polder OS 0.20"/' config/bootloaders/grub-pc/live-theme/theme.txt
+sed -i 's/^title-text:.*/title-text: "Polder OS 0.30"/' config/bootloaders/grub-pc/live-theme/theme.txt
 date +%s > build.start
 lb build

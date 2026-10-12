@@ -133,7 +133,7 @@ class Assistant(Gtk.Window):
     def local(self, name, args):
         q = A.needs_confirm(name, args)
         if q and not self.confirm(q): self.bubble('act', 'Geannuleerd.'); return
-        if name in ('screenshot', 'lock_screen', 'open_calendar'): self.hide_a()
+        if name in ('screenshot', 'lock_screen', 'open_calendar', 'open_app', 'open_path'): self.hide_a()   # 0.30 VM: panel stayed above newly opened apps
         self.busy = True
         def work():
             r = A.run(name, args); GLib.idle_add(self.done_local, r)

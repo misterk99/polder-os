@@ -234,3 +234,8 @@ _History reconstructed from the development log; intermediate file states were n
 - Backends: any folder (Nextcloud/Dropbox/rclone/USB) or a private git/GitHub repo (`gh` device login + private repo button)
 - Optional client-side encryption (scrypt + Fernet), newest-wins per item, backups before applying, auto-sync on change/login
 - Instellingen › Sync and "Herstel van andere pc" in Welkom
+
+## ISO 0.30
+
+- ISO version 0.30 with everything up to Rev 30; adds libsecret-tools, gnome-keyring, git, gh, python3-cryptography, age
+- Launcher finds the Weer/Webapps/Telefoon/Assistent/Sync settings; assistant hides after opening an app

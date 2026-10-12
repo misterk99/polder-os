@@ -1,4 +1,4 @@
-# Polder OS 0.20 package list (trixie, --apt-recommends false so everything needed is listed)
+# Polder OS 0.30 package list (trixie, --apt-recommends false so everything needed is listed)
 linux-image-amd64 live-boot live-config live-config-systemd user-setup iproute2 systemd-sysv sudo locales console-setup keyboard-configuration tzdata
 firmware-linux-free firmware-misc-nonfree firmware-realtek firmware-iwlwifi firmware-atheros
 network-manager wpasupplicant bluez dbus-x11 dbus-user-session pkexec polkitd udisks2 gvfs ca-certificates curl apt-transport-https
@@ -19,3 +19,7 @@ apt-listchanges
 
 # Revision 28: Telefoon (KDE Connect daemon + cli; --no-install-recommends keeps Plasma out)
 kdeconnect
+# Revision 29: Polder Assistent (urllib only; keyring for API keys)
+libsecret-tools gnome-keyring libpam-gnome-keyring
+# Revision 30: Polder Sync (git/GitHub backend, encryption)
+git gh python3-cryptography age openssh-client

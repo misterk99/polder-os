@@ -27,6 +27,11 @@ SECTIONS = [  # (title, subtitle, section, keywords)
     ('Agenda-abonnementen (iCal)', 'Agenda', 'agenda', 'agenda kalender ical ics webcal feestdagen'),
     ('Toetsenbordindeling', 'Toetsenbord en taal', 'toetsenbord', 'toetsenbord keyboard indeling layout taal qwerty'),
     ('Datum en tijd', 'Datum en tijd', 'datum', 'datum tijd klok 24-uurs uur'),
+    ('Weer-locatie', 'Weer', 'weer', 'weer weather locatie stad plaats'),
+    ('Webapps installeren', 'Webapps', 'webapps', 'webapp webapps pwa site app installeren'),
+    ('Telefoon koppelen', 'Telefoon', 'telefoon', 'telefoon phone kde connect koppelen android iphone'),
+    ('Polder Assistent en AI-sleutel', 'Assistent', 'assistent', 'assistent assistant ai openai gemini claude sleutel key'),
+    ('Polder Sync', 'Sync', 'sync', 'sync synchroniseren back-up backup herstel github nextcloud dropbox andere pc'),
     ('Over Polder OS', 'Versie, geheugen, systeem', 'over', 'over versie polder os systeem geheugen info'),
 ]
 OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv,
