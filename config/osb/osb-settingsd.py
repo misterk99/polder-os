@@ -56,6 +56,12 @@ def idle_lock():
             armed = False; print(time.strftime('%H:%M:%S'), 'idle lock', flush=True)
             subprocess.Popen([os.path.join(HERE, '..', 'lock', 'lock-now.sh')], start_new_session=True)
 
+def polder_sync(restore=False):   # Revision 30: Polder Sync (runs in a thread, never blocks the loop)
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'sync')); import polder_sync as Y
+        ok, msg = Y.sync_safe(restore); print(time.strftime('%H:%M:%S'), 'sync', ok, msg, flush=True)
+    except Exception as e: print('sync', e, flush=True)
+
 def main():
     threading.Thread(target=idle_lock, daemon=True).start()
     threading.Thread(target=reboot_watch, daemon=True).start()
@@ -63,6 +69,8 @@ def main():
     if not os.path.exists(S.FILE): S.save(s)
     A.kbd(s); A.night(s)
     mtime = os.path.getmtime(S.FILE); eff = S.effective_theme(s); last_sync = 0; last_wx = 0
+    sync_due = time.time() + 5 if s.get('sync_enabled') else 0   # Rev 30: sync at login, then debounced 15 s after changes + every 30 min
+    SYNC_IGNORE = {'sync_last_request'}
     while True:
         time.sleep(1)
         try: m = os.path.getmtime(S.FILE)
@@ -74,12 +82,18 @@ def main():
                     print(time.strftime('%H:%M:%S'), 'apply', fn, flush=True); getattr(A, fn)(n)
             if [f['id'] for f in n['feeds']] != [f['id'] for f in s['feeds']]: last_sync = 0
             if n.get('weather_loc') != s.get('weather_loc'): last_wx = 0
+            if n.get('sync_enabled') and any(n.get(k) != s.get(k) for k in set(n) | set(s) if not k.startswith('sync_')): sync_due = time.time() + 15
+            if n.get('sync_request') != s.get('sync_request') and n.get('sync_enabled'): sync_due = time.time()
             s = n; eff = S.effective_theme(s)
         if s.get('theme') == 'auto' and S.effective_theme(s) != eff:    # auto: switch at 07:00 / 19:00
             eff = S.effective_theme(s); print('auto theme ->', eff, flush=True); A.theme(s)
         if s['feeds'] and time.time() - last_sync > 60 * max(5, int(s.get('feed_refresh_min', 60))):
             last_sync = time.time(); threading.Thread(target=feed_sync, daemon=True).start()
 
+        if s.get('sync_enabled') and not sync_due: sync_due = time.time() + 1800
+        if sync_due and time.time() >= sync_due:
+            sync_due = time.time() + 1800 if s.get('sync_enabled') else 0
+            threading.Thread(target=polder_sync, daemon=True).start()
         if time.time() - last_wx > 1800:   # Revision 25: Polder Weer, every 30 min (Open-Meteo)
             last_wx = time.time(); threading.Thread(target=weather_fetch, daemon=True).start()
 

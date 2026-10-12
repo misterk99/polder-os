@@ -10,6 +10,7 @@ import gi
 for n, v in (('Gtk', '3.0'), ('AppStream', '1.0'), ('PackageKitGlib', '1.0')): gi.require_version(n, v)
 from gi.repository import Gtk, Gdk, GLib, GdkPixbuf, Gio, Pango, AppStream as AS, PackageKitGlib as PK
 import osbnotify as N
+def OSBS_FILE(): return os.environ.get('OSB_SETTINGS') or os.path.expanduser('~/.config/osb/settings.json')
 CACHE = os.path.expanduser('~/.cache/polder-store'); os.makedirs(CACHE, exist_ok=True)
 POOL = CF.ThreadPoolExecutor(4)
 import glob
@@ -82,12 +83,27 @@ class Backend:
         self.flats = set(run(['flatpak', 'list', '--app', '--columns=application']).split())
     def installed(self, a): return (a.flatpak_app() in self.flats) if a.flatpak else (a.pkg in self.debs)
     # all calls below run in a worker thread; progress(pct, text) is marshalled by the caller
+    def record(self, a, add):   # Rev 30: list of Store-installed apps for Polder Sync (restore offers to install them)
+        f = os.path.join(os.path.dirname(OSBS_FILE()), 'store-installed.json')
+        try: lst = json.load(open(f))
+        except Exception: lst = []
+        aid = a.flatpak_app() or a.pkg; lst = [x for x in lst if x.get('id') != aid]
+        if add: lst.append({'id': aid, 'source': a.source, 'name': a.name})
+        os.makedirs(os.path.dirname(f), exist_ok=True); json.dump(lst, open(f, 'w'), indent=1)
     def install(self, a, progress):
+        self._install(a, progress)
+        try: self.record(a, True)
+        except Exception as e: print('record', e)
+    def remove(self, a, progress):
+        self._remove(a, progress)
+        try: self.record(a, False)
+        except Exception as e: print('record', e)
+    def _install(self, a, progress):
         if a.flatpak: return self._flatpak(['install', '--system', '-y', '--noninteractive', 'flathub', a.flatpak_app()], progress)
         ids = [p.get_id() for p in self.pk.resolve(PK.FilterEnum.NOT_INSTALLED, [a.pkg], None, lambda *x: None, None).get_package_array()]
         if not ids: raise RuntimeError(f'pakket {a.pkg} niet gevonden')
         self.pk.install_packages(1 << PK.TransactionFlagEnum.ONLY_TRUSTED, ids[:1], None, self._pkprog(progress), None)
-    def remove(self, a, progress):
+    def _remove(self, a, progress):
         if a.flatpak: return self._flatpak(['uninstall', '--system', '-y', '--noninteractive', a.flatpak_app()], progress)
         ids = [p.get_id() for p in self.pk.resolve(PK.FilterEnum.INSTALLED, [a.pkg], None, lambda *x: None, None).get_package_array()]
         self.pk.remove_packages(0, ids[:1], False, True, None, self._pkprog(progress), None)

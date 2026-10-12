@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Polder OS 'Instellingen' (ChromeOS Settings style, GTK3). Writes ~/.config/osb/settings.json;
 osb-settingsd.py applies changes live. usage: instellingen.py [personalisatie|meldingen|agenda|toetsenbord|datum|over]"""
-import os, sys, time, threading, uuid, subprocess, platform, datetime, signal
+import os, sys, time, threading, uuid, subprocess, platform, datetime, signal, shutil
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in ('osb', 'notify', 'calendar'): sys.path.insert(0, os.path.join(C, d))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
@@ -26,6 +26,7 @@ SECTIONS = [('personalisatie', 'preferences-desktop-wallpaper-symbolic', 'Person
             ('webapps', 'web-browser-symbolic', 'Webapps'),
             ('telefoon', 'phone-symbolic', 'Telefoon'),
             ('assistent', 'starred-symbolic', 'Assistent'),
+            ('sync', 'emblem-synchronizing-symbolic', 'Sync'),
             ('over', 'help-about-symbolic', 'Over Polder OS')]
 FEED_COLORS = [('Blauw', '#0b57d0'), ('Groen', '#188038'), ('Rood', '#d93025'), ('Oranje', '#e8710a'), ('Paars', '#9334e6'), ('Grijs', '#5f6368')]
 
@@ -403,6 +404,95 @@ class App(Gtk.Window):
                 GLib.idle_add(done)
             threading.Thread(target=work, daemon=True).start()
         sb.connect('clicked', save); tb.connect('clicked', test)
+
+    def page_sync(self, o):   # Revision 30: Polder Sync
+        sys.path.insert(0, os.path.join(C, 'sync')); import polder_sync as Y
+        s = S.load(); c = Y.cfg(); st = Y.load_state()
+        k = self.card(o, 'Polder Sync')
+        self.row(k, 'Synchroniseren', 'Thema, accent, achtergrond, meldingen, vergrendelen, klok, toetsenbord, vastgezette apps, webapps, weer-locatie, agenda-links, assistent-dienst en Store-apps. Nooit: API-sleutels, wachtzin, klembord.',
+                 self.switch(c['enabled'], lambda v: (S.update(sync_enabled=v), self.show('sync'))))
+        if getattr(self, 'sync_busy', False): status = 'Bezig met synchroniseren…'; err = False
+        elif st.get('last_error'): status = 'Fout: ' + st['last_error']; err = True
+        else: status = (f"Laatst: {ago(st.get('last_sync'))} · {st.get('last_result', '')}" if st.get('last_sync') else 'Nog nooit gesynchroniseerd'); err = False
+        bb = Gtk.Box(spacing=8)
+        nb = Gtk.Button(label='Nu synchroniseren'); nb.get_style_context().add_class('btn'); nb.get_style_context().add_class('primary')
+        rb = Gtk.Button(label='Herstel van andere pc'); rb.get_style_context().add_class('btn')
+        for b in (nb, rb): b.set_sensitive(not getattr(self, 'sync_busy', False)); bb.pack_start(b, False, False, 0)
+        self.row(k, 'Status', status, bb, last=True, err=err)
+        def run(restore):
+            if restore:
+                d = Gtk.MessageDialog(transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION, buttons=Gtk.ButtonsType.OK_CANCEL,
+                                      text='Instellingen van je andere pc overnemen?')
+                d.format_secondary_text('Alle gesynchroniseerde instellingen worden vervangen door de opgeslagen versie. Er wordt eerst een back-up gemaakt.')
+                r = d.run(); d.destroy()
+                if r != Gtk.ResponseType.OK: return
+            self.sync_busy = True; self.show('sync')
+            def work():
+                Y.sync_safe(restore)
+                def done(): self.sync_busy = False; self.cur == 'sync' and self.show('sync')
+                GLib.idle_add(done)
+            threading.Thread(target=work, daemon=True).start()
+        nb.connect('clicked', lambda *a: run(False)); rb.connect('clicked', lambda *a: run(True))
+
+        k2 = self.card(o, 'Opslag')
+        self.row(k2, 'Waar', 'Een map (Nextcloud, Dropbox, rclone-koppeling, USB) of een privé git-repo (GitHub).',
+                 self.combo([('folder', 'Map'), ('git', 'Git / GitHub')], c['backend'], lambda v: (S.update(sync_backend=v), self.show('sync'))))
+        if c['backend'] == 'folder':
+            fb = Gtk.Button(label='Kiezen…'); fb.get_style_context().add_class('btn')
+            def pick(*a):
+                d = Gtk.FileChooserDialog(title='Sync-map kiezen', transient_for=self, action=Gtk.FileChooserAction.SELECT_FOLDER)
+                d.add_buttons('Annuleren', Gtk.ResponseType.CANCEL, 'Kiezen', Gtk.ResponseType.OK)
+                if d.run() == Gtk.ResponseType.OK: S.update(sync_folder=d.get_filename())
+                d.destroy(); self.show('sync')
+            fb.connect('clicked', pick)
+            self.row(k2, 'Map', (c['folder'] or 'Nog geen map gekozen') + ' · bestanden komen in de submap polder-sync/', fb, last=True)
+        else:
+            ue = Gtk.Entry(); ue.set_width_chars(30); ue.set_text(c['git_url']); ue.set_placeholder_text('https://github.com/naam/polder-sync.git')
+            ue.connect('activate', lambda e: (S.update(sync_git_url=e.get_text().strip()), self.show('sync')))
+            ue.connect('focus-out-event', lambda e, ev: S.update(sync_git_url=e.get_text().strip()) and False)
+            self.row(k2, 'Repository-URL', 'Gebruik een PRIVÉ repo. Enter = opslaan.', ue)
+            gh = shutil.which('gh')
+            authed = gh and subprocess.run(['gh', 'auth', 'status'], capture_output=True, timeout=10).returncode == 0
+            gb = Gtk.Box(spacing=8)
+            lb = Gtk.Button(label='Inloggen bij GitHub'); lb.get_style_context().add_class('btn')
+            lb.connect('clicked', lambda *a: subprocess.Popen(['xfce4-terminal', '--title', 'GitHub inloggen', '-x', 'sh', '-c',
+                       'gh auth login --web -h github.com -p https && gh auth setup-git; echo; echo "Klaar, je kunt dit venster sluiten."; read x']))
+            cb = Gtk.Button(label='Privé-repo maken'); cb.get_style_context().add_class('btn'); cb.set_sensitive(bool(authed))
+            def create(*a):
+                r = subprocess.run(['gh', 'repo', 'create', 'polder-sync', '--private', '--description', 'Polder OS instellingen (Polder Sync)'], capture_output=True, text=True, timeout=60)
+                login = subprocess.run(['gh', 'api', 'user', '-q', '.login'], capture_output=True, text=True, timeout=30).stdout.strip()
+                if login and (r.returncode == 0 or 'already exists' in r.stderr): S.update(sync_git_url=f'https://github.com/{login}/polder-sync.git')
+                else: self.sync_note = 'Repo maken mislukt: ' + r.stderr.strip()[-200:]
+                self.show('sync')
+            cb.connect('clicked', create)
+            for b in (lb, cb): gb.pack_start(b, False, False, 0)
+            sub = ('Ingelogd bij GitHub (gh).' if authed else 'Log in via je browser met een code (GitHub device-login).') if gh else 'GitHub CLI (gh) is niet geïnstalleerd.'
+            if getattr(self, 'sync_note', ''): sub += ' ' + self.sync_note
+            self.row(k2, 'GitHub', sub, gb if gh else None, last=True)
+
+        k3 = self.card(o, 'Versleuteling')
+        self.row(k3, 'Versleutelen met wachtzin', 'Alles wordt op deze pc versleuteld (scrypt + AES/Fernet) voordat het de map of repo bereikt. Zonder wachtzin kan niemand het lezen, ook jij niet.',
+                 self.switch(c['encrypt'], lambda v: (S.update(sync_encrypt=v), self.show('sync'))), last=not c['encrypt'])
+        if c['encrypt']:
+            pe = Gtk.Entry(); pe.set_visibility(False); pe.set_width_chars(22); pe.set_placeholder_text('Wachtzin'); pe.set_text(Y.get_pass())
+            sb = Gtk.Button(label='Opslaan'); sb.get_style_context().add_class('btn')
+            box = Gtk.Box(spacing=8); box.pack_start(pe, False, False, 0); box.pack_start(sb, False, False, 0)
+            sb.connect('clicked', lambda *a: (Y.set_pass(pe.get_text()), self.show('sync')))
+            self.row(k3, 'Wachtzin', ('Ingesteld' if Y.get_pass() else 'Nog niet ingesteld') + ' · gebruik op elke pc dezelfde wachtzin. Wordt nooit gesynchroniseerd.', box, last=True)
+
+        miss = Y.missing_store_apps()
+        if miss:
+            k4 = self.card(o, 'Apps van je andere pc')
+            ib = Gtk.Button(label='Installeren'); ib.get_style_context().add_class('btn')
+            debs = [a['id'] for a in miss if a.get('source') != 'Flathub']; flats = [a['id'] for a in miss if a.get('source') == 'Flathub']
+            cmd = ' && '.join(([f"pkexec apt-get install -y {' '.join(debs)}"] if debs else []) + ([f"pkexec flatpak install --system -y flathub {' '.join(flats)}"] if flats else []))
+            ib.connect('clicked', lambda *a: subprocess.Popen(['xfce4-terminal', '--title', 'Apps herstellen', '-x', 'sh', '-c', cmd + '; echo; echo Klaar.; read x']))
+            self.row(k4, f'{len(miss)} app(s) nog niet geïnstalleerd', ', '.join(a.get('name', a['id']) for a in miss), ib, last=True)
+        import glob as _g
+        nb2 = len(_g.glob(os.path.join(Y.BACKUPS, '*.json')))
+        k5 = self.card(o, 'Back-ups')
+        ob = Gtk.Button(label='Map openen'); ob.get_style_context().add_class('btn'); ob.connect('clicked', lambda *a: subprocess.Popen(['xdg-open', Y.BACKUPS]))
+        self.row(k5, f'{nb2} back-up(s)', 'Voor elke synchronisatie die iets overschrijft, wordt je oude toestand bewaard (laatste 10). Per instelling wint de nieuwste wijziging.', ob if nb2 else None, last=True)
 
     def page_over(self, o):
         c = self.card(o, 'Over Polder OS')

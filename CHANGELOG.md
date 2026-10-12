@@ -227,3 +227,10 @@ _History reconstructed from the development log; intermediate file states were n
 
 - Shared `osb/rgba.py`: real ARGB transparent corners for launcher, quick settings/notification centre, calendar/weather, toasts, Alt+Tab, snap preview, clipboard, shortcuts, capture bar and pop-up menus (wallpaper backdrop only as no-compositor fallback)
 - App windows stay picom-rounded; audit contact sheet `screenshots/rounding-audit.png`
+
+## Rev 30: Polder Sync
+
+- Settings sync between pc's: settings, pinned apps, webapps, calendar links, assistant provider/model (never keys), Store app list
+- Backends: any folder (Nextcloud/Dropbox/rclone/USB) or a private git/GitHub repo (`gh` device login + private repo button)
+- Optional client-side encryption (scrypt + Fernet), newest-wins per item, backups before applying, auto-sync on change/login
+- Instellingen › Sync and "Herstel van andere pc" in Welkom

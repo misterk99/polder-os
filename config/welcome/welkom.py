@@ -106,6 +106,11 @@ class Welkom(Gtk.Window):
         th = S.wallpaper_thumb('polderheuvel', 400, 225)
         if th:
             pb = GdkPixbuf.Pixbuf.new_from_file(th); img = Gtk.Image.new_from_pixbuf(pb); b.pack_start(img, False, False, 6)
+        # Rev 30: Polder Sync restore -> Instellingen › Sync (map of GitHub kiezen, wachtzin, 'Herstel van andere pc')
+        rb = Gtk.Button(label='Herstel van andere pc…'); rb.set_halign(Gtk.Align.CENTER); rb.get_style_context().add_class('text')
+        rb.set_tooltip_text('Instellingen, vastgezette apps en webapps overnemen via Polder Sync')
+        rb.connect('clicked', lambda *a: subprocess.Popen([sys.executable, os.path.join(C, 'settings', 'instellingen.py'), 'sync']))
+        b.pack_start(rb, False, False, 0)
         return b
 
     # 2 -------------------------------------------------------------------------------------------
