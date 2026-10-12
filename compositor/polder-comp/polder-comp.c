@@ -12,6 +12,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
+#include <execinfo.h>
+#include <unistd.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -113,6 +116,11 @@ struct layer { struct wl_list link; struct server *server; struct wlr_layer_surf
 	struct wl_listener commit, map, unmap, destroy; };
 struct keyboard { struct wl_list link; struct server *server; struct wlr_keyboard *wlr; struct wl_listener modifiers, key, destroy; };
 
+static void crash_handler(int sig) {   /* print a backtrace to stderr (log) on a crash */
+	void *bt[64]; int n = backtrace(bt, 64);
+	static const char msg[] = "polder-comp: fatal signal, backtrace:\n"; (void)!write(2, msg, sizeof msg - 1); backtrace_symbols_fd(bt, n, 2);
+	signal(sig, SIG_DFL); raise(sig);
+}
 static void spawn(struct server *s, const char *cmd) {
 	if (!cmd || !*cmd) return;
 	if (fork() == 0) { setsid(); execl("/bin/sh", "/bin/sh", "-c", cmd, (void *)NULL); _exit(127); }
@@ -153,11 +161,17 @@ static void round_buffer(struct wlr_scene_buffer *buf, int sx, int sy, void *dat
 static void view_update_decor(struct view *v) {
 	struct wlr_box g; view_geometry(v, &g);
 	if (g.width <= 0 || g.height <= 0) return;
+	if (v->type == VIEW_XDG) {   /* clip client-side shadows/margins to the window geometry so our corners/shadow sit on the real edge */
+		struct wlr_box geo; wlr_xdg_surface_get_geometry(v->xdg->base, &geo);
+		wlr_scene_subsurface_tree_set_clip(&v->content->node, &geo);
+	}
 #ifdef POLDER_SCENEFX
 	/* scenefx: real rounded corners on the surface buffers + gaussian shadow behind */
-	wlr_scene_node_for_each_buffer(&v->content->node, round_buffer, NULL);
+	if (!getenv("POLDER_FX_NOROUND")) wlr_scene_node_for_each_buffer(&v->content->node, round_buffer, NULL);
 	int blur = 16;
+	if (g.width < 2 * (RADIUS + 6) || g.height < 2 * (RADIUS + 6)) { wlr_scene_node_set_enabled(&v->shadow->node, false); return; }
 	wlr_scene_shadow_set_size(v->shadow, g.width + 2 * blur, g.height + 2 * blur);
+	wlr_scene_node_set_enabled(&v->shadow->node, !getenv("POLDER_FX_NOSHADOW"));
 	wlr_scene_node_set_position(&v->shadow->node, g.x - blur, g.y - blur + 4);
 #else
 	/* pixman: four stacked translucent rectangles = stepped soft shadow (corners stay square) */
@@ -174,7 +188,10 @@ static void view_create_tree(struct view *v) {
 	v->tree->node.data = v;
 #ifdef POLDER_SCENEFX
 	float c[4] = { 0, 0, 0, 0.35f };
-	v->shadow = wlr_scene_shadow_create(v->tree, 1, 1, RADIUS + 6, 12.0f, c);
+	/* created disabled and only sized once the window has a real size: a shadow smaller than 2*radius
+	 * gives scenefx a negative inner (opaque) rect */
+	v->shadow = wlr_scene_shadow_create(v->tree, 64, 64, RADIUS + 6, 12.0f, c);
+	wlr_scene_node_set_enabled(&v->shadow->node, false);
 #else
 	for (int i = 3; i >= 0; i--) { float c[4] = { 0, 0, 0, 0.045f }; v->shadow[i] = wlr_scene_rect_create(v->tree, 1, 1, c); }
 #endif
@@ -647,6 +664,7 @@ static void add_headless_output(struct wlr_backend *b, void *data) {
 }
 
 int main(int argc, char *argv[]) {
+	signal(SIGSEGV, crash_handler); signal(SIGABRT, crash_handler); signal(SIGBUS, crash_handler);
 	wlr_log_init(getenv("POLDER_COMP_DEBUG") ? WLR_DEBUG : WLR_INFO, NULL);
 	char *startup = NULL; int c;
 	while ((c = getopt(argc, argv, "s:h")) != -1) { if (c == 's') startup = optarg; else { printf("Usage: %s [-s startup-command]\n", argv[0]); return 0; } }

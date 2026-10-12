@@ -12,7 +12,9 @@ deps = [dependency('wlroots-0.18'), dependency('wayland-server'), dependency('xk
 scenefx = dependency('scenefx-0.2', required: get_option('scenefx'))
 args = []
 if scenefx.found()
-  deps += scenefx
+  # scenefx must come BEFORE wlroots: both export wlr_scene_*; libwlroots' copy would otherwise win at runtime
+  # and mix two scene-graph implementations (invisible rounded buffers, crashes) -- found in the qemu test
+  deps = [scenefx] + deps
   args += '-DPOLDER_SCENEFX'
 endif
-executable('polder-comp', 'polder-comp.c', protos, dependencies: deps, c_args: args, install: true)
+executable('polder-comp', 'polder-comp.c', protos, dependencies: deps, c_args: args, link_args: ['-rdynamic'], install: true)
