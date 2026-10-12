@@ -2,6 +2,8 @@
 
 _History reconstructed from the development log; intermediate file states were not preserved. Each revision lists its main changes._
 
+## Rev 33b — Volledige plank op polder-comp: op Wayland is de plank zelf de hele balk (tint2 draait niet op Wayland): layer-shell over de volle breedte met exclusive zone, launcherknop links, vastgezette/actieve apps in het midden, statuspillen rechts (weer, datum → agenda, klok + meldingen/niet-storen + wifi/volume/batterij alleen bij echte info → Snelle instellingen), paletkleuren licht/donker. Bureaublad valt terug op Polderheuvel als wallpaper.png ontbreekt. Ook X11-verplaatsen/-formaatwijzigen via Xwayland getest (screenshots 137–143).
+
 ## Rev 33 (3+4) — polder-comp: wlr-foreign-toplevel-management (titel, app_id, actief, minimaliseren; activeren/sluiten/minimaliseren op verzoek) + helper tools/polder-toplevels (JSON-regels); plank toont Wayland-vensters en kan activeren/minimaliseren/herstellen/sluiten. Klik op een layer-shell-paneel met on_demand-toetsenbord geeft focus. Contextmenu’s als overlay-layer op Wayland. Fix: crash bij xdg-popup zonder ouder (gtk-layer-shell tooltips).
 
 ## Rev 32c — scenefx echt gezien: polder-comp (scenefx-build) op de GLES2-renderer (llvmpipe, virtio-gpu, DRM-backend) in qemu; afgeronde hoeken r=12 + gaussische schaduw (screenshots 125–127). Fixes: scenefx moet vóór wlroots gelinkt worden (beide exporteren wlr_scene_*), CSD-marges clippen op de venstergeometrie, schaduw pas tonen bij echte grootte; crash-backtrace-handler.

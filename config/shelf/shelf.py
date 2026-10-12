@@ -52,6 +52,12 @@ def css():
 .recpill {{ background: #d93025; color: #ffffff; border: none; box-shadow: none; border-radius: 18px; padding: 4px 12px; font-family: Roboto; font-weight: 500; }}
 .recpill image {{ color: #ffffff; }}
 .mediapill {{ background: {P['SURFACE_VARIANT']}; color: {P['ON_SURFACE']}; border: none; box-shadow: none; border-radius: 18px; padding: 4px 12px; font-family: Roboto; }}
+.pill {{ background: {P['SURFACE_VARIANT']}; color: {P['ON_SURFACE']}; border: none; box-shadow: none; border-radius: 18px; padding: 0 14px; min-height: 36px; font-family: Roboto; font-weight: 500; font-size: 11.5pt; }}
+.pill:hover {{ background: {P['ACCENT_CONTAINER']}; color: {P['ON_ACCENT_CONTAINER']}; }}
+.pill image {{ color: {P['ON_SURFACE']}; }}
+.badge {{ background: {P['ON_SURFACE']}; color: {P['SURFACE']}; border-radius: 10px; min-width: 18px; min-height: 18px; font-size: 8.5pt; }}
+.lbtn {{ background: transparent; border: none; box-shadow: none; border-radius: 22px; padding: 2px; }}
+.lbtn:hover {{ background: {P['SURFACE_VARIANT']}; }}
 .mediapill:hover {{ background: {P['ACCENT_CONTAINER']}; color: {P['ON_ACCENT_CONTAINER']}; }}
 '''
 
@@ -90,6 +96,7 @@ class Desktop(Gtk.Window):
 
     def refresh(self):
         wp = os.path.join(C, 'wallpaper.png')
+        if not os.path.exists(wp): wp = os.path.join(C, 'wallpapers', 'polderheuvel.png')   # Rev 33b: default Polderheuvel
         try: m = os.path.getmtime(wp)
         except OSError: return
         if m != self.wpm:
@@ -114,16 +121,105 @@ class Desktop(Gtk.Window):
         self.menu = popmenu.PopMenu(items, int(e.x_root), int(e.y_root), anchor='below')
         return True
 
+SYM = '/usr/share/icons/Papirus/24x24/symbolic'
+def sh(cmd, t=3):
+    try: return subprocess.run(cmd, capture_output=True, text=True, timeout=t).stdout.strip()
+    except Exception: return ''
+def run(*a): subprocess.Popen(list(a), start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+class Status:
+    """Rev 33b: launcher button + right-hand status pills, native GTK (tint2 + render-status.sh do this on X11).
+    Same rules as render-status.sh: wifi/volume/battery icons only when the real hardware/info exists."""
+    def __init__(self, shelf):
+        self.launcher = Gtk.Button(valign=Gtk.Align.CENTER); self.launcher.get_style_context().add_class('lbtn')
+        try:
+            from gi.repository import GdkPixbuf
+            self.launcher.add(Gtk.Image.new_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_size(os.path.join(C, 'launcher-icon.png'), 32, 32)))
+        except Exception: self.launcher.add(Gtk.Image.new_from_icon_name('view-app-grid-symbolic', Gtk.IconSize.LARGE_TOOLBAR))
+        self.launcher.set_tooltip_text('Launcher'); self.launcher.connect('clicked', lambda *a: run(os.path.join(C, 'launcher', 'launcher-toggle.sh')))
+        self.right = Gtk.Box(spacing=6, valign=Gtk.Align.CENTER)
+        self.wx = self.pill(lambda *a: run('python3', os.path.join(C, 'calendar', 'cal.py'), '--weather'), 'Weer')
+        self.date = self.pill(lambda *a: run('python3', os.path.join(C, 'calendar', 'cal.py')), 'Agenda')
+        self.tray = self.pill(lambda *a: run('python3', os.path.join(C, 'quicksettings', 'qs.py')), 'Snelle instellingen')
+        for p in (self.wx, self.date, self.tray): self.right.pack_start(p, False, False, 0)
+        self.key = None; self.slow = 0; self.wxtext = ''; self.right.show_all(); self.wx.set_no_show_all(True); self.wx.hide()
+    def pill(self, cb, tip):
+        b = Gtk.Button(); b.get_style_context().add_class('pill'); b.add(Gtk.Box(spacing=8)); b.set_tooltip_text(tip); b.connect('clicked', cb); return b
+    def icon(self, name):
+        import glob
+        f = glob.glob(f'{SYM}/*/{name}-symbolic.svg')
+        im = Gtk.Image.new_from_icon_name(name + '-symbolic', Gtk.IconSize.MENU) if not f else Gtk.Image.new_from_gicon(Gio.FileIcon.new(Gio.File.new_for_path(f[0])), Gtk.IconSize.MENU)
+        im.set_pixel_size(18); return im
+    def fill(self, btn, parts):
+        bx = btn.get_child()
+        for c in bx.get_children(): c.destroy()
+        for p in parts: bx.pack_start(p, False, False, 0)
+        bx.show_all()
+    def slow_probe(self):
+        """wifi / volume / battery / weather: polled every ~10 s (cheap enough, and only real values)."""
+        st = {}
+        q = sh(['nmcli', '-t', '-f', 'IN-USE,SIGNAL', 'dev', 'wifi']) if shutil.which('nmcli') else ''
+        sig = next((l.split(':')[1] for l in q.splitlines() if l.startswith('*')), None)
+        if sig and sig.isdigit():
+            n = int(sig); st['wifi'] = 'network-wireless-signal-' + ('excellent' if n >= 80 else 'good' if n >= 60 else 'ok' if n >= 30 else 'weak')
+        elif shutil.which('nmcli') and 'ethernet:connected' in sh(['nmcli', '-t', '-f', 'TYPE,STATE', 'dev']): st['wifi'] = 'network-wired'
+        if shutil.which('pactl'):
+            v = sh(['pactl', 'get-sink-volume', '@DEFAULT_SINK@']); m = sh(['pactl', 'get-sink-mute', '@DEFAULT_SINK@'])
+            import re; pc = re.findall(r'(\d+)%', v)
+            if pc: n = int(pc[0]); st['vol'] = 'audio-volume-' + ('muted' if 'yes' in m or n == 0 else 'high' if n > 66 else 'medium' if n > 33 else 'low')
+        import glob
+        bat = sorted(glob.glob('/sys/class/power_supply/BAT*'))
+        if bat:
+            try: st['bat'] = f'battery-level-{(int(open(bat[0] + "/capacity").read()) + 5) // 10 * 10}'
+            except (OSError, ValueError): pass
+        st['upd'] = os.path.exists('/tmp/osb-update.json')
+        return st
+    def update(self):
+        self.slow -= 1
+        if self.slow <= 0:
+            self.slow = 14; self.st = self.slow_probe()
+            import threading
+            def wx():
+                r = sh(['python3', os.path.join(C, 'weather', 'weather.py'), 'pill'], 6); GLib.idle_add(self.set_wx, r)
+            threading.Thread(target=wx, daemon=True).start()
+        sets = S.load()
+        try: ns = json.load(open('/tmp/osb-notify/state.json'))
+        except Exception: ns = {}
+        tf = '%H:%M' if sets.get('clock24', True) else '%-I:%M'
+        M = 'jan feb mrt apr mei jun jul aug sep okt nov dec'.split(); t = time.localtime()
+        key = (time.strftime(tf), sets.get('show_date', True), ns.get('unread', 0), ns.get('dnd', False), tuple(sorted(self.st.items())), N.palette()['THEME'])
+        if key == self.key: return
+        self.key = key
+        self.date.set_visible(bool(sets.get('show_date', True)))
+        self.fill(self.date, [Gtk.Label(label=f'{t.tm_mday} {M[t.tm_mon - 1]}')])
+        parts = [Gtk.Label(label=key[0])]
+        if ns.get('dnd'): parts.append(self.icon('notifications-disabled'))
+        elif ns.get('unread'): b = Gtk.Label(label=str(ns['unread'])); b.get_style_context().add_class('badge'); parts.append(b)
+        if self.st.get('upd'): parts.append(self.icon('go-up'))
+        for k in ('wifi', 'vol', 'bat'):
+            if k in self.st: parts.append(self.icon(self.st[k]))
+        self.fill(self.tray, parts)
+    def set_wx(self, r):
+        if r and ' ' in r: self.fill(self.wx, [self.icon(r.split(' ')[0]), Gtk.Label(label=r.split(' ', 1)[1])]); self.wx.show()
+        else: self.wx.hide()
+
 class Shelf(Gtk.Window):
     def __init__(self):
         super().__init__(type=Gtk.WindowType.TOPLEVEL, title='Polder Plank')
         self.set_name('shelf'); self.set_decorated(False); self.set_type_hint(Gdk.WindowTypeHint.DOCK)
         self.set_keep_above(True); self.stick(); self.set_skip_taskbar_hint(True); self.set_skip_pager_hint(True); self.set_resizable(False)
         scr = Gdk.Screen.get_default(); self.sw, self.sh = scr.get_width(), scr.get_height()
-        LSH.setup(self, 'polder-shelf', layer='top', anchors=('bottom',), exclusive=H)   # centred at the bottom, reserves H px
+        # Rev 33b: on Wayland there is no tint2, so the shelf IS the whole bar: full width, launcher left, apps centred,
+        # status pills right (same layout as tint2rc 'EFSEEEE' in the X11 session). On X11 it stays the centred app strip.
+        self.full = LSH.wayland()
+        LSH.setup(self, 'polder-shelf', layer='top', anchors=('left', 'right', 'bottom') if self.full else ('bottom',), exclusive=H)
         self.prov = Gtk.CssProvider(); Gtk.StyleContext.add_provider_for_screen(scr, self.prov, 800); self.palm = None
-        outer = Gtk.Box(spacing=8); self.add(outer)
-        self.box = Gtk.Box(spacing=4); self.box.set_border_width(4); outer.pack_start(self.box, False, False, 0)
+        outer = Gtk.Box(spacing=8); self.box = Gtk.Box(spacing=4); self.box.set_border_width(4)
+        if self.full:
+            bar = Gtk.Box(); bar.set_size_request(-1, H); self.add(bar); self.status = Status(self)
+            bar.pack_start(self.status.launcher, False, False, 6); bar.set_center_widget(outer); bar.pack_end(self.status.right, False, False, 8)
+        else: self.add(outer)
+        outer.pack_start(self.box, False, False, 0)
         # Revision 18: recording stop pill + media pill (only while something plays); live in this process, no new daemon
         self.extra = Gtk.Box(spacing=6, valign=Gtk.Align.CENTER); outer.pack_start(self.extra, False, False, 0)
         self.rec = Gtk.Button(); self.rec.get_style_context().add_class('recpill'); rb = Gtk.Box(spacing=6)
@@ -143,6 +239,7 @@ class Shelf(Gtk.Window):
         self.sig = None; self.setm = None; self.menu = None
         self.desk = Desktop(self.sw, self.sh)
         self.render(force=True); GLib.timeout_add(700, self.tick)
+        if self.full: self.status.update()
 
     def prop(self, w, name):
         try:
@@ -199,6 +296,9 @@ class Shelf(Gtk.Window):
         return changed
 
     def tick(self):
+        if self.full:
+            try: self.status.update()
+            except Exception as e: print('status', e, flush=True)
         try: self.desk.refresh()
         except Exception as e: print('desk', e, flush=True)
         try:
@@ -226,6 +326,7 @@ class Shelf(Gtk.Window):
         for ch in self.box.get_children(): ch.destroy()
         for a in order: self.box.pack_start(self.button(a, a in running), False, False, 0)
         self.box.show_all(); w = self.get_child().get_preferred_size()[1].width
+        if self.full: w = self.sw
         self.resize(max(w, 1), H)
         if not LSH.active(self): self.move((self.sw - w) // 2, self.sh - H)
         if not self.get_visible(): self.show_all()
@@ -270,9 +371,9 @@ class Shelf(Gtk.Window):
         if ws:
             items.append(None); items.append(('window-close-symbolic', 'Sluiten' if len(ws) == 1 else f'Sluiten ({len(ws)} vensters)',
                                               lambda: [self.wl.send('close', w[0]) if self.wl else subprocess.run(['wmctrl', '-i', '-c', hex(w[0])], timeout=3) for w in ws]))
-        a = b.get_allocation(); ox, oy = self.get_window().get_origin()[1:]
-        if LSH.active(self): ox, oy = (self.sw - self.get_allocated_width()) // 2, self.sh - H   # layer surface: origin is ours to compute
-        self.menu = popmenu.PopMenu(items, ox + a.x, oy - 6, anchor='above', title=ai.get_display_name() if ai else app[4:])
+        ox, oy = self.get_window().get_origin()[1:]; bx = b.translate_coordinates(self, 0, 0)[0]
+        if LSH.active(self): ox, oy = (0 if self.full else (self.sw - self.get_allocated_width()) // 2), self.sh - H   # layer surface: origin is ours to compute
+        self.menu = popmenu.PopMenu(items, ox + bx, oy - 6, anchor='above', title=ai.get_display_name() if ai else app[4:])
 
     def set_pin(self, app, on):
         p = [x for x in S.load().get('pinned', []) if x != app]
