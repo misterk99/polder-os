@@ -18,6 +18,7 @@ KEYD = [
     dict(sym='l', mods=('Super',), action='lock', group='Systeem', desc='Scherm vergrendelen', also=('Populair',)),
     dict(sym='Print', mods=(), action='capture', group='Systeem', desc='Schermopname (of opname stoppen)', also=('Populair',)),
     dict(sym='F5', mods=('Ctrl', 'Shift'), action='capture', group='Systeem', desc='Schermopname (ChromeOS-toets)'),
+    dict(sym='a', mods=('Super',), action='assistant', group='Systeem', desc='Polder Assistent openen', also=('Populair',)),
     dict(sym='v', mods=('Super',), action='clip', group='Tekst/klembord', desc='Klembordgeschiedenis openen', also=('Populair',)),
     dict(sym='slash', mods=('Ctrl', 'Alt'), action='shortcuts', group='Navigatie', desc='Dit overzicht met sneltoetsen', also=('Populair',)),
 ]

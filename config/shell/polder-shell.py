@@ -24,7 +24,7 @@ class Shell:
     def __init__(self):
         self.mods = {}; self.objs = {}
         for name, fn in (('notify', self.m_notify), ('shelf', self.m_shelf), ('launcher', self.m_launcher),
-                         ('clip', self.m_clip), ('settingsd', self.m_settingsd), ('keyd', self.m_keyd)):
+                         ('clip', self.m_clip), ('settingsd', self.m_settingsd), ('keyd', self.m_keyd), ('assistant', self.m_assistant)):
             t = time.time()
             try: fn(); log(f'module {name}: ok ({(time.time() - t) * 1000:.0f} ms)')
             except Exception: log(f'module {name}: FAILED\n' + traceback.format_exc())
@@ -41,6 +41,8 @@ class Shell:
     def m_settingsd(self):
         m = self.mods['settingsd'] = load('osb_settingsd', 'osb/osb-settingsd.py')
         threading.Thread(target=self.guard, args=('settingsd', m.main), daemon=True).start()
+    def m_assistant(self):   # Revision 29: Polder Assistent (window created lazily on first Super+A)
+        sys.path.insert(0, os.path.join(C, 'assistant')); self.objs['assistant'] = None
     def m_keyd(self):
         # keyd grabs keys at import and loops in next_event(): run the whole module in a thread, dispatch toggles to the main loop
         def run():
@@ -68,6 +70,9 @@ class Shell:
         try:
             if cmd == 'launcher': self.objs['launcher'].toggle()
             elif cmd == 'clip': self.objs['clip'].toggle()
+            elif cmd == 'assistant':
+                if not self.objs.get('assistant'): self.objs['assistant'] = load('assistant', 'assistant/assistant.py').Assistant()
+                self.objs['assistant'].toggle()
             elif cmd == 'clip-clear': self.objs['clip'].clear()
             elif cmd == 'notify-reload':
                 m = load('osb_notifyd_css', 'notify/osb-notifyd.py'); self.objs['notify'].prov.load_from_data(m.CSS.encode())   # re-exec module: CSS is built from palette.env at import
@@ -91,7 +96,7 @@ class Shell:
         c, _ = self.srv.accept(); c.settimeout(1)
         try:
             cmd = c.recv(64).decode().strip()
-            known = cmd in ('launcher', 'clip', 'clip-clear', 'notify-reload', 'ping')
+            known = cmd in ('launcher', 'clip', 'assistant', 'clip-clear', 'notify-reload', 'ping')
             c.sendall(b'ok\n' if known else b'err\n')      # answer first: showing the launcher can take >1 s the first time
             if known: GLib.idle_add(self.once, cmd)
         except Exception as e: log('ipc', e)

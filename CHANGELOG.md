@@ -211,3 +211,10 @@ _History reconstructed from the development log; intermediate file states were n
 - Instellingen › Telefoon: devices from the daemon over D-Bus (`osb/phone.py`), Koppelen/Accepteren with verification key, paired card with battery, feature toggles (meldingen, klembord, bestanden, batterij, telefoon zoeken), ring.
 - QS 'Telefoon' tile with battery %, only when a phone is paired. Thunar action 'Naar telefoon sturen'.
 - Tested without a phone only (empty state, daemon, D-Bus); pairing/notifications/clipboard/sharing untested.
+
+## Rev 29: Polder Assistent
+
+- **Super+A** opens the assistant panel (polder-shell module, standalone fallback)
+- Offline Dutch/English intents that really act: theme, apps, calendar, volume, brightness, wifi, bluetooth, niet storen, lock, screenshot, weather, file search
+- Instellingen › Assistent: optional OpenAI / Gemini / Claude key (keyring or 0600 file), model, real connection test
+- Cloud answers stream and can call the same system actions (confirmation for lock and turning wifi/bluetooth off)

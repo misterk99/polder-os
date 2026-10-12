@@ -25,6 +25,7 @@ SECTIONS = [('personalisatie', 'preferences-desktop-wallpaper-symbolic', 'Person
             ('weer', 'weather-few-clouds-symbolic', 'Weer'),
             ('webapps', 'web-browser-symbolic', 'Webapps'),
             ('telefoon', 'phone-symbolic', 'Telefoon'),
+            ('assistent', 'starred-symbolic', 'Assistent'),
             ('over', 'help-about-symbolic', 'Over Polder OS')]
 FEED_COLORS = [('Blauw', '#0b57d0'), ('Groen', '#188038'), ('Rood', '#d93025'), ('Oranje', '#e8710a'), ('Paars', '#9334e6'), ('Grijs', '#5f6368')]
 
@@ -367,6 +368,41 @@ class App(Gtk.Window):
                 b = Gtk.Button(label='Koppelen'); b.connect('clicked', lambda _b, i=d['id']: (PH.pair(i), GLib.timeout_add(1500, lambda: self.show('telefoon'))))
                 sub = 'Klaar om te koppelen' + (f" · code {d['verification']}" if d['verification'] else '')
             self.row(c2, d['name'], sub, b, last=k == len(others) - 1)
+
+    def page_assistent(self, o):   # Revision 29: Polder Assistent (optional cloud LLM)
+        sys.path.insert(0, os.path.join(C, 'assistant')); import llm as L
+        s = S.load(); prov = s.get('assistant_provider', 'none'); models = dict(s.get('assistant_model') or {})
+        c = self.card(o, 'Polder Assistent')
+        self.row(c, 'Openen', 'Super+A. Lokale opdrachten (thema, volume, wifi, apps, weer, bestanden…) werken altijd, zonder sleutel en zonder internet.', last=True)
+        c2 = self.card(o, 'AI-dienst (optioneel)')
+        items = [('none', 'Geen (alleen lokaal)')] + [(k, v[0]) for k, v in L.PROVIDERS.items()]
+        def setp(v): S.update(assistant_provider=v); self.show('assistent')
+        self.row(c2, 'Dienst', 'Vrije vragen gaan naar deze dienst; de AI kan dezelfde systeemacties uitvoeren (vraagt eerst bij vergrendelen of wifi/bluetooth uit).', self.combo(items, prov, setp), last=prov == 'none')
+        if prov == 'none':
+            self.row(c2, 'Lokaal model', 'Een lokaal model (bv. via Ollama) wordt nog niet ondersteund.', last=True); return
+        key = L.get_key(prov)
+        ke = Gtk.Entry(); ke.set_visibility(False); ke.set_width_chars(28); ke.set_placeholder_text('API-sleutel plakken'); ke.set_text(key)
+        where = 'GNOME-sleutelbos' if L._secret_ok() else '~/.config/osb/assistant-keys (alleen jij kunt het lezen)'
+        self.row(c2, 'API-sleutel', ('Ingesteld' if key else 'Nog niet ingesteld') + f' · opgeslagen in {where}', ke)
+        me = Gtk.Entry(); me.set_width_chars(24); me.set_text(models.get(prov) or L.PROVIDERS[prov][1])
+        self.row(c2, 'Model', f'Standaard: {L.PROVIDERS[prov][1]}', me)
+        bb = Gtk.Box(spacing=8); sb = Gtk.Button(label='Opslaan'); sb.get_style_context().add_class('btn'); sb.get_style_context().add_class('primary')
+        tb = Gtk.Button(label='Testen'); tb.get_style_context().add_class('btn'); bb.pack_start(sb, False, False, 0); bb.pack_start(tb, False, False, 0)
+        self.a_status = getattr(self, 'a_status', ('', False))
+        self.row(c2, 'Verbinding', self.a_status[0] or 'Test doet één kleine echte API-aanroep.', bb, last=True, err=self.a_status[1])
+        def save(*a, rerender=True):
+            k = ke.get_text().strip(); models[prov] = me.get_text().strip() or L.PROVIDERS[prov][1]
+            S.update(assistant_model=models); w = L.set_key(prov, k)
+            self.a_status = (('Sleutel opgeslagen in ' + ('sleutelbos' if w == 'sleutelbos' else 'bestand')) if k else 'Sleutel verwijderd', False)
+            if rerender: self.show('assistent')
+        def test(*a):
+            save(rerender=False); tb.set_sensitive(False); tb.set_label('Testen…')
+            def work():
+                ok, msg = L.test(prov, models[prov], L.get_key(prov)) if L.get_key(prov) else (False, 'Geen sleutel ingevuld.')
+                def done(): self.a_status = (('✓ ' if ok else '✗ ') + msg, not ok); self.cur == 'assistent' and self.show('assistent')
+                GLib.idle_add(done)
+            threading.Thread(target=work, daemon=True).start()
+        sb.connect('clicked', save); tb.connect('clicked', test)
 
     def page_over(self, o):
         c = self.card(o, 'Over Polder OS')

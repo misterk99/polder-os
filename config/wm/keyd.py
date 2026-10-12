@@ -30,13 +30,15 @@ def snapper():
 threading.Thread(target=snapper, daemon=True).start()
 DISPATCH = None   # Revision 27: set by polder-shell -> launcher/clip toggles go straight to the shell's main loop
 def launch(mode):
-    if DISPATCH and mode in ('launcher', 'clip'): DISPATCH(mode); return
+    if DISPATCH and mode in ('launcher', 'clip', 'assistant'): DISPATCH(mode); return
     if mode == 'shortcuts':   # Ctrl+Alt+/ -> sneltoetsen overview (toggle)
         subprocess.Popen([sys.executable, os.path.join(HERE, '..', 'shortcuts', 'sneltoetsen.py')], start_new_session=True); return
     if mode == 'capture':   # Print / Ctrl+Shift+F5 -> capture bar (or stop a running recording)
         subprocess.Popen([sys.executable, os.path.join(HERE, '..', 'capture', 'capture.py')], start_new_session=True); return
     if mode == 'clip':   # Super+V -> clipboard history
         subprocess.Popen([os.path.join(HERE, '..', 'clip', 'clip-toggle.sh')], start_new_session=True); return
+    if mode == 'assistant':   # Super+A -> Polder Assistent (Rev 29)
+        subprocess.Popen([os.path.join(HERE, '..', 'assistant', 'assistant-toggle.sh')], start_new_session=True); return
     if mode == 'lock':   # Super+L -> Polder OS lock screen
         subprocess.Popen([os.path.join(HERE, '..', 'lock', 'lock-now.sh')], start_new_session=True); return
     if mode == 'launcher':
