@@ -10,6 +10,7 @@ import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.pa
 import osbnotify as N
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'osb'))
 import osbsettings
+import layershell as LSH   # Rev 33c
 SET = osbsettings.load()
 HERE = os.path.dirname(os.path.abspath(__file__)); CFG = os.path.join(HERE, '..')
 PID = '/tmp/osb-cal.pid'; ICS = os.path.expanduser('~/.local/share/osb/calendar.ics')
@@ -56,6 +57,9 @@ class Cal(Gtk.Window):
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
         self.set_decorated(False); self.set_keep_above(True); self.set_skip_taskbar_hint(True)
         self.set_type_hint(Gdk.WindowTypeHint.DIALOG); self.set_name('calwin'); self.set_resizable(False); RGBA.enable(self)
+        # Rev 33c: on polder-comp a layer surface anchored bottom-right, right edge aligned with the pill that opened it
+        right = next((int(a.split('=')[1]) for a in sys.argv if a.startswith('--right=')), MARGIN_R)
+        LSH.setup(self, 'polder-calendar', layer='overlay', anchors=('right', 'bottom'), margins={'right': max(MARGIN_R, right), 'bottom': SHELF}, exclusive=0, keyboard='on_demand')
         scr = Gdk.Screen.get_default(); self.sw, self.sh = scr.get_width(), scr.get_height()
         prov = Gtk.CssProvider(); prov.load_from_data(CSS.encode()); Gtk.StyleContext.add_provider_for_screen(scr, prov, 800)
         self.bgcss = Gtk.CssProvider(); Gtk.StyleContext.add_provider_for_screen(scr, self.bgcss, 900)
@@ -87,6 +91,7 @@ class Cal(Gtk.Window):
         GLib.timeout_add(300, self.grab)
 
     def grab(self):
+        if LSH.active(self): return False   # layer surface: focus-out / Esc close it (no X pointer grab on Wayland)
         seat = Gdk.Display.get_default().get_default_seat()
         seat.grab(self.get_window(), Gdk.SeatCapabilities.ALL_POINTING, True, None, None, None, None)
         return False
@@ -101,7 +106,9 @@ class Cal(Gtk.Window):
         """Bottom-right above the shelf (same conventions as QS); rounded corners via wallpaper backdrop."""
         self.resize(W, 1); w = W; h = self.box.get_preferred_height_for_width(W)[1]
         self.set_size_request(w, h); self.resize(w, h)
-        x, y = self.sw - w - MARGIN_R, self.sh - SHELF - h; self.move(x, y)
+        x, y = self.sw - w - MARGIN_R, self.sh - SHELF - h
+        if LSH.active(self): return   # compositor places layer surfaces; RGBA works there
+        self.move(x, y)
         if RGBA.active(self): self.bgcss.load_from_data(b'#calwin { background: transparent; background-image: none; }'); return
         out = f'/tmp/osb-cal-bg-{h}.png'
         if not os.path.exists(out):
@@ -185,7 +192,7 @@ class Cal(Gtk.Window):
         return True
 
     def maybe_quit(self):
-        if not self.is_active(): self.quit()
+        if not self.is_active() or (LSH.active(self) and not self.has_toplevel_focus()): self.quit()
         return False
 
     def quit(self, *a):

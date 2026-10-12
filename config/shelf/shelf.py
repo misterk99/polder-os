@@ -138,11 +138,25 @@ class Status:
         except Exception: self.launcher.add(Gtk.Image.new_from_icon_name('view-app-grid-symbolic', Gtk.IconSize.LARGE_TOOLBAR))
         self.launcher.set_tooltip_text('Launcher'); self.launcher.connect('clicked', lambda *a: run(os.path.join(C, 'launcher', 'launcher-toggle.sh')))
         self.right = Gtk.Box(spacing=6, valign=Gtk.Align.CENTER)
-        self.wx = self.pill(lambda *a: run('python3', os.path.join(C, 'calendar', 'cal.py'), '--weather'), 'Weer')
-        self.date = self.pill(lambda *a: run('python3', os.path.join(C, 'calendar', 'cal.py')), 'Agenda')
+        self.shelf = shelf
+        self.kb = self.pill(self.kb_menu, 'Toetsenbordindeling')
+        self.wx = self.pill(lambda b: run('python3', os.path.join(C, 'calendar', 'cal.py'), '--weather', self.right_of(b)), 'Weer')
+        self.date = self.pill(lambda b: run('python3', os.path.join(C, 'calendar', 'cal.py'), self.right_of(b)), 'Agenda')
         self.tray = self.pill(lambda *a: run('python3', os.path.join(C, 'quicksettings', 'qs.py')), 'Snelle instellingen')
-        for p in (self.wx, self.date, self.tray): self.right.pack_start(p, False, False, 0)
+        for p in (self.kb, self.wx, self.date, self.tray): self.right.pack_start(p, False, False, 0)
         self.key = None; self.slow = 0; self.wxtext = ''; self.right.show_all(); self.wx.set_no_show_all(True); self.wx.hide()
+    def layout(self):
+        """The keymap polder-comp compiled: XKB_DEFAULT_LAYOUT (inherited from the compositor), else its default 'us'."""
+        return (os.environ.get('XKB_DEFAULT_LAYOUT') or 'us').split(',')[0]
+    def kb_menu(self, b):
+        x = b.translate_coordinates(self.shelf, 0, 0)[0]; lay = self.layout(); v = os.environ.get('XKB_DEFAULT_VARIANT', '')
+        items = [('input-keyboard-symbolic', f'Indeling: {lay}' + (f' ({v})' if v else ''), lambda: None),
+                 ('input-keyboard-symbolic', 'Sneltoetsen', lambda: run('python3', os.path.join(C, 'shortcuts', 'sneltoetsen.py')))]
+        self.shelf.menu = popmenu.PopMenu(items, x, self.shelf.sh - H - 6, anchor='above', title='Toetsenbord')
+    def right_of(self, b):
+        """--right=<px from the screen's right edge to the pill's right edge> so the panel opens right above the pill."""
+        x = b.translate_coordinates(self.shelf, 0, 0)[0] + b.get_allocated_width()
+        return f'--right={self.shelf.sw - x}'
     def pill(self, cb, tip):
         b = Gtk.Button(); b.get_style_context().add_class('pill'); b.add(Gtk.Box(spacing=8)); b.set_tooltip_text(tip); b.connect('clicked', cb); return b
     def icon(self, name):
@@ -190,6 +204,7 @@ class Status:
         key = (time.strftime(tf), sets.get('show_date', True), ns.get('unread', 0), ns.get('dnd', False), tuple(sorted(self.st.items())), N.palette()['THEME'])
         if key == self.key: return
         self.key = key
+        self.fill(self.kb, [Gtk.Label(label=self.layout().upper())])
         self.date.set_visible(bool(sets.get('show_date', True)))
         self.fill(self.date, [Gtk.Label(label=f'{t.tm_mday} {M[t.tm_mon - 1]}')])
         parts = [Gtk.Label(label=key[0])]

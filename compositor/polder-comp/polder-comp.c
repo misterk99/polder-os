@@ -687,6 +687,22 @@ static void cursor_button(struct wl_listener *l, void *d) {
 		if (e->button == 0x110) begin_grab(v, CUR_MOVE, 0); else begin_grab(v, CUR_RESIZE, WLR_EDGE_RIGHT | WLR_EDGE_BOTTOM);
 		return;
 	}
+	{   /* Rev 33c: click outside a focused on_demand panel (desktop, shelf, empty space) takes its focus away,
+	             * so popups (calendar, QS, menus) see focus-out and close like they do on X11 */
+		struct wlr_surface *fs = s->seat->keyboard_state.focused_surface;
+		struct wlr_layer_surface_v1 *fl = fs ? wlr_layer_surface_v1_try_from_wlr_surface(fs) : NULL;
+		struct wlr_layer_surface_v1 *cl = (surf && !v) ? wlr_layer_surface_v1_try_from_wlr_surface(wlr_surface_get_root_surface(surf)) : NULL;
+		if (fl && cl != fl && (!cl || cl->current.keyboard_interactive == ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE)) {
+			wlr_seat_keyboard_clear_focus(s->seat);
+			/* GTK3 ignores wl_keyboard leave (focus = xdg 'activated', which layer surfaces lack), so a panel never sees
+			 * focus-out: dismiss transient overlay panels (calendar, QS, menus: overlay + on_demand) with layer_surface.closed,
+			 * which gtk-layer-shell turns into a window close. The launcher (exclusive keyboard) and shelf/desktop are untouched. */
+			if (fl->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY &&
+					fl->current.keyboard_interactive == ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_ON_DEMAND)
+				wlr_layer_surface_v1_destroy(fl);
+			if (!v && !wl_list_empty(&s->views)) { struct view *t = wl_container_of(s->views.next, t, link); focus_view(t); }
+		}
+	}
 	if (v) focus_view(v);
 	else if (surf) {   /* Rev 33: clicking a layer-shell panel with keyboard interactivity (on_demand/exclusive) focuses it */
 		struct wlr_layer_surface_v1 *ls = wlr_layer_surface_v1_try_from_wlr_surface(wlr_surface_get_root_surface(surf));
