@@ -222,3 +222,8 @@ _History reconstructed from the development log; intermediate file states were n
 ## Rev 29.1: echt afgeronde assistent
 
 - Assistant panel uses a real ARGB window: transparent corners composited by picom over any window (wallpaper-backdrop only as no-compositor fallback)
+
+## Rev 29.2: alle vensters echt afgerond
+
+- Shared `osb/rgba.py`: real ARGB transparent corners for launcher, quick settings/notification centre, calendar/weather, toasts, Alt+Tab, snap preview, clipboard, shortcuts, capture bar and pop-up menus (wallpaper backdrop only as no-compositor fallback)
+- App windows stay picom-rounded; audit contact sheet `screenshots/rounding-audit.png`

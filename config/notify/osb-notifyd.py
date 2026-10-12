@@ -6,6 +6,7 @@ import os, sys, json, time, subprocess, datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
 from gi.repository import Gtk, Gdk, Gio, GLib, Pango
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), '..', 'osb')); import rgba as RGBA   # Rev 29.2: real rounded corners
 import osbnotify as N
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'osb')); import osbsettings as OSBS
 
@@ -172,7 +173,7 @@ class Daemon:
         self.save(); return nid
 
     def show_popup(self, n, timeout):
-        w = Gtk.Window(type=Gtk.WindowType.POPUP); w.set_name(f"np{n['id']}")
+        w = Gtk.Window(type=Gtk.WindowType.POPUP); w.set_name(f"np{n['id']}"); RGBA.enable(w)
         w.add(build_card(n, self.dismiss_popup, lambda i, k: self.invoke(i, k))); w.show_all()
         self.popups.append((n['id'], w)); self.relayout()
         GLib.timeout_add(TIMEOUT if timeout in (-1, 0) or timeout > 60000 else timeout, lambda: self.expire(n['id']))
@@ -210,7 +211,7 @@ class Daemon:
         for i, w in reversed(self.popups):  # newest at bottom
             w.set_size_request(CARD_W, -1); h = w.get_child().get_preferred_height_for_width(CARD_W)[1]; w.resize(CARD_W, h)
             y -= h; x = sw - CARD_W - MARGIN; w.move(x, y)
-            self.bgrules[f'np{i}'] = backdrop_css(f'np{i}', x, y, CARD_W, h)
+            self.bgrules[f'np{i}'] = (f'#np{i} {{ background: transparent; background-image: none; }}') if RGBA.active(w) else backdrop_css(f'np{i}', x, y, CARD_W, h)
             y -= GAP
         self.bgprov.load_from_data('\n'.join(self.bgrules.values()).encode())
 

@@ -5,6 +5,7 @@ import os, sys, subprocess, time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'notify'))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
 from gi.repository import Gtk, Gdk, GLib
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), '..', 'osb')); import rgba as RGBA   # Rev 29.2: real rounded corners
 import osbnotify as N
 
 _prov = None
@@ -27,7 +28,7 @@ def _style():
 class PopMenu(Gtk.Window):
     def __init__(self, items, x, y, anchor='above', title=None, on_close=None):
         super().__init__(type=Gtk.WindowType.POPUP); _style(); self.on_close = on_close; self.closed = False
-        self.set_name('pmwin')
+        self.set_name('pmwin'); RGBA.enable(self)
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL); card.set_name('pmcard'); card.set_size_request(210, -1)
         self.add(card)
         if title:
@@ -49,9 +50,9 @@ class PopMenu(Gtk.Window):
         if anchor == 'above': y = y - h
         x = max(6, min(x, sw - w - 6)); y = max(6, min(y, sh - h - 6))
         bg = f'/tmp/osb-pm-{os.getpid()}.png'
-        try: subprocess.run(['import', '-silent', '-window', 'root', '-crop', f'{w}x{h}+{x}+{y}', '+repage', bg], timeout=5, capture_output=True)
+        try: RGBA.active(self) or subprocess.run(['import', '-silent', '-window', 'root', '-crop', f'{w}x{h}+{x}+{y}', '+repage', bg], timeout=5, capture_output=True)
         except subprocess.TimeoutExpired: pass
-        self.bgp = Gtk.CssProvider(); self.bgp.load_from_data(f"#pmwin {{ background-image: url('{bg}'); background-color: {N.palette()['SURFACE']}; }}".encode())
+        self.bgp = Gtk.CssProvider(); self.bgp.load_from_data(b'#pmwin { background: transparent; background-image: none; }' if RGBA.active(self) else f"#pmwin {{ background-image: url('{bg}'); background-color: {N.palette()['SURFACE']}; }}".encode())
         self.get_style_context().add_provider(self.bgp, 960)
         self.move(x, y); self.resize(w, h); self.show_all()
         self.connect('button-press-event', self.on_press); self.connect('key-press-event', self.on_key)

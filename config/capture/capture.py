@@ -8,6 +8,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in ('osb', 'notify'): sys.path.insert(0, os.path.join(C, d))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
 from gi.repository import Gtk, Gdk, GLib, GdkPixbuf
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), '..', 'osb')); import rgba as RGBA   # Rev 29.2: real rounded corners
 import cairo
 import osbsettings as S, osbnotify as N, popmenu
 FILES_HOME = os.environ.get('OSB_FILES_HOME', '/tmp/osb-files/Mijn bestanden')
@@ -140,7 +141,7 @@ class App:
         self.wins = windows(); self.mode = 'shot'; self.source = 'region'
         prov = Gtk.CssProvider(); prov.load_from_data(css().encode()); Gtk.StyleContext.add_provider_for_screen(scr, prov, 850)
         self.ov = Overlay(self); self.ov.show_all()
-        self.bar = Gtk.Window(type=Gtk.WindowType.POPUP); self.bar.set_name('barwin')
+        self.bar = Gtk.Window(type=Gtk.WindowType.POPUP); self.bar.set_name('barwin'); RGBA.enable(self.bar)
         b = Gtk.Box(spacing=4); b.set_name('bar'); self.bar.add(b)
         seg1 = Gtk.Box(spacing=2); seg1.get_style_context().add_class('seg'); self.mbtn = {}
         for k, icon, tip in (('shot', 'camera-photo-symbolic', 'Screenshot'), ('video', 'camera-video-symbolic', 'Schermopname (video)')):
@@ -161,10 +162,13 @@ class App:
         b.show_all(); bw, bh = b.get_preferred_size()[1].width, b.get_preferred_size()[1].height
         self.bx, self.by = (self.sw - bw) // 2, self.sh - SHELF - bh - 16
         bg = '/tmp/osb-capbar-bg.png'
-        self.frozen.new_subpixbuf(self.bx, self.by, bw, bh).savev(bg, 'png', [], [])   # rounded corners show the real screen
+        if RGBA.active(self.bar):
+            p2 = Gtk.CssProvider(); p2.load_from_data(b'#barwin { background: transparent; background-image: none; }'); self.bar.get_style_context().add_provider(p2, 905)
+        else: self.frozen.new_subpixbuf(self.bx, self.by, bw, bh).savev(bg, 'png', [], [])   # rounded corners show the real screen
         p2 = Gtk.CssProvider(); p2.load_from_data(f"#barwin {{ background-image: url('{bg}'); }}".encode()); self.bar.get_style_context().add_provider(p2, 900)
         # dimmed backdrop under the bar would differ from the overlay; use the overlay's dimmed look by re-rendering later
-        self.bar.move(self.bx, self.by); self.bar.show_all(); self.bar_bg(bw, bh)
+        self.bar.move(self.bx, self.by); self.bar.show_all()
+        if not RGBA.active(self.bar): self.bar_bg(bw, bh)
         for w in (self.ov, self.bar): w.connect('key-press-event', self.key)
         GLib.timeout_add(80, self.grab)
 

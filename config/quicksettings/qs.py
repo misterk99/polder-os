@@ -4,6 +4,7 @@ import os, sys, signal, shutil, subprocess, datetime
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'notify'))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
 from gi.repository import Gtk, Gdk, GLib
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), '..', 'osb')); import rgba as RGBA   # Rev 29.2: real rounded corners
 import osbnotify as N
 try:
     from importlib.machinery import SourceFileLoader
@@ -71,7 +72,7 @@ class QS(Gtk.Window):
     def __init__(self):
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
         self.set_decorated(False); self.set_keep_above(True); self.set_skip_taskbar_hint(True)
-        self.set_type_hint(Gdk.WindowTypeHint.DIALOG); self.set_name('qswin')
+        self.set_type_hint(Gdk.WindowTypeHint.DIALOG); self.set_name('qswin'); RGBA.enable(self)
         scr = Gdk.Screen.get_default(); sw, sh = scr.get_width(), scr.get_height()  # fine for X11 single monitor
         self.x, self.y = sw - W - MARGIN_R, sh - SHELF - H
         self.set_size_request(W, -1); self.set_resizable(False); self.move(self.x, self.y)
@@ -163,6 +164,9 @@ class QS(Gtk.Window):
 
     def make_backdrop(self):
         """Rounded corners without compositor: window bg = wallpaper crop behind the column."""
+        if not hasattr(self, 'bgcss'):
+            self.bgcss = Gtk.CssProvider(); Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), self.bgcss, 900)
+        if RGBA.active(self): self.bgcss.load_from_data(b'#qswin { background: transparent; background-image: none; }'); return
         wp = os.path.join(HERE, '..', 'wallpaper.png'); out = f'/tmp/osb-qs-bg-{self.H}.png'
         subprocess.run(['convert', wp, '-crop', f'{self.W}x{self.H}+{self.x}+{self.y}', '+repage', out])
         if not hasattr(self, 'bgcss'):

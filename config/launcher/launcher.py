@@ -8,6 +8,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in ('osb', 'notify'): sys.path.insert(0, os.path.join(C, d))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0'); gi.require_version('GdkX11', '3.0')
 from gi.repository import Gtk, Gdk, GLib, Gio, Pango, GdkX11
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), '..', 'osb')); import rgba as RGBA   # Rev 29.2: real rounded corners
 import osbnotify as N
 import osbsettings as S, popmenu
 DND = [Gtk.TargetEntry.new('osb-app', Gtk.TargetFlags.SAME_APP, 0)]
@@ -120,7 +121,7 @@ class Launcher(Gtk.Window):
         self.prov = Gtk.CssProvider(); Gtk.StyleContext.add_provider_for_screen(scr, self.prov, 800)
         self.bgprov = Gtk.CssProvider(); Gtk.StyleContext.add_provider_for_screen(scr, self.bgprov, 900)
         self.palm = self.wpm = None
-        self.set_size_request(W, H); self.move(MARGIN, self.sh - SHELF - H)
+        RGBA.enable(self); self.set_size_request(W, H); self.move(MARGIN, self.sh - SHELF - H)
         self.files = FileIndex(); self.apps = []; self.load_apps()
         Gio.AppInfoMonitor.get().connect('changed', lambda *a: self.load_apps())
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12); box.set_name('lbox'); self.add(box)
@@ -198,7 +199,8 @@ class Launcher(Gtk.Window):
     def refresh_style(self):
         pal = os.path.join(C, 'palette.env'); wp = os.path.join(C, 'wallpaper.png')
         if os.path.getmtime(pal) != self.palm: self.palm = os.path.getmtime(pal); self.prov.load_from_data(css().encode())
-        if os.path.getmtime(wp) != self.wpm:
+        if RGBA.active(self): self.bgprov.load_from_data(b'#lwin { background: transparent; background-image: none; }')
+        elif os.path.getmtime(wp) != self.wpm:
             self.wpm = os.path.getmtime(wp); out = f'/tmp/osb-launcher-bg-{int(self.wpm)}.png'
             subprocess.run(['convert', wp, '-crop', f'{W}x{H}+{MARGIN}+{self.sh - SHELF - H}', '+repage', out], timeout=10)
             self.bgprov.load_from_data(f"#lwin {{ background-image: url('{out}'); background-color: transparent; }}".encode())

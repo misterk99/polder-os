@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
 from gi.repository import Gtk, Gdk, GLib, Pango
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), '..', 'osb')); import rgba as RGBA   # Rev 29.2: real rounded corners
 import osbnotify as N
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'osb'))
 import osbsettings
@@ -54,7 +55,7 @@ class Cal(Gtk.Window):
     def __init__(self):
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
         self.set_decorated(False); self.set_keep_above(True); self.set_skip_taskbar_hint(True)
-        self.set_type_hint(Gdk.WindowTypeHint.DIALOG); self.set_name('calwin'); self.set_resizable(False)
+        self.set_type_hint(Gdk.WindowTypeHint.DIALOG); self.set_name('calwin'); self.set_resizable(False); RGBA.enable(self)
         scr = Gdk.Screen.get_default(); self.sw, self.sh = scr.get_width(), scr.get_height()
         prov = Gtk.CssProvider(); prov.load_from_data(CSS.encode()); Gtk.StyleContext.add_provider_for_screen(scr, prov, 800)
         self.bgcss = Gtk.CssProvider(); Gtk.StyleContext.add_provider_for_screen(scr, self.bgcss, 900)
@@ -101,6 +102,7 @@ class Cal(Gtk.Window):
         self.resize(W, 1); w = W; h = self.box.get_preferred_height_for_width(W)[1]
         self.set_size_request(w, h); self.resize(w, h)
         x, y = self.sw - w - MARGIN_R, self.sh - SHELF - h; self.move(x, y)
+        if RGBA.active(self): self.bgcss.load_from_data(b'#calwin { background: transparent; background-image: none; }'); return
         out = f'/tmp/osb-cal-bg-{h}.png'
         if not os.path.exists(out):
             subprocess.run(['convert', os.path.join(CFG, 'wallpaper.png'), '-crop', f'{w}x{h}+{x}+{y}', '+repage', out], timeout=10)

@@ -6,6 +6,7 @@ import os, sys, subprocess, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
 from gi.repository import Gtk, Gdk, GLib, Pango
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), '..', 'osb')); import rgba as RGBA   # Rev 29.2: real rounded corners
 import winlist as WL
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'notify'))
 import osbnotify as N
@@ -45,7 +46,7 @@ def rounded_pixbuf(path, radius=12):
 
 class Base(Gtk.Window):
     def __init__(self):
-        super().__init__(type=Gtk.WindowType.POPUP)
+        super().__init__(type=Gtk.WindowType.POPUP); RGBA.enable(self)
         scr = Gdk.Screen.get_default(); self.sw, self.sh = scr.get_width(), scr.get_height()
         prov = Gtk.CssProvider(); prov.load_from_data(CSS.encode())
         Gtk.StyleContext.add_provider_for_screen(scr, prov, 800)
@@ -175,8 +176,8 @@ class AltTab(Base):
         x, y = (self.sw - W) // 2, (self.sh - 52 - H) // 2; self.move(x, y)
         bg = '/tmp/osb-wm/alttab-bg.png'
         # backdrop = actual screen region behind the strip (so rounded corners show windows, not black)
-        subprocess.run(['import', '-silent', '-window', 'root', '-crop', f'{W}x{H}+{x}+{y}', '+repage', bg], timeout=10)
-        p = Gtk.CssProvider(); p.load_from_data(f"#at {{ background-image: url('{bg}'); }}".encode())
+        if not RGBA.active(self): subprocess.run(['import', '-silent', '-window', 'root', '-crop', f'{W}x{H}+{x}+{y}', '+repage', bg], timeout=10)
+        p = Gtk.CssProvider(); p.load_from_data(("#at { background: transparent; background-image: none; }" if RGBA.active(self) else f"#at {{ background-image: url('{bg}'); }}").encode())
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), p, 900)
         self.update(); self.grab()
 

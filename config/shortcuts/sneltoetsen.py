@@ -7,6 +7,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in ('osb', 'notify', 'wm'): sys.path.insert(0, os.path.join(C, d))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
 from gi.repository import Gtk, Gdk, GLib, GdkPixbuf, Pango
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), '..', 'osb')); import rgba as RGBA   # Rev 29.2: real rounded corners
 import osbnotify as N, shortcut_table as T
 PID = '/tmp/osb-sneltoetsen.pid'; W, H = 780, 540
 NAMES = {'Super_L': 'Super', 'bracketleft': '[', 'bracketright': ']', 'equal': '=', 'minus': '-', 'slash': '/', 'Print': 'Print Screen',
@@ -68,12 +69,12 @@ class Viewer(Gtk.Window):
     def __init__(self):
         super().__init__(type=Gtk.WindowType.TOPLEVEL, title='Sneltoetsen')
         self.set_decorated(False); self.set_keep_above(True); self.set_skip_taskbar_hint(True); self.set_type_hint(Gdk.WindowTypeHint.DIALOG)
-        self.set_name('swin'); self.set_resizable(False); self.set_size_request(W, H)
+        self.set_name('swin'); self.set_resizable(False); self.set_size_request(W, H); RGBA.enable(self)
         scr = Gdk.Screen.get_default(); sw, sh = scr.get_width(), scr.get_height(); x, y = (sw - W) // 2, (sh - 52 - H) // 2
         bg = '/tmp/osb-sneltoetsen-bg.png'   # rounded corners show the real screen behind (no compositor)
-        try: subprocess.run(['import', '-silent', '-window', 'root', '-crop', f'{W}x{H}+{x}+{y}', '+repage', bg], timeout=5, capture_output=True)
+        try: RGBA.active(self) or subprocess.run(['import', '-silent', '-window', 'root', '-crop', f'{W}x{H}+{x}+{y}', '+repage', bg], timeout=5, capture_output=True)
         except subprocess.TimeoutExpired: pass
-        p = Gtk.CssProvider(); p.load_from_data((css() + f"#swin {{ background-image: url('{bg}'); background-color: transparent; }}").encode())
+        p = Gtk.CssProvider(); p.load_from_data((css() + ("#swin { background: transparent; background-image: none; }" if RGBA.active(self) else f"#swin {{ background-image: url('{bg}'); background-color: transparent; }}")).encode())
         Gtk.StyleContext.add_provider_for_screen(scr, p, 850); self.move(x, y)
         self.data = entries()
         card = Gtk.Box(); card.set_name('card'); self.add(card)

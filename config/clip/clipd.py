@@ -9,6 +9,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in ('osb', 'notify'): sys.path.insert(0, os.path.join(C, d))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0'); gi.require_version('GdkX11', '3.0')
 from gi.repository import Gtk, Gdk, GLib, GdkPixbuf, Pango, GdkX11
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), '..', 'osb')); import rgba as RGBA   # Rev 29.2: real rounded corners
 import osbsettings as S, osbnotify as N
 DIR = os.path.join(S.CACHE, 'clipboard'); IDX = os.path.join(DIR, 'history.json'); MAX = 10; PID = '/tmp/osb-clipd.pid'
 SECRET = {'x-kde-passwordManagerHint', 'x-kde-passwordmanagerhint'}
@@ -37,7 +38,7 @@ class Clip(Gtk.Window):
     def __init__(self):
         super().__init__(type=Gtk.WindowType.TOPLEVEL, title='Klembord')
         self.set_decorated(False); self.set_keep_above(True); self.set_skip_taskbar_hint(True); self.set_skip_pager_hint(True)
-        self.set_type_hint(Gdk.WindowTypeHint.DIALOG); self.set_resizable(False); self.set_name('cwin')
+        self.set_type_hint(Gdk.WindowTypeHint.DIALOG); self.set_resizable(False); self.set_name('cwin'); RGBA.enable(self)
         os.makedirs(DIR, exist_ok=True)
         try: self.hist = json.load(open(IDX))
         except Exception: self.hist = []
@@ -127,7 +128,9 @@ class Clip(Gtk.Window):
         ptr = Gdk.Display.get_default().get_default_seat().get_pointer().get_position()
         x = max(8, min(ptr[1] - w // 2, sw - w - 8)); y = ptr[2] + 16
         if y + h > sh - 60: y = max(8, ptr[2] - h - 16)
-        self.hide(); bg = '/tmp/osb-clip-bg.png'
+        bg = '/tmp/osb-clip-bg.png'
+        if RGBA.active(self): self.bgp.load_from_data(b'#cwin { background: transparent; background-image: none; }'); self.set_size_request(w, h); self.resize(w, h); self.move(x, y); self.show(); return
+        self.hide()
         try: subprocess.run(['import', '-silent', '-window', 'root', '-crop', f'{w}x{h}+{x}+{y}', '+repage', bg], timeout=5, capture_output=True)
         except subprocess.TimeoutExpired: pass
         self.bgp.load_from_data(f"#cwin {{ background-image: url('{bg}?{time.time()}'); background-color: transparent; }}".encode().replace(b"?" + str(time.time()).encode(), b''))
