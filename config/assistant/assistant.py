@@ -202,6 +202,6 @@ if __name__ == '__main__':
     try: os.kill(int(open(PIDF).read()), signal.SIGUSR1); sys.exit(0)
     except (OSError, ValueError): pass
     open(PIDF, 'w').write(str(os.getpid()))
-    w = Assistant(); GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGUSR1, w.toggle)
+    w = Assistant(); GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGUSR1, lambda *a: GLib.idle_add(lambda: (w.toggle(), False)[1]) and True)   # Rev 34c: idle, see clipd
     if '--show' in sys.argv: w.show_a()
     Gtk.main()

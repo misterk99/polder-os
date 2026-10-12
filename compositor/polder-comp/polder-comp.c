@@ -628,6 +628,69 @@ static void new_lock(struct wl_listener *l, void *d) {
 }
 
 /* ---------------- keyboard ---------------- */
+/* Rev 34c: user bindings generated from config/wm/shortcut_table.py (wm/wlkeys.py): 'MODS KEYSYM COMMAND' lines.
+ * Source: $POLDER_KEYS file, else the output of `python3 $POLDER_CONFIG/wm/wlkeys.py`. '@x' = internal action. */
+struct binding { uint32_t mods; xkb_keysym_t sym; char *cmd; };
+static struct binding bindings[64]; static int nbindings;
+static void load_bindings(void) {
+	FILE *f = NULL; bool pipe = false; char buf[1024];
+	if (getenv("POLDER_KEYS")) f = fopen(getenv("POLDER_KEYS"), "r");
+	else if (getenv("POLDER_CONFIG")) { snprintf(buf, sizeof buf, "python3 '%s/wm/wlkeys.py' 2>/dev/null", getenv("POLDER_CONFIG")); f = popen(buf, "r"); pipe = true; }
+	if (!f) { wlr_log(WLR_INFO, "no user key bindings (set POLDER_KEYS or POLDER_CONFIG)"); return; }
+	while (nbindings < 64 && fgets(buf, sizeof buf, f)) {
+		char mods[64], sym[64]; int off = 0;
+		if (buf[0] == '#' || sscanf(buf, "%63s %63s %n", mods, sym, &off) < 2 || !off) continue;
+		char *cmd = buf + off; cmd[strcspn(cmd, "\n")] = 0; if (!*cmd) continue;
+		uint32_t m = 0;
+		if (strstr(mods, "Super")) m |= WLR_MODIFIER_LOGO;
+		if (strstr(mods, "Alt")) m |= WLR_MODIFIER_ALT;
+		if (strstr(mods, "Ctrl")) m |= WLR_MODIFIER_CTRL;
+		if (strstr(mods, "Shift")) m |= WLR_MODIFIER_SHIFT;
+		xkb_keysym_t ks = xkb_keysym_from_name(sym, XKB_KEYSYM_NO_FLAGS);
+		if (ks == XKB_KEY_NoSymbol) ks = xkb_keysym_from_name(sym, XKB_KEYSYM_CASE_INSENSITIVE);
+		if (ks == XKB_KEY_NoSymbol) { wlr_log(WLR_ERROR, "unknown keysym %s", sym); continue; }
+		bindings[nbindings++] = (struct binding){ m, xkb_keysym_to_lower(ks), strdup(cmd) };
+	}
+	if (pipe) pclose(f); else fclose(f);
+	wlr_log(WLR_INFO, "%d user key bindings", nbindings);
+}
+static struct view *top_view(struct server *s) {
+	struct view *v; wl_list_for_each(v, &s->views, link) if (v->mapped && !v->minimized) return v;
+	return NULL;
+}
+static void view_minimize(struct view *v, bool on);
+static void view_snap(struct view *v, int mode);
+static bool internal_action(struct server *s, const char *a) {
+	struct view *v = top_view(s);
+	if (!strcmp(a, "@alttab") || !strcmp(a, "@alttab-back")) {
+		if (wl_list_length(&s->views) < 2) return true;
+		if (a[7] == 0) { struct view *n = wl_container_of(s->views.prev, n, link); focus_view(n); }   /* bottom -> top: cycles all */
+		else if (v) { /* back: send the top one to the bottom, focus the next */
+			struct view *n = NULL, *it; wl_list_for_each(it, &s->views, link) if (it != v && it->mapped) { n = it; break; }
+			if (n) { wl_list_remove(&v->link); wl_list_insert(s->views.prev, &v->link); wlr_scene_node_lower_to_bottom(&v->tree->node); focus_view(n); }
+		}
+		return true;
+	}
+	if (!v) return true;
+	if (!strcmp(a, "@snap-left")) view_snap(v, v->snap == SNAP_LEFT ? SNAP_NONE : SNAP_LEFT);
+	else if (!strcmp(a, "@snap-right")) view_snap(v, v->snap == SNAP_RIGHT ? SNAP_NONE : SNAP_RIGHT);
+	else if (!strcmp(a, "@snap-max")) view_snap(v, v->snap == SNAP_MAX ? SNAP_NONE : SNAP_MAX);
+	else if (!strcmp(a, "@minimize")) view_minimize(v, true);
+	else wlr_log(WLR_INFO, "action %s not implemented yet", a);
+	return true;
+}
+static bool user_binding(struct server *s, xkb_keysym_t base, uint32_t mods) {
+	uint32_t rel = mods & (WLR_MODIFIER_LOGO | WLR_MODIFIER_ALT | WLR_MODIFIER_CTRL | WLR_MODIFIER_SHIFT);
+	base = xkb_keysym_to_lower(base);
+	for (int i = 0; i < nbindings; i++)
+		if (bindings[i].sym == base && bindings[i].mods == rel) {
+			if (s->locked) return false;
+			if (bindings[i].cmd[0] == '@') return internal_action(s, bindings[i].cmd);
+			spawn(s, bindings[i].cmd); return true;
+		}
+	return false;
+}
+
 static bool keybinding(struct server *s, xkb_keysym_t sym, uint32_t mods) {
 	if ((mods & WLR_MODIFIER_LOGO) && (mods & WLR_MODIFIER_SHIFT) && sym == XKB_KEY_Escape) { wl_display_terminate(s->display); return true; }
 	if (s->locked) return false;   /* Rev 34b: keys go to the lock screen only */
@@ -669,7 +732,9 @@ static void kb_key(struct wl_listener *l, void *d) {
 			else if (s->super_alone) { s->super_alone = false; if (!s->locked) spawn(s, s->launcher); }
 		} else if (e->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
 			s->super_alone = false;
-			handled |= keybinding(s, syms[i], mods);
+			const xkb_keysym_t *bs; int nb = xkb_keymap_key_get_syms_by_level(k->wlr->keymap, e->keycode + 8, 0, 0, &bs);
+			bool u = nb > 0 && user_binding(s, bs[0], mods);   /* level-0 sym: Alt+Shift+Tab still matches 'Tab' */
+			handled |= u || keybinding(s, syms[i], mods);
 		}
 	}
 	if (!handled) { wlr_seat_set_keyboard(s->seat, k->wlr); wlr_seat_keyboard_notify_key(s->seat, e->time_msec, e->keycode, e->state); }
@@ -854,6 +919,7 @@ int main(int argc, char *argv[]) {
 	s.display = wl_display_create();
 	setenv("WLR_HEADLESS_OUTPUTS", "0", 0); /* we add our own 1366x768 output */
 	setenv("GTK_IM_MODULE", "gtk-im-context-simple", 0);   /* no text-input-v3 yet: GTK3 wayland IM would swallow typed text */
+	load_bindings();
 	setenv("POLDER_COMP", "1", 1);   /* Rev 34b: lets session scripts pick the Wayland code paths (lock, idle, ...) */
 	s.backend = wlr_backend_autocreate(wl_display_get_event_loop(s.display), NULL);
 	if (!s.backend) { wlr_log(WLR_ERROR, "no backend"); return 1; }

@@ -11,9 +11,10 @@ import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0'); g
 from gi.repository import Gtk, Gdk, GLib, GdkPixbuf, Pango, GdkX11
 import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), '..', 'osb')); import rgba as RGBA   # Rev 29.2: real rounded corners
 import osbsettings as S, osbnotify as N
+import layershell as LSH, wltop   # Rev 34c: Wayland (polder-comp) paths
 DIR = os.path.join(S.CACHE, 'clipboard'); IDX = os.path.join(DIR, 'history.json'); MAX = 10; PID = '/tmp/osb-clipd.pid'
 SECRET = {'x-kde-passwordManagerHint', 'x-kde-passwordmanagerhint'}
-TERMS = {'xfce4-terminal', 'gnome-terminal-server', 'xterm', 'uxterm', 'konsole', 'terminator', 'alacritty', 'kitty'}
+TERMS = {'foot', 'footclient', 'xfce4-terminal', 'gnome-terminal-server', 'xterm', 'uxterm', 'konsole', 'terminator', 'alacritty', 'kitty'}
 
 def css():
     P = N.palette()
@@ -44,11 +45,19 @@ class Clip(Gtk.Window):
         except Exception: self.hist = []
         scr = Gdk.Screen.get_default(); self.prov = Gtk.CssProvider(); Gtk.StyleContext.add_provider_for_screen(scr, self.prov, 800)
         self.bgp = Gtk.CssProvider(); self.get_style_context().add_provider(self.bgp, 900); self.palm = None
-        self.cb = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD); self.cb.connect('owner-change', self.on_owner); self.ours = None
+        self.cb = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD); self.ours = None
+        self.wl = LSH.wayland()
+        if self.wl:   # Rev 34c: GTK only sees clipboard changes while focused on Wayland -> wlr-data-control via wl-paste --watch
+            LSH.setup(self, 'polder-clipboard', layer='overlay', anchors=('bottom',), margins={'bottom': 70}, exclusive=0, keyboard='on_demand')
+            self.connect('delete-event', lambda *a: self.hide_c() or True)   # compositor dismissed us (click outside)
+            self.watch = subprocess.Popen(['wl-paste', '--watch', 'echo', 'changed'], stdout=subprocess.PIPE)
+            GLib.io_add_watch(self.watch.stdout.fileno(), GLib.PRIORITY_DEFAULT, GLib.IO_IN | GLib.IO_HUP, self.wl_changed)
+        else: self.cb.connect('owner-change', self.on_owner)
         self.card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4); self.card.set_name('ccard'); self.add(self.card)
         self.connect('key-press-event', self.on_key); self.connect('focus-out-event', lambda *a: GLib.timeout_add(120, self.maybe_hide))
         self.connect('button-press-event', self.on_press); self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
-        GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGUSR1, self.toggle)
+        # Rev 34c: defer to an idle callback: mapping a layer surface straight from the signal source deadlocked GDK-Wayland
+        GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGUSR1, lambda *a: GLib.idle_add(lambda: (self.toggle(), False)[1]) and True)
         GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGUSR2, lambda *a: (self.clear(), True)[1])
         GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGTERM, lambda *a: Gtk.main_quit() or False)
 
@@ -67,6 +76,20 @@ class Clip(Gtk.Window):
         if self.ours: return   # we just set it ourselves
         if not S.load().get('clipboard_history', True): return
         cb.request_targets(self.got_targets)
+
+    def wl_changed(self, src, cond):
+        if not os.read(src, 4096): return False
+        if self.ours or not S.load().get('clipboard_history', True): return True
+        types = set(subprocess.run(['wl-paste', '-l'], capture_output=True, text=True, timeout=3).stdout.split())
+        if types & SECRET: print('skipped: password-manager hint', flush=True); return True
+        img = next((t for t in ('image/png', 'image/jpeg') if t in types), None)
+        if img:
+            data = subprocess.run(['wl-paste', '-n', '-t', img], capture_output=True, timeout=5).stdout
+            loader = GdkPixbuf.PixbufLoader(); loader.write(data); loader.close(); self.got_image(None, loader.get_pixbuf())
+        elif types & {'text/plain', 'text/plain;charset=utf-8', 'UTF8_STRING', 'STRING', 'TEXT'}:
+            t = subprocess.run(['wl-paste', '-n', '-t', 'text'], capture_output=True, timeout=5).stdout.decode('utf-8', 'replace')
+            self.got_text(None, t)
+        return True
 
     def got_targets(self, cb, atoms, *a):
         names = {a.name() for a in (atoms or [])}
@@ -90,7 +113,7 @@ class Clip(Gtk.Window):
 
     # ----- popup -----
     def toggle(self, *a):
-        if self.get_mapped(): self.hide_c()
+        if self.get_mapped() and self.get_visible(): self.hide_c()
         elif S.load().get('clipboard_history', True): self.show_c()
         return True
 
@@ -140,6 +163,10 @@ class Clip(Gtk.Window):
     def show_c(self):
         pal = os.path.join(C, 'palette.env')
         if os.path.getmtime(pal) != self.palm: self.palm = os.path.getmtime(pal); self.prov.load_from_data(css().encode())
+        if self.wl:   # remember the active app (foreign-toplevel) so Ctrl+V vs Ctrl+Shift+V fits it
+            act = [t for t in wltop.toplevels().values() if t.get('activated')]
+            self.prev = (act[0].get('app_id') or '').lower() if act else None
+            self.build(); self.set_size_request(340, -1); self.show(); self.present(); return
         out = subprocess.run(['xdotool', 'getactivewindow'], capture_output=True, text=True, timeout=3).stdout.strip()
         self.prev = int(out) if out.isdigit() else None
         self.build(); self.place(); self.present_with_time(GdkX11.x11_get_server_time(self.get_window()))
@@ -150,7 +177,8 @@ class Clip(Gtk.Window):
         return False
 
     def hide_c(self):
-        Gdk.Display.get_default().get_default_seat().ungrab(); self.hide()
+        if not self.wl: Gdk.Display.get_default().get_default_seat().ungrab()
+        self.hide()
 
     def maybe_hide(self):
         if self.get_visible() and not self.is_active(): self.hide_c()
@@ -170,6 +198,12 @@ class Clip(Gtk.Window):
 
     def choose(self, i):
         h = self.hist[i]; self.ours = True
+        if self.wl:   # wl-copy keeps serving the selection after we hide (it forks into the background)
+            if h['kind'] == 'image': subprocess.run(['wl-copy', '-t', 'image/png'], stdin=open(h['img'], 'rb'), timeout=5)
+            else: subprocess.run(['wl-copy'], input=h['text'].encode(), timeout=5)
+            self.hist.insert(0, self.hist.pop(i)); self.save()
+            GLib.timeout_add(600, lambda: setattr(self, 'ours', None) or False)
+            self.hide_c(); GLib.timeout_add(200, self.paste); return
         if h['kind'] == 'image': self.cb.set_image(GdkPixbuf.Pixbuf.new_from_file(h['img']))
         else: self.cb.set_text(h['text'], -1)
         self.cb.store()
@@ -179,6 +213,10 @@ class Clip(Gtk.Window):
 
     def paste(self):
         if not self.prev: return False
+        if self.wl:   # focus went back to that window when our panel unmapped; type the paste chord (virtual keyboard)
+            term = self.prev in TERMS
+            subprocess.run(['wtype', '-M', 'ctrl'] + (['-M', 'shift'] if term else []) + ['-k', 'v'] + (['-m', 'shift'] if term else []) + ['-m', 'ctrl'], timeout=3)
+            print('pasted', 'ctrl+shift+v' if term else 'ctrl+v', 'into', self.prev, flush=True); return False
         subprocess.run(['xdotool', 'windowactivate', '--sync', str(self.prev)], timeout=3, capture_output=True)
         cls = subprocess.run(['xprop', '-id', str(self.prev), 'WM_CLASS'], capture_output=True, text=True, timeout=3).stdout.lower()
         keys = 'ctrl+shift+v' if any(f'"{t}"' in cls for t in TERMS) else 'ctrl+v'
