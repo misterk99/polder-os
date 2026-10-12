@@ -12,6 +12,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <drm_fourcc.h>
 #include <signal.h>
 #include <execinfo.h>
 #include <unistd.h>
@@ -88,6 +91,7 @@ struct server {
 	struct wlr_scene_tree *lock_tree; struct wlr_scene_rect *lock_bg;
 	bool locked; struct lockstate *cur_lock;
 	struct wl_listener new_input, request_cursor, request_set_selection, new_vkbd, new_vptr, new_deco;
+	struct wl_listener request_start_drag, start_drag; struct wlr_scene_tree *drag_icons;   /* Rev 34g: wl_data_device drag-and-drop */
 	enum cursor_mode mode;
 	struct view *grabbed;
 	double grab_x, grab_y; struct wlr_box grab_box; uint32_t resize_edges;
@@ -97,6 +101,11 @@ struct server {
 	bool super_alone;
 	const char *launcher, *terminal;
 	struct wlr_box usable;
+	/* Rev 34g: virtual desks, overview/Alt+Tab IPC (FIFO), snap preview */
+	int cur_desk, ndesks, next_id; float accent[4];
+	struct wlr_scene_tree *snap_prev; struct wlr_scene_rect *snap_fill, *snap_edge[4]; int snap_prev_mode;
+	int cmd_fd; char cmd_path[256]; char cmd_buf[1024]; int cmd_len;
+	const char *overview_cmd; struct timespec alttab_t;
 	struct wlr_foreign_toplevel_manager_v1 *ftm;   /* Rev 33: shelf task list on Wayland */   /* output area minus layer-shell exclusive zones */
 };
 
@@ -115,6 +124,7 @@ struct view {
 	struct wlr_scene_rect *shadow[4];
 #endif
 	bool mapped, placed, minimized;
+	int id, desk;   /* Rev 34g */
 	struct wlr_foreign_toplevel_handle_v1 *ftl; char *ftl_title, *ftl_appid;
 	struct wl_listener ftl_activate, ftl_close, ftl_minimize, request_minimize;
 	bool has_target; int tx, ty;   /* desired window-geometry origin; re-applied on commit because CSD geometry changes (GTK drops shadows when tiled) */
@@ -140,10 +150,12 @@ static void spawn(struct server *s, const char *cmd) {
 
 static void read_palette(struct server *s) {
 	s->bg_color[0] = 0.973f; s->bg_color[1] = 0.976f; s->bg_color[2] = 0.988f; s->bg_color[3] = 1;   /* #f8f9fc */
+	s->accent[0] = 0.043f; s->accent[1] = 0.341f; s->accent[2] = 0.816f; s->accent[3] = 1;   /* #0b57d0 */
 	const char *p = getenv("POLDER_PALETTE"); FILE *f = p ? fopen(p, "r") : NULL; char line[256];
 	while (f && fgets(line, sizeof line, f)) {
 		unsigned r, g, b;
 		if (sscanf(line, "SURFACE=#%02x%02x%02x", &r, &g, &b) == 3) { s->bg_color[0] = r / 255.f; s->bg_color[1] = g / 255.f; s->bg_color[2] = b / 255.f; }
+		if (sscanf(line, "ACCENT=#%02x%02x%02x", &r, &g, &b) == 3) { s->accent[0] = r / 255.f; s->accent[1] = g / 255.f; s->accent[2] = b / 255.f; }
 	}
 	if (f) fclose(f);
 	unsigned r, g, b; const char *o = getenv("POLDER_BG");   /* override, e.g. a contrasting colour for corner tests */
@@ -162,6 +174,12 @@ static void view_activate(struct view *v, bool on) {
 	if (v->type == VIEW_XDG) wlr_xdg_toplevel_set_activated(v->xdg, on);
 	else { wlr_xwayland_surface_activate(v->xs, on); if (on) wlr_xwayland_surface_restack(v->xs, NULL, XCB_STACK_MODE_ABOVE); }
 }
+
+/* Rev 34g: a window is shown when it is not minimized and lives on the current desk */
+static bool view_shown(struct view *v) { return !v->minimized && v->desk == v->server->cur_desk; }
+static void view_sync_enabled(struct view *v) { wlr_scene_node_set_enabled(&v->tree->node, v->mapped && view_shown(v)); }
+static void switch_desk(struct server *s, int d);
+static struct view *top_view(struct server *s);
 
 #ifdef POLDER_SCENEFX
 static void round_buffer(struct wlr_scene_buffer *buf, int sx, int sy, void *data) {
@@ -214,7 +232,8 @@ static void focus_view(struct view *v) {
 	if (s->locked) return;   /* Rev 34b: nothing but the lock screen gets focus while locked */
 	struct wlr_surface *surf = view_surface(v), *prev = seat->keyboard_state.focused_surface;
 	if (!surf) return;
-	if (v->minimized) { v->minimized = false; wlr_scene_node_set_enabled(&v->tree->node, true); if (v->ftl) wlr_foreign_toplevel_handle_v1_set_minimized(v->ftl, false); if (v->type == VIEW_X11) wlr_xwayland_surface_set_minimized(v->xs, false); }
+	if (v->desk != s->cur_desk) switch_desk(s, v->desk);   /* Rev 34g: activating a window on another desk goes there */
+	if (v->minimized) { v->minimized = false; view_sync_enabled(v); if (v->ftl) wlr_foreign_toplevel_handle_v1_set_minimized(v->ftl, false); if (v->type == VIEW_X11) wlr_xwayland_surface_set_minimized(v->xs, false); }
 	wlr_scene_node_raise_to_top(&v->tree->node);
 	wl_list_remove(&v->link); wl_list_insert(&s->views, &v->link);
 	{ struct view *o; wl_list_for_each(o, &s->views, link) if (o->ftl) wlr_foreign_toplevel_handle_v1_set_activated(o->ftl, o == v); }
@@ -305,15 +324,18 @@ static void view_place(struct view *v) {
 	}
 	view_move_to(v, x, y); v->placed = true;
 }
+static struct wlr_box snap_target(struct server *s, int mode) {
+	struct wlr_box u = usable_area(s);
+	switch (mode) {
+	case SNAP_LEFT:  return (struct wlr_box){ u.x + GAP, u.y + GAP, u.width / 2 - GAP - GAP / 2, u.height - 2 * GAP };
+	case SNAP_RIGHT: return (struct wlr_box){ u.x + u.width / 2 + GAP / 2, u.y + GAP, u.width / 2 - GAP - GAP / 2, u.height - 2 * GAP };
+	default: return u;
+	}
+}
 static void view_snap(struct view *v, int mode) {
 	if (v->snap == SNAP_NONE && mode != SNAP_NONE) view_box(v, &v->saved);
-	struct wlr_box u = usable_area(v->server), t;
-	switch (mode) {
-	case SNAP_LEFT:  t = (struct wlr_box){ u.x + GAP, u.y + GAP, u.width / 2 - GAP - GAP / 2, u.height - 2 * GAP }; break;
-	case SNAP_RIGHT: t = (struct wlr_box){ u.x + u.width / 2 + GAP / 2, u.y + GAP, u.width / 2 - GAP - GAP / 2, u.height - 2 * GAP }; break;
-	case SNAP_MAX:   t = u; break;
-	default: if (v->snap == SNAP_NONE) return; t = v->saved; break;
-	}
+	struct wlr_box t;
+	if (mode == SNAP_NONE) { if (v->snap == SNAP_NONE) return; t = v->saved; } else t = snap_target(v->server, mode);
 	if (v->type == VIEW_XDG) {
 		wlr_xdg_toplevel_set_maximized(v->xdg, mode == SNAP_MAX);
 		wlr_xdg_toplevel_set_tiled(v->xdg, mode == SNAP_LEFT ? (WLR_EDGE_TOP|WLR_EDGE_BOTTOM|WLR_EDGE_RIGHT) :
@@ -334,7 +356,7 @@ static void ftl_sync(struct view *v) {   /* push title/app_id changes to the for
 static void focus_view(struct view *v);
 static void view_minimize(struct view *v, bool on) {
 	if (v->minimized == on) return;
-	v->minimized = on; wlr_scene_node_set_enabled(&v->tree->node, !on);
+	v->minimized = on; view_sync_enabled(v);
 	if (v->ftl) wlr_foreign_toplevel_handle_v1_set_minimized(v->ftl, on);
 	if (v->type == VIEW_X11) wlr_xwayland_surface_set_minimized(v->xs, on);
 	struct server *s = v->server;
@@ -342,7 +364,7 @@ static void view_minimize(struct view *v, bool on) {
 		wl_list_remove(&v->link); wl_list_insert(s->views.prev, &v->link);
 		if (v->ftl) wlr_foreign_toplevel_handle_v1_set_activated(v->ftl, false);
 		if (s->seat->keyboard_state.focused_surface == view_surface(v)) wlr_seat_keyboard_clear_focus(s->seat);
-		struct view *n; wl_list_for_each(n, &s->views, link) if (!n->minimized) { focus_view(n); break; }
+		struct view *n; wl_list_for_each(n, &s->views, link) if (n->mapped && view_shown(n)) { focus_view(n); break; }
 	}
 }
 static void ftl_on_activate(struct wl_listener *l, void *d) { struct view *v = wl_container_of(l, v, ftl_activate); (void)d; focus_view(v); }
@@ -383,7 +405,7 @@ static void view_map(struct wl_listener *l, void *d) {
 		}
 		wlr_scene_node_set_position(&v->tree->node, v->xs->x, v->xs->y);
 	}
-	v->mapped = true; wlr_scene_node_set_enabled(&v->tree->node, true);
+	v->mapped = true; v->desk = s->cur_desk; wlr_scene_node_set_enabled(&v->tree->node, true);
 	if (!v->placed && (v->type == VIEW_XDG || (v->xs->x == 0 && v->xs->y == 0))) view_place(v);
 	wl_list_insert(&s->views, &v->link);
 	ftl_create(v);
@@ -396,7 +418,7 @@ static void view_unmap(struct wl_listener *l, void *d) {
 	if (v->mapped && !(v->type == VIEW_X11 && v->xs->override_redirect)) wl_list_remove(&v->link);
 	ftl_destroy(v); v->minimized = false;
 	v->mapped = false;
-	if (!wl_list_empty(&v->server->views)) { struct view *n = wl_container_of(v->server->views.next, n, link); focus_view(n); }
+	{ struct view *n; wl_list_for_each(n, &v->server->views, link) if (n->mapped && view_shown(n)) { focus_view(n); break; } }
 }
 static void view_commit(struct wl_listener *l, void *d) {
 	struct view *v = wl_container_of(l, v, commit); (void)d;
@@ -428,7 +450,7 @@ static void view_destroy(struct wl_listener *l, void *d) {
 
 static void new_xdg_toplevel(struct wl_listener *l, void *d) {
 	struct server *s = wl_container_of(l, s, new_xdg_toplevel); struct wlr_xdg_toplevel *t = d;
-	struct view *v = calloc(1, sizeof(*v)); v->server = s; v->type = VIEW_XDG; v->xdg = t;
+	struct view *v = calloc(1, sizeof(*v)); v->server = s; v->type = VIEW_XDG; v->xdg = t; v->id = ++s->next_id;
 	view_create_tree(v);
 	v->content = wlr_scene_xdg_surface_create(v->tree, t->base);
 	t->base->data = v->content;
@@ -484,7 +506,7 @@ static void x11_request_configure(struct wl_listener *l, void *d) {
 static void x11_request_activate(struct wl_listener *l, void *d) { struct view *v = wl_container_of(l, v, request_activate); (void)d; if (v->mapped) focus_view(v); }
 static void xwl_new_surface(struct wl_listener *l, void *d) {
 	struct server *s = wl_container_of(l, s, xwl_new_surface); struct wlr_xwayland_surface *xs = d;
-	struct view *v = calloc(1, sizeof(*v)); v->server = s; v->type = VIEW_X11; v->xs = xs;
+	struct view *v = calloc(1, sizeof(*v)); v->server = s; v->type = VIEW_X11; v->xs = xs; v->id = ++s->next_id;
 	view_create_tree(v);
 	v->associate.notify = x11_associate; wl_signal_add(&xs->events.associate, &v->associate);
 	v->dissociate.notify = x11_dissociate; wl_signal_add(&xs->events.dissociate, &v->dissociate);
@@ -535,7 +557,7 @@ static void layer_unmap(struct wl_listener *l, void *d) {
 	struct layer *ly = wl_container_of(l, ly, unmap); (void)d; struct server *s = ly->server; arrange_layers(s);
 	if (s->seat->keyboard_state.focused_surface == ly->ls->surface) {   /* give focus back to the top window */
 		wlr_seat_keyboard_clear_focus(s->seat);
-		if (!wl_list_empty(&s->views)) { struct view *v = wl_container_of(s->views.next, v, link); focus_view(v); }
+		focus_view(top_view(s));   /* Rev 34g: top window of the current desk */
 	}
 }
 static void layer_destroy(struct wl_listener *l, void *d) {
@@ -602,7 +624,7 @@ static void lock_unlock(struct wl_listener *l, void *d) {
 	s->locked = false; wlr_scene_node_set_enabled(&s->lock_bg->node, false);
 	wlr_seat_keyboard_clear_focus(s->seat);
 	lock_finish(st);
-	if (!wl_list_empty(&s->views)) { struct view *v = wl_container_of(s->views.next, v, link); focus_view(v); }
+	focus_view(top_view(s));   /* Rev 34g */
 	wlr_log(WLR_INFO, "session unlocked");
 }
 static void lock_destroy(struct wl_listener *l, void *d) {
@@ -647,7 +669,7 @@ static int dump_windows(int sig, void *data) {
 	FILE *f = fopen(tmp, "w"); if (!f) return 0;
 	fputc('[', f); bool first = true; struct view *v;
 	wl_list_for_each(v, &s->views, link) {
-		if (!v->mapped || v->minimized) continue;
+		if (!v->mapped || !view_shown(v)) continue;
 		struct wlr_box b; view_box(v, &b);
 		fprintf(f, "%s{\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"app_id\":", first ? "" : ",", b.x, b.y, b.width, b.height);
 		json_str(f, view_appid(v)); fputs(",\"title\":", f); json_str(f, view_title(v)); fputc('}', f); first = false;
@@ -655,6 +677,133 @@ static int dump_windows(int sig, void *data) {
 	fputs("]\n", f); fclose(f); rename(tmp, path);
 	return 0;
 }
+/* ---------------- Rev 34g: desks, snap preview, overview IPC ---------------- */
+static void switch_desk(struct server *s, int d) {
+	if (d < 0 || d >= s->ndesks) return;
+	s->cur_desk = d; struct view *v;
+	wl_list_for_each(v, &s->views, link) view_sync_enabled(v);
+	struct wlr_surface *fs = s->seat->keyboard_state.focused_surface; bool keep = false;
+	wl_list_for_each(v, &s->views, link) if (v->mapped && view_shown(v) && view_surface(v) == fs) keep = true;
+	if (fs && wlr_layer_surface_v1_try_from_wlr_surface(fs)) keep = true;   /* the overview itself */
+	if (!keep) {
+		struct view *t = NULL; wl_list_for_each(v, &s->views, link) if (v->mapped && view_shown(v)) { t = v; break; }
+		if (t) focus_view(t); else wlr_seat_keyboard_clear_focus(s->seat);
+	}
+	wlr_log(WLR_INFO, "desk %d/%d", d + 1, s->ndesks);
+}
+static int snap_mode_at(struct server *s) {   /* drag-to-edge target under the cursor */
+	struct wlr_box u = usable_area(s);
+	if (s->cursor->x <= u.x + 4) return SNAP_LEFT;
+	if (s->cursor->x >= u.x + u.width - 5) return SNAP_RIGHT;
+	if (s->cursor->y <= u.y + 4) return SNAP_MAX;
+	return SNAP_NONE;
+}
+static void snap_preview(struct server *s, int mode) {   /* translucent accent box where the window will land */
+	if (mode == s->snap_prev_mode) return;
+	s->snap_prev_mode = mode;
+	if (!s->snap_prev) {   /* same look as the X11 preview (wm/snap.py): light accent-container fill + 2px accent edge */
+		float a = .55f, f[4];
+		for (int i = 0; i < 3; i++) f[i] = (s->accent[i] * .2f + .8f) * a;   /* ~ACCENT_CONTAINER, premultiplied */
+		f[3] = a;
+		float e[4] = { s->accent[0], s->accent[1], s->accent[2], 1 };
+		s->snap_prev = wlr_scene_tree_create(s->views_tree);
+		s->snap_fill = wlr_scene_rect_create(s->snap_prev, 1, 1, f);
+#ifdef POLDER_SCENEFX
+		wlr_scene_rect_set_corner_radius(s->snap_fill, RADIUS + 4, CORNER_LOCATION_ALL);
+#endif
+		for (int i = 0; i < 4; i++) s->snap_edge[i] = wlr_scene_rect_create(s->snap_prev, 1, 1, e);
+	}
+	if (mode == SNAP_NONE || !s->grabbed) { wlr_scene_node_set_enabled(&s->snap_prev->node, false); return; }
+	struct wlr_box t = snap_target(s, mode);
+	wlr_scene_node_set_position(&s->snap_prev->node, t.x, t.y);
+	wlr_scene_rect_set_size(s->snap_fill, t.width, t.height);
+#ifndef POLDER_SCENEFX   /* scenefx: the rounded fill alone; pixman: square edge lines */
+	wlr_scene_rect_set_size(s->snap_edge[0], t.width, 2); wlr_scene_node_set_position(&s->snap_edge[0]->node, 0, 0);
+	wlr_scene_rect_set_size(s->snap_edge[1], t.width, 2); wlr_scene_node_set_position(&s->snap_edge[1]->node, 0, t.height - 2);
+	wlr_scene_rect_set_size(s->snap_edge[2], 2, t.height); wlr_scene_node_set_position(&s->snap_edge[2]->node, 0, 0);
+	wlr_scene_rect_set_size(s->snap_edge[3], 2, t.height); wlr_scene_node_set_position(&s->snap_edge[3]->node, t.width - 2, 0);
+#else
+	for (int i = 0; i < 4; i++) wlr_scene_node_set_enabled(&s->snap_edge[i]->node, false);
+#endif
+	wlr_scene_node_place_below(&s->snap_prev->node, &s->grabbed->tree->node);
+	wlr_scene_node_set_enabled(&s->snap_prev->node, true);
+}
+static struct view *view_by_id(struct server *s, int id) {
+	struct view *v; wl_list_for_each(v, &s->views, link) if (v->id == id && v->mapped) return v;
+	return NULL;
+}
+static void write_thumb(struct server *s, struct view *v, const char *dir) {
+	/* full-size pixels of the window's main surface (cropped to the window geometry), read back through the
+	 * renderer so it works for shm (pixman) and GPU buffers alike, and for windows that are hidden or on other desks */
+	struct wlr_texture *tex = wlr_surface_get_texture(view_surface(v)); if (!tex) return;
+	struct wlr_box b = { 0, 0, tex->width, tex->height };
+	if (v->type == VIEW_XDG) { struct wlr_box g; wlr_xdg_surface_get_geometry(v->xdg->base, &g);
+		if (g.width > 0 && g.height > 0 && g.x >= 0 && g.y >= 0 && g.x + g.width <= (int)tex->width && g.y + g.height <= (int)tex->height) b = g; }
+	uint32_t fmt = DRM_FORMAT_ABGR8888; size_t stride = b.width * 4; unsigned char *px = malloc(stride * b.height); if (!px) return;
+	struct wlr_texture_read_pixels_options o = { .data = px, .format = fmt, .stride = stride, .src_box = b };
+	bool ok = wlr_texture_read_pixels(tex, &o);
+	if (!ok) { fmt = DRM_FORMAT_ARGB8888; struct wlr_texture_read_pixels_options o2 = { .data = px, .format = fmt, .stride = stride, .src_box = b }; ok = wlr_texture_read_pixels(tex, &o2); }
+	if (ok) {
+		char path[400], tmp[410]; snprintf(path, sizeof path, "%s/polder-thumb-%d.raw", dir, v->id); snprintf(tmp, sizeof tmp, "%s.tmp", path);
+		FILE *f = fopen(tmp, "wb");
+		if (f) { fprintf(f, "%d %d %s\n", b.width, b.height, fmt == DRM_FORMAT_ABGR8888 ? "RGBA" : "BGRA"); fwrite(px, 1, stride * b.height, f); fclose(f); rename(tmp, path); }
+	}
+	free(px);
+}
+static void dump_state(struct server *s) {   /* $XDG_RUNTIME_DIR/polder-state.json: desks + every window (MRU) + thumbnails */
+	const char *dir = getenv("XDG_RUNTIME_DIR") ? getenv("XDG_RUNTIME_DIR") : "/tmp"; char path[300], tmp[310];
+	snprintf(path, sizeof path, "%s/polder-state.json", dir); snprintf(tmp, sizeof tmp, "%s.tmp", path);
+	FILE *f = fopen(tmp, "w"); if (!f) return;
+	fprintf(f, "{\"desk\":%d,\"desks\":%d,\"windows\":[", s->cur_desk, s->ndesks);
+	bool first = true; struct view *v;
+	wl_list_for_each(v, &s->views, link) {
+		if (!v->mapped) continue;
+		struct wlr_box b; view_box(v, &b); write_thumb(s, v, dir);
+		fprintf(f, "%s{\"id\":%d,\"desk\":%d,\"min\":%s,\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"x11\":%s,\"app_id\":", first ? "" : ",",
+			v->id, v->desk, v->minimized ? "true" : "false", b.x, b.y, b.width, b.height, v->type == VIEW_X11 ? "true" : "false");
+		json_str(f, view_appid(v)); fputs(",\"title\":", f); json_str(f, view_title(v)); fputc('}', f); first = false;
+	}
+	fputs("]}\n", f); fclose(f); rename(tmp, path);
+}
+static void run_command(struct server *s, char *line) {
+	int a = 0, b = 0; char cmd[32] = "";
+	int n = sscanf(line, "%31s %d %d", cmd, &a, &b);
+	if (n < 1) return;
+	wlr_log(WLR_INFO, "cmd: %s", line);
+	if (s->locked && strcmp(cmd, "dump")) return;
+	if (!strcmp(cmd, "dump")) dump_state(s);
+	else if (!strcmp(cmd, "focus") && n >= 2) { struct view *v = view_by_id(s, a); if (v) focus_view(v); }
+	else if (!strcmp(cmd, "close") && n >= 2) { struct view *v = view_by_id(s, a); if (v) { if (v->type == VIEW_XDG) wlr_xdg_toplevel_send_close(v->xdg); else wlr_xwayland_surface_close(v->xs); } }
+	else if (!strcmp(cmd, "desk") && n >= 2) switch_desk(s, a);
+	else if (!strcmp(cmd, "newdesk")) { if (s->ndesks < 8) { s->ndesks++; switch_desk(s, s->ndesks - 1); } }
+	else if (!strcmp(cmd, "deldesk") && n >= 2 && s->ndesks > 1 && a >= 0 && a < s->ndesks) {   /* windows move to the neighbour desk */
+		struct view *v; wl_list_for_each(v, &s->views, link) if (v->desk > a || (v->desk == a && a > 0)) v->desk--;
+		s->ndesks--; switch_desk(s, s->cur_desk >= s->ndesks ? s->ndesks - 1 : (s->cur_desk > a ? s->cur_desk - 1 : s->cur_desk));
+	}
+	else if (!strcmp(cmd, "movedesk") && n >= 3) {
+		struct view *v = view_by_id(s, a);
+		if (v && b >= 0 && b < s->ndesks) { v->desk = b; view_sync_enabled(v);
+			if (b != s->cur_desk && s->seat->keyboard_state.focused_surface == view_surface(v)) switch_desk(s, s->cur_desk); }
+	}
+	else wlr_log(WLR_ERROR, "unknown command '%s'", line);
+}
+static int cmd_readable(int fd, uint32_t mask, void *data) {
+	struct server *s = data;
+	ssize_t r = read(fd, s->cmd_buf + s->cmd_len, sizeof s->cmd_buf - 1 - s->cmd_len);
+	if (r <= 0) return 0;   /* we hold the FIFO open read-write ourselves, so there is never an EOF */
+	s->cmd_len += r; s->cmd_buf[s->cmd_len] = 0; char *nl;
+	while ((nl = strchr(s->cmd_buf, '\n'))) {
+		*nl = 0; run_command(s, s->cmd_buf);
+		memmove(s->cmd_buf, nl + 1, s->cmd_len - (nl + 1 - s->cmd_buf) + 1); s->cmd_len -= nl + 1 - s->cmd_buf;
+	}
+	if (s->cmd_len >= (int)sizeof s->cmd_buf - 1) s->cmd_len = 0;
+	return 0;
+}
+static void spawn_overview(struct server *s, const char *mode) {
+	if (!s->overview_cmd) return;
+	char c[600]; snprintf(c, sizeof c, "%s %s", s->overview_cmd, mode); spawn(s, c);
+}
+
 static void load_bindings(void) {
 	FILE *f = NULL; bool pipe = false; char buf[1024];
 	if (getenv("POLDER_KEYS")) f = fopen(getenv("POLDER_KEYS"), "r");
@@ -678,13 +827,22 @@ static void load_bindings(void) {
 	wlr_log(WLR_INFO, "%d user key bindings", nbindings);
 }
 static struct view *top_view(struct server *s) {
-	struct view *v; wl_list_for_each(v, &s->views, link) if (v->mapped && !v->minimized) return v;
+	struct view *v; wl_list_for_each(v, &s->views, link) if (v->mapped && view_shown(v)) return v;
 	return NULL;
 }
 static void view_minimize(struct view *v, bool on);
 static void view_snap(struct view *v, int mode);
 static bool internal_action(struct server *s, const char *a) {
 	struct view *v = top_view(s);
+	if (s->overview_cmd && (!strcmp(a, "@alttab") || !strcmp(a, "@alttab-back"))) {
+		/* Rev 34g: ChromeOS switcher with previews (wm/overview.py alttab, a layer surface); while it starts up
+		 * (python), repeated Alt+Tab presses are ignored here; once mapped it holds the keyboard itself */
+		struct timespec now; clock_gettime(CLOCK_MONOTONIC, &now);
+		double dt = (now.tv_sec - s->alttab_t.tv_sec) + (now.tv_nsec - s->alttab_t.tv_nsec) / 1e9;
+		if (dt > 1.5) { s->alttab_t = now; spawn_overview(s, a[7] ? "alttab back" : "alttab"); }
+		return true;
+	}
+	if (!strcmp(a, "@overview")) { if (s->overview_cmd) spawn_overview(s, "overview"); return true; }
 	if (!strcmp(a, "@alttab") || !strcmp(a, "@alttab-back")) {
 		if (wl_list_length(&s->views) < 2) return true;
 		if (a[7] == 0) { struct view *n = wl_container_of(s->views.prev, n, link); focus_view(n); }   /* bottom -> top: cycles all */
@@ -720,15 +878,13 @@ static bool keybinding(struct server *s, xkb_keysym_t sym, uint32_t mods) {
 	if (mods & WLR_MODIFIER_LOGO) {
 		if (sym == XKB_KEY_Return) { spawn(s, s->terminal); return true; }
 		if (sym == XKB_KEY_Left || sym == XKB_KEY_Right || sym == XKB_KEY_Up || sym == XKB_KEY_Down) {
-			if (wl_list_empty(&s->views)) return true;
-			struct view *v = wl_container_of(s->views.next, v, link);
+			struct view *v = top_view(s); if (!v) return true;
 			int m = sym == XKB_KEY_Left ? SNAP_LEFT : sym == XKB_KEY_Right ? SNAP_RIGHT : sym == XKB_KEY_Up ? SNAP_MAX : SNAP_NONE;
 			if (m == v->snap && m != SNAP_NONE) m = SNAP_NONE;   /* pressing again restores */
 			view_snap(v, m); return true;
 		}
 		if (sym == XKB_KEY_q || sym == XKB_KEY_Q) {
-			if (wl_list_empty(&s->views)) return true;
-			struct view *v = wl_container_of(s->views.next, v, link);
+			struct view *v = top_view(s); if (!v) return true;
 			if (v->type == VIEW_XDG) wlr_xdg_toplevel_send_close(v->xdg); else wlr_xwayland_surface_close(v->xs);
 			return true;
 		}
@@ -747,6 +903,11 @@ static void kb_key(struct wl_listener *l, void *d) {
 	struct keyboard *k = wl_container_of(l, k, key); struct server *s = k->server; struct wlr_keyboard_key_event *e = d;
 	const xkb_keysym_t *syms; int n = xkb_state_key_get_syms(k->wlr->xkb_state, e->keycode + 8, &syms);
 	uint32_t mods = wlr_keyboard_get_modifiers(k->wlr); bool handled = false;
+	/* Rev 34g: a layer surface holding the keyboard exclusively (overview, Alt+Tab switcher, launcher, capture)
+	 * gets every key, so Tab/arrows/Escape reach it instead of re-triggering compositor bindings */
+	struct wlr_surface *kfs = s->seat->keyboard_state.focused_surface;
+	struct wlr_layer_surface_v1 *kls = kfs ? wlr_layer_surface_v1_try_from_wlr_surface(kfs) : NULL;
+	bool excl = kls && kls->current.keyboard_interactive == ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE;
 	wlr_idle_notifier_v1_notify_activity(s->idle, s->seat);
 	for (int i = 0; i < n; i++) {
 		bool super = syms[i] == XKB_KEY_Super_L || syms[i] == XKB_KEY_Super_R;
@@ -756,6 +917,7 @@ static void kb_key(struct wl_listener *l, void *d) {
 		} else if (e->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
 			s->super_alone = false;
 			const xkb_keysym_t *bs; int nb = xkb_keymap_key_get_syms_by_level(k->wlr->keymap, e->keycode + 8, 0, 0, &bs);
+			if (excl) { if ((mods & WLR_MODIFIER_LOGO) && (mods & WLR_MODIFIER_SHIFT) && syms[i] == XKB_KEY_Escape) keybinding(s, syms[i], mods); continue; }
 			bool u = nb > 0 && user_binding(s, bs[0], mods);   /* level-0 sym: Alt+Shift+Tab still matches 'Tab' */
 			handled |= u || keybinding(s, syms[i], mods);
 		}
@@ -800,6 +962,17 @@ static void request_cursor(struct wl_listener *l, void *d) {
 	struct server *s = wl_container_of(l, s, request_cursor); struct wlr_seat_pointer_request_set_cursor_event *e = d;
 	if (s->seat->pointer_state.focused_client == e->seat_client) wlr_cursor_set_surface(s->cursor, e->surface, e->hotspot_x, e->hotspot_y);
 }
+/* Rev 34g: drag-and-drop (overview window -> desk, files between apps). Without this every GTK drag was cancelled. */
+static void request_start_drag(struct wl_listener *l, void *d) {
+	struct server *s = wl_container_of(l, s, request_start_drag); struct wlr_seat_request_start_drag_event *e = d;
+	if (wlr_seat_validate_pointer_grab_serial(s->seat, e->origin, e->serial)) wlr_seat_start_pointer_drag(s->seat, e->drag, e->serial);
+	else wlr_data_source_destroy(e->drag->source);
+}
+static void start_drag(struct wl_listener *l, void *d) {
+	struct server *s = wl_container_of(l, s, start_drag); struct wlr_drag *drag = d;
+	if (drag->icon) { struct wlr_scene_tree *t = wlr_scene_drag_icon_create(s->drag_icons, drag->icon); (void)t; }
+	wlr_scene_node_set_position(&s->drag_icons->node, s->cursor->x, s->cursor->y);
+}
 static void request_set_selection(struct wl_listener *l, void *d) {
 	struct server *s = wl_container_of(l, s, request_set_selection); struct wlr_seat_request_set_selection_event *e = d;
 	wlr_seat_set_selection(s->seat, e->source, e->serial);
@@ -810,6 +983,7 @@ static void process_motion(struct server *s, uint32_t time) {
 	if (s->mode == CUR_MOVE) { wlr_scene_node_set_position(&s->grabbed->tree->node, s->cursor->x - s->grab_x, s->cursor->y - s->grab_y);
 		s->grabbed->has_target = false;
 		if (s->grabbed->type == VIEW_X11) wlr_xwayland_surface_configure(s->grabbed->xs, s->grabbed->tree->node.x, s->grabbed->tree->node.y, s->grabbed->xs->width, s->grabbed->xs->height);
+		snap_preview(s, snap_mode_at(s));   /* Rev 34g */
 		return; }
 	if (s->mode == CUR_RESIZE) {
 		double bx = s->cursor->x - s->grab_x, by = s->cursor->y - s->grab_y;
@@ -818,6 +992,7 @@ static void process_motion(struct server *s, uint32_t time) {
 		if (s->resize_edges & WLR_EDGE_LEFT) { l = bx; if (l >= r) l = r - 1; } else if (s->resize_edges & WLR_EDGE_RIGHT) { r = bx; if (r <= l) r = l + 1; }
 		view_set_size(s->grabbed, l, t, r - l, b - t); return;
 	}
+	if (s->drag_icons) wlr_scene_node_set_position(&s->drag_icons->node, s->cursor->x, s->cursor->y);
 	double sx, sy; struct wlr_surface *surf = NULL;
 	struct view *v = view_at(s, s->cursor->x, s->cursor->y, &surf, &sx, &sy);
 	if (s->locked && !is_lock_surface(surf)) { v = NULL; surf = NULL; }   /* Rev 34b */
@@ -846,9 +1021,7 @@ static void cursor_button(struct wl_listener *l, void *d) {
 	if (e->state == WL_POINTER_BUTTON_STATE_RELEASED) {
 		if (s->mode != CUR_PASS) {
 			if (s->mode == CUR_MOVE && s->grabbed) {   /* drag to an edge: snap */
-				struct wlr_box u = usable_area(s); int m = SNAP_NONE;
-				if (s->cursor->x <= u.x + 4) m = SNAP_LEFT; else if (s->cursor->x >= u.x + u.width - 5) m = SNAP_RIGHT;
-				else if (s->cursor->y <= u.y + 4) m = SNAP_MAX;
+				int m = snap_mode_at(s); snap_preview(s, SNAP_NONE);
 				if (m != SNAP_NONE) view_snap(s->grabbed, m);
 			}
 			s->mode = CUR_PASS; s->grabbed = NULL; return; }
@@ -875,7 +1048,7 @@ static void cursor_button(struct wl_listener *l, void *d) {
 			if (fl->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY &&
 					fl->current.keyboard_interactive == ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_ON_DEMAND)
 				wlr_layer_surface_v1_destroy(fl);
-			if (!v && !wl_list_empty(&s->views)) { struct view *t = wl_container_of(s->views.next, t, link); focus_view(t); }
+			if (!v) focus_view(top_view(s));
 		}
 	}
 	if (v) focus_view(v);
@@ -944,6 +1117,17 @@ int main(int argc, char *argv[]) {
 	setenv("GTK_IM_MODULE", "gtk-im-context-simple", 0);   /* no text-input-v3 yet: GTK3 wayland IM would swallow typed text */
 	load_bindings();
 	{ char pid[16]; snprintf(pid, sizeof pid, "%d", (int)getpid()); setenv("POLDER_COMP_PID", pid, 1); }
+	/* Rev 34g: desks + command FIFO for the overview / Alt+Tab UI (wm/overview.py): lines like 'dump', 'focus ID', 'desk N' */
+	s.ndesks = getenv("POLDER_DESKS") ? atoi(getenv("POLDER_DESKS")) : 1; if (s.ndesks < 1 || s.ndesks > 8) s.ndesks = 1;
+	s.overview_cmd = getenv("POLDER_OVERVIEW"); s.snap_prev_mode = -1;
+	static char ovc[512];
+	if (!s.overview_cmd && getenv("POLDER_CONFIG")) { snprintf(ovc, sizeof ovc, "python3 %s/wm/overview.py", getenv("POLDER_CONFIG")); s.overview_cmd = ovc; }
+	snprintf(s.cmd_path, sizeof s.cmd_path, "%s/polder-comp.cmd", getenv("XDG_RUNTIME_DIR") ? getenv("XDG_RUNTIME_DIR") : "/tmp");
+	unlink(s.cmd_path);
+	if (mkfifo(s.cmd_path, 0600) == 0 && (s.cmd_fd = open(s.cmd_path, O_RDWR | O_NONBLOCK | O_CLOEXEC)) >= 0)
+		wl_event_loop_add_fd(wl_display_get_event_loop(s.display), s.cmd_fd, WL_EVENT_READABLE, cmd_readable, &s);
+	else wlr_log(WLR_ERROR, "command fifo %s failed", s.cmd_path);
+	setenv("POLDER_COMP_CMD", s.cmd_path, 1);
 	setenv("POLDER_COMP", "1", 1);   /* Rev 34b: lets session scripts pick the Wayland code paths (lock, idle, ...) */
 	s.backend = wlr_backend_autocreate(wl_display_get_event_loop(s.display), NULL);
 	wl_event_loop_add_signal(wl_display_get_event_loop(s.display), SIGUSR2, dump_windows, &s);   /* Rev 34d */
@@ -996,6 +1180,9 @@ int main(int argc, char *argv[]) {
 	s.new_input.notify = new_input; wl_signal_add(&s.backend->events.new_input, &s.new_input);
 	s.seat = wlr_seat_create(s.display, "seat0");
 	s.request_cursor.notify = request_cursor; wl_signal_add(&s.seat->events.request_set_cursor, &s.request_cursor);
+	s.request_start_drag.notify = request_start_drag; wl_signal_add(&s.seat->events.request_start_drag, &s.request_start_drag);
+	s.start_drag.notify = start_drag; wl_signal_add(&s.seat->events.start_drag, &s.start_drag);
+	s.drag_icons = wlr_scene_tree_create(&s.scene->tree);
 	s.request_set_selection.notify = request_set_selection; wl_signal_add(&s.seat->events.request_set_selection, &s.request_set_selection);
 	struct wlr_virtual_keyboard_manager_v1 *vk = wlr_virtual_keyboard_manager_v1_create(s.display);
 	s.new_vkbd.notify = new_vkbd; wl_signal_add(&vk->events.new_virtual_keyboard, &s.new_vkbd);

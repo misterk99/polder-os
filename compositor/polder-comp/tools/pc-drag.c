@@ -30,6 +30,10 @@ int main(int argc, char **argv) {
 	mv(dpy, p, x1, y1, W, H);
 	zwlr_virtual_pointer_v1_button(p, t++, btn, 1); zwlr_virtual_pointer_v1_frame(p); wl_display_roundtrip(dpy); usleep(50000);
 	for (int i = 1; i <= steps; i++) mv(dpy, p, x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps, W, H);
+	if (getenv("PC_HOLD")) {   /* DnD: let the target negotiate (wl_data_offer) before dropping; wiggle so it sees motion */
+		int ms = atoi(getenv("PC_HOLD"));
+		for (int i = 0; i < ms / 50; i++) { mv(dpy, p, x2 + (i & 1), y2, W, H); usleep(35000); }
+	}
 	zwlr_virtual_pointer_v1_button(p, t++, btn, 0); zwlr_virtual_pointer_v1_frame(p); wl_display_roundtrip(dpy);
 	zwlr_virtual_pointer_v1_destroy(p); wl_display_roundtrip(dpy); wl_display_disconnect(dpy); return 0;
 }
