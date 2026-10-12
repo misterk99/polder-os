@@ -68,9 +68,11 @@ cat > quicksettings/qs.css <<Q
 .tile .sub { font-size: 11px; color: $ON_SURFACE_VARIANT; }
 .dot { min-width: 8px; min-height: 8px; padding: 0; border-radius: 4px; background: $OUTLINE; border: none; box-shadow: none; }
 .dot.on { background: $ACCENT; min-width: 20px; }
-scale { padding: 0; }
-scale trough { min-height: 36px; border-radius: 18px; background: $SURFACE_VARIANT; border: none; }
-scale highlight { min-height: 36px; border-radius: 18px; background: $ACCENT_CONTAINER; border: none; }
+/* Rev 33d: GTK centres the knob on the trough ends at 0/100%, so half of it stuck out of the pill. Inset the trough by
+   the knob radius and paint the pill on the scale itself; the highlight's shadow fills the inset on the left. */
+scale { padding: 0 18px; background: $SURFACE_VARIANT; border-radius: 18px; }
+scale trough { min-height: 36px; border-radius: 18px; background: transparent; border: none; }
+scale highlight { min-height: 36px; border-radius: 18px; background: $ACCENT_CONTAINER; border: none; box-shadow: -18px 0 0 0 $ACCENT_CONTAINER; }
 scale slider { min-width: 36px; min-height: 36px; margin: 0; border-radius: 18px; background: $ACCENT; border: none; box-shadow: none; }
 .knobicon { color: $ON_ACCENT_CONTAINER; }
 .round { background: $SURFACE_VARIANT; border: none; box-shadow: none; border-radius: 20px; min-width: 36px; min-height: 36px; padding: 0; color: $ON_SURFACE; }

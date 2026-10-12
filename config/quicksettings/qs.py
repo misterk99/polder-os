@@ -259,7 +259,7 @@ class QS(Gtk.Window):
         s = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1); s.set_value(val); s.set_draw_value(False)
         s.set_hexpand(True); s.connect('value-changed', lambda w: cb(int(w.get_value()))); ov.add(s)
         knob = Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU); knob.set_halign(Gtk.Align.START)
-        knob.set_margin_start(14); knob.get_style_context().add_class('knobicon'); knob.set_can_focus(False)
+        knob.set_margin_start(10); knob.get_style_context().add_class('knobicon'); knob.set_can_focus(False)
         ov.add_overlay(knob); ov.set_overlay_pass_through(knob, True)
         row.pack_start(ov, True, True, 0)
         if trailing: row.pack_start(self.round_btn(trailing, None), False, False, 0)

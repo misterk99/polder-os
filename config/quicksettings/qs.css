@@ -10,9 +10,11 @@
 .tile .sub { font-size: 11px; color: #5f6368; }
 .dot { min-width: 8px; min-height: 8px; padding: 0; border-radius: 4px; background: #d3dbe5; border: none; box-shadow: none; }
 .dot.on { background: #0b57d0; min-width: 20px; }
-scale { padding: 0; }
-scale trough { min-height: 36px; border-radius: 18px; background: #e8eef7; border: none; }
-scale highlight { min-height: 36px; border-radius: 18px; background: #d3e3fd; border: none; }
+/* Rev 33d: GTK centres the knob on the trough ends at 0/100%, so half of it stuck out of the pill. Inset the trough by
+   the knob radius and paint the pill on the scale itself; the highlight's shadow fills the inset on the left. */
+scale { padding: 0 18px; background: #e8eef7; border-radius: 18px; }
+scale trough { min-height: 36px; border-radius: 18px; background: transparent; border: none; }
+scale highlight { min-height: 36px; border-radius: 18px; background: #d3e3fd; border: none; box-shadow: -18px 0 0 0 #d3e3fd; }
 scale slider { min-width: 36px; min-height: 36px; margin: 0; border-radius: 18px; background: #0b57d0; border: none; box-shadow: none; }
 .knobicon { color: #041e49; }
 .round { background: #e8eef7; border: none; box-shadow: none; border-radius: 20px; min-width: 36px; min-height: 36px; padding: 0; color: #1f1f1f; }

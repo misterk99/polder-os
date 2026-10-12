@@ -2,6 +2,8 @@
 
 _History reconstructed from the development log; intermediate file states were not preserved. Each revision lists its main changes._
 
+## Rev 33d — Snelle instellingen: schuifknop stak bij 0/100% half buiten de pil (GTK centreert de knop op het trog-einde). Trog ingesprongen met de knopstraal, pil op de schaal zelf getekend; gecontroleerd op X11 en polder-comp, licht/donker, 0% en 100% (screenshot 147).
+
 ## Rev 33c — Plank op polder-comp: toetsenbordindeling-pil (de keymap van de compositor, klik → menu); agenda/weer openen als overlay-layer recht boven de pil die ze opende. Compositor: klik buiten een focus-houdend on_demand-overlaypaneel (agenda, Snelle instellingen, menu’s) sluit het via layer_surface.closed — GTK3 negeert wl_keyboard-leave, dus focus-out kwam nooit aan. Screenshots 144–146.
 
 ## Rev 33b — Volledige plank op polder-comp: op Wayland is de plank zelf de hele balk (tint2 draait niet op Wayland): layer-shell over de volle breedte met exclusive zone, launcherknop links, vastgezette/actieve apps in het midden, statuspillen rechts (weer, datum → agenda, klok + meldingen/niet-storen + wifi/volume/batterij alleen bij echte info → Snelle instellingen), paletkleuren licht/donker. Bureaublad valt terug op Polderheuvel als wallpaper.png ontbreekt. Ook X11-verplaatsen/-formaatwijzigen via Xwayland getest (screenshots 137–143).
