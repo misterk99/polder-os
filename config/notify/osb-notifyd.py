@@ -9,6 +9,7 @@ from gi.repository import Gtk, Gdk, Gio, GLib, Pango
 import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), '..', 'osb')); import rgba as RGBA   # Rev 29.2: real rounded corners
 import osbnotify as N
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'osb')); import osbsettings as OSBS
+import layershell as LSH, wltop   # Rev 34: toasts as layer surfaces + raise via foreign-toplevel on polder-comp
 
 HERE = os.path.dirname(os.path.abspath(__file__)); CFG = os.path.join(HERE, '..')
 P = N.palette(); CARD_W, GAP, SHELF, MARGIN = 420, 8, 62, 10  # same column as Quick Settings
@@ -98,6 +99,9 @@ def open_app(n):
     """Fallback for notifications without a 'default' action: open/raise the sending app."""
     app = (n.get('desktop') or n['app']).lower()
     def raise_or(cls, cmd):
+        if LSH.wayland():
+            if not wltop.raise_app(cls): subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return
         r = subprocess.run(['xdotool', 'search', '--class', cls], capture_output=True, text=True).stdout.split()
         if r: subprocess.run(['xdotool', 'windowmap', r[-1], 'windowactivate', r[-1]], stderr=subprocess.DEVNULL)
         else: subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -110,6 +114,7 @@ def open_app(n):
     elif app in ('systeem', 'system'):
         subprocess.Popen(['xfce4-settings-manager'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else:
+        if LSH.wayland() and wltop.raise_app(app): return   # Rev 34: raise the running app instead of a new window
         try:
             info = Gio.DesktopAppInfo.new(app + '.desktop')
             if info: info.launch([], None)
@@ -173,7 +178,9 @@ class Daemon:
         self.save(); return nid
 
     def show_popup(self, n, timeout):
-        w = Gtk.Window(type=Gtk.WindowType.POPUP); w.set_name(f"np{n['id']}"); RGBA.enable(w)
+        wl = LSH.available()   # Rev 34: POPUP windows can't be positioned on Wayland -> overlay layer, bottom-right
+        w = Gtk.Window(type=Gtk.WindowType.TOPLEVEL if wl else Gtk.WindowType.POPUP); w.set_name(f"np{n['id']}"); RGBA.enable(w)
+        if wl: LSH.setup(w, f"polder-toast", layer='overlay', anchors=('right', 'bottom'), margins={'right': MARGIN, 'bottom': SHELF}, exclusive=0, keyboard='none')
         w.add(build_card(n, self.dismiss_popup, lambda i, k: self.invoke(i, k))); w.show_all()
         self.popups.append((n['id'], w)); self.relayout()
         GLib.timeout_add(TIMEOUT if timeout in (-1, 0) or timeout > 60000 else timeout, lambda: self.expire(n['id']))
@@ -210,7 +217,9 @@ class Daemon:
         y = sh - SHELF
         for i, w in reversed(self.popups):  # newest at bottom
             w.set_size_request(CARD_W, -1); h = w.get_child().get_preferred_height_for_width(CARD_W)[1]; w.resize(CARD_W, h)
-            y -= h; x = sw - CARD_W - MARGIN; w.move(x, y)
+            y -= h; x = sw - CARD_W - MARGIN
+            if LSH.active(w): LSH.set_margins(w, {'right': MARGIN, 'bottom': sh - y - h})
+            else: w.move(x, y)
             self.bgrules[f'np{i}'] = (f'#np{i} {{ background: transparent; background-image: none; }}') if RGBA.active(w) else backdrop_css(f'np{i}', x, y, CARD_W, h)
             y -= GAP
         self.bgprov.load_from_data('\n'.join(self.bgrules.values()).encode())

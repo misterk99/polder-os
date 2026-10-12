@@ -2,6 +2,8 @@
 
 _History reconstructed from the development log; intermediate file states were not preserved. Each revision lists its main changes._
 
+## Rev 34a — Wayland-pariteit groep 1: Assistent crasht niet meer op polder-comp (geen GdkX11-servertijd op Wayland), opent als overlay-layer onderaan in het midden; na sluiten door klik-buiten start de volgende Super+A een nieuwe (gtk-layer-shell kan een gesloten surface niet hermappen). Meldingen als overlay-layer rechtsonder boven de plank (gestapeld); klik op een melding activeert het draaiende venster via wlr-foreign-toplevel (osb/wltop.py) i.p.v. xdotool. Screenshots 149–150.
+
 ## Rev 33d — Snelle instellingen: schuifknop stak bij 0/100% half buiten de pil (GTK centreert de knop op het trog-einde). Trog ingesprongen met de knopstraal, pil op de schaal zelf getekend; gecontroleerd op X11 en polder-comp, licht/donker, 0% en 100% (screenshot 147).
 
 ## Rev 33c — Plank op polder-comp: toetsenbordindeling-pil (de keymap van de compositor, klik → menu); agenda/weer openen als overlay-layer recht boven de pil die ze opende. Compositor: klik buiten een focus-houdend on_demand-overlaypaneel (agenda, Snelle instellingen, menu’s) sluit het via layer_surface.closed — GTK3 negeert wl_keyboard-leave, dus focus-out kwam nooit aan. Screenshots 144–146.

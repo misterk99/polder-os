@@ -8,6 +8,7 @@ for d in (HERE, os.path.join(C, 'osb'), os.path.join(C, 'notify')): sys.path.ins
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0'); gi.require_version('GdkX11', '3.0')
 from gi.repository import Gtk, Gdk, GLib, GdkX11, Pango
 import osbnotify as N, actions as A, intents as I, llm as L
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'osb')); import layershell as LSH   # Rev 34
 W, H, SHELF = 560, 460, 62
 PIDF = '/tmp/osb-assistant.pid'
 EXAMPLES = ['Zet donker thema aan', 'Volume op 30%', 'Wat voor weer is het?', 'Open terminal', 'Zoek bestand factuur', 'Maak een screenshot']
@@ -42,6 +43,8 @@ class Assistant(Gtk.Window):
         self.bgprov = Gtk.CssProvider(); Gtk.StyleContext.add_provider_for_screen(scr, self.bgprov, 900)
         self.palm = self.wpm = None; self.history = []; self.busy = False; self.modal = False
         self.set_size_request(W, H)
+        # Rev 34: on polder-comp a bottom-centred overlay layer above the shelf (move()/X server time don't exist there)
+        LSH.setup(self, 'polder-assistant', layer='overlay', anchors=('bottom',), margins={'bottom': SHELF}, exclusive=0, keyboard='on_demand')
         vis = scr.get_rgba_visual()   # Rev 29.1: real ARGB window -> compositor shows true transparent corners over any window
         self.argb = bool(vis and scr.is_composited())
         if vis: self.set_visual(vis)
@@ -104,9 +107,19 @@ class Assistant(Gtk.Window):
         scr = self.get_screen(); comp = scr.is_composited() and scr.get_rgba_visual() is not None
         if comp != self.argb: self.argb = comp; self.wpm = None
         self.refresh_style(); self.move(self.x, self.y); self.show()
-        self.present_with_time(GdkX11.x11_get_server_time(self.get_window())); self.entry.grab_focus()
+        win = self.get_window()
+        if isinstance(win, GdkX11.X11Window): self.present_with_time(GdkX11.x11_get_server_time(win))
+        else: self.present()   # Wayland: the compositor focuses an on_demand layer surface when it maps
+        self.entry.grab_focus()
 
-    def hide_a(self): self.hide(); return True
+    def hide_a(self):
+        if LSH.active(self):
+            # Wayland: once polder-comp dismissed the panel (layer_surface.closed) gtk-layer-shell can't map it again in this
+            # process, so a hidden assistant simply exits; the next Super+A / --show starts a fresh one (conversation resets).
+            try: os.remove(PIDF)
+            except OSError: pass
+            Gtk.main_quit(); return True
+        self.hide(); return True
     def maybe_hide(self):
         if self.get_visible() and not self.is_active() and not self.modal and not self.busy: self.hide_a()
         return False
