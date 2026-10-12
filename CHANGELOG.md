@@ -2,6 +2,8 @@
 
 _History reconstructed from the development log; intermediate file states were not preserved. Each revision lists its main changes._
 
+## Rev 34f — Eigen vergrendelscherm op polder-comp: lock/lock-wayland.py gebruikt dezelfde UI als X11 (lockui: avatar, naam, wachtwoordveld, ‘Onjuist wachtwoord’, Uitschakelen/Afmelden, datum + klok, vervaagde wallpaper) maar vergrendelt via ext-session-lock-v1 (gtk-session-lock, GTK3); wachtwoord via PAM (python3-pampy, service login). Valt de locker weg of kan hij niet vergrendelen, dan blijft de compositor vergrendeld en neemt swaylock over (getest met kill -9). Screenshots 171–176.
+
 ## Rev 34e — Schermopname op polder-comp gecontroleerd: buiten de selectie wordt 50% gedimd (pixelwaarden gemeten, zij-aan-zij screenshot 167); de melding ‘Schermafbeelding gemaakt’ met voorbeeld en ‘Map tonen’ verschijnt rechtsonder als osb-notifyd draait (166).
 
 ## Rev 34d — Schermopname-balk op polder-comp: bevroren beeld via wlr-screencopy (grim), overlay + balk als layer-shell, modus Venster via een SIGUSR2-dump van de compositor ($XDG_RUNTIME_DIR/polder-windows.json, pid in POLDER_COMP_PID), kopiëren met wl-copy, video met wf-recorder (H.264) en dezelfde rode stoppil op de plank. Optie ‘Muisaanwijzer tonen’ verborgen op Wayland. Assistent blijft weer resident (verbergen i.p.v. afsluiten, dankzij de idle-fix). Screenshots 154–163.

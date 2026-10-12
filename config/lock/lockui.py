@@ -16,7 +16,9 @@ def palette():
 
 def blurred_bg(w, h, theme):
     """Heavily blurred + dimmed copy of the current wallpaper, cached per wallpaper/theme/size."""
-    wp = os.path.join(C, 'wallpaper.png'); cdir = os.environ.get('OSB_LOCK_CACHE') or os.path.join(S.CACHE, 'lock')
+    wp = os.path.join(C, 'wallpaper.png')
+    if not os.path.exists(wp): wp = os.path.join(C, 'wallpapers', 'polderheuvel.png')   # Rev 34f: same fallback as the desktop
+    cdir = os.environ.get('OSB_LOCK_CACHE') or os.path.join(S.CACHE, 'lock')
     os.makedirs(cdir, exist_ok=True)
     dim = '20' if theme == 'dark' else '35'
     key = hashlib.md5(f'{os.path.getmtime(wp)}{theme}{w}x{h}{dim}'.encode()).hexdigest()[:10]
