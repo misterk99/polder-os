@@ -2,7 +2,7 @@
 """Polder Assistent panel (Rev 29). Super+A toggles it (polder-shell module 'assistant'; standalone fallback:
 assistant.py --show, SIGUSR1 toggles). Local intents first (offline, no key); anything else goes to the cloud LLM
 if one is configured in Instellingen > Assistent, else an honest 'not understood' with examples."""
-import os, sys, signal, threading, subprocess
+import os, sys, signal, threading, subprocess, json, time
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in (HERE, os.path.join(C, 'osb'), os.path.join(C, 'notify')): sys.path.insert(0, d)
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0'); gi.require_version('GdkX11', '3.0')
@@ -62,7 +62,7 @@ class Assistant(Gtk.Window):
         self.connect('key-press-event', lambda w, e: e.keyval == Gdk.KEY_Escape and self.hide_a())
         self.connect('delete-event', lambda *a: self.hide_a() or True)
         self.connect('focus-out-event', lambda *a: GLib.timeout_add(200, self.maybe_hide))
-        box.show_all(); self.welcome()
+        box.show_all(); self.welcome(); self.restore()
         GLib.timeout_add(1000, lambda: (self.get_visible() and self.refresh_style()) or True)   # live theme/wallpaper switch
 
     def refresh_style(self):
@@ -91,6 +91,24 @@ class Assistant(Gtk.Window):
             b = Gtk.Button(label=ex); b.get_style_context().add_class('chip'); b.connect('clicked', lambda _b, t=ex: self.ask(t)); fb.add(b)
         self.conv.pack_start(fb, False, False, 0); fb.show_all()
 
+    # Rev 34b: on Wayland a hidden assistant exits (see hide_a); keep the conversation for the next one. Stored in
+    # XDG_RUNTIME_DIR (private tmpfs, gone at logout) and only reused for 30 min.
+    TRANSCRIPT = os.path.join(os.environ.get('XDG_RUNTIME_DIR') or '/tmp', 'polder-assistant.json')
+    def save(self):
+        kinds = ('me', 'ai', 'act')
+        bubs = [(next(k for k in kinds if c.get_style_context().has_class(k)), c.get_text()) for c in self.conv.get_children()
+                if isinstance(c, Gtk.Label) and any(c.get_style_context().has_class(k) for k in kinds)][1:]   # [0] = welcome text
+        try:
+            fd = os.open(self.TRANSCRIPT, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, 'w') as f: json.dump({'t': time.time(), 'bubbles': bubs, 'history': self.history}, f)
+        except OSError as e: print('save', e, flush=True)
+    def restore(self):
+        try: d = json.load(open(self.TRANSCRIPT))
+        except (OSError, ValueError): return
+        if time.time() - d.get('t', 0) > 1800: return
+        for kind, text in d.get('bubbles', []): self.bubble(kind, text)
+        self.history = d.get('history', [])
+
     def bubble(self, kind, text):
         l = Gtk.Label(label=text, xalign=0); l.set_line_wrap(True); l.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR); l.set_max_width_chars(52)
         l.get_style_context().add_class('bub'); l.get_style_context().add_class(kind)
@@ -114,6 +132,7 @@ class Assistant(Gtk.Window):
 
     def hide_a(self):
         if LSH.active(self):
+            self.save()
             # Wayland: once polder-comp dismissed the panel (layer_surface.closed) gtk-layer-shell can't map it again in this
             # process, so a hidden assistant simply exits; the next Super+A / --show starts a fresh one (conversation resets).
             try: os.remove(PIDF)

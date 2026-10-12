@@ -2,6 +2,8 @@
 
 _History reconstructed from the development log; intermediate file states were not preserved. Each revision lists its main changes._
 
+## Rev 34b — Vergrendelen op polder-comp: compositor implementeert ext-session-lock-v1 (alles afgedekt tot de locker ontgrendelt; geen toetsen/klikken/sneltoetsen naar andere vensters; locker gecrasht → blijft vergrendeld, nieuwe locker kan overnemen) en ext-idle-notify-v1. Locker = swaylock (PAM) in Polder-kleuren met vervaagde wallpaper (lock/polder-lock-wayland.sh); lock-now.sh kiest dit pad in een polder-comp-sessie; idle-lock via swayidle na lock_idle_min (lock/polder-idle-wayland.sh), ook vóór slaapstand. Assistent bewaart het gesprek over heropenen (XDG_RUNTIME_DIR, 30 min). Screenshots 151–152.
+
 ## Rev 34a — Wayland-pariteit groep 1: Assistent crasht niet meer op polder-comp (geen GdkX11-servertijd op Wayland), opent als overlay-layer onderaan in het midden; na sluiten door klik-buiten start de volgende Super+A een nieuwe (gtk-layer-shell kan een gesloten surface niet hermappen). Meldingen als overlay-layer rechtsonder boven de plank (gestapeld); klik op een melding activeert het draaiende venster via wlr-foreign-toplevel (osb/wltop.py) i.p.v. xdotool. Screenshots 149–150.
 
 ## Rev 33d — Snelle instellingen: schuifknop stak bij 0/100% half buiten de pil (GTK centreert de knop op het trog-einde). Trog ingesprongen met de knopstraal, pil op de schaal zelf getekend; gecontroleerd op X11 en polder-comp, licht/donker, 0% en 100% (screenshot 147).
