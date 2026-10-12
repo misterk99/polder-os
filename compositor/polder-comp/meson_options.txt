@@ -1,0 +1,1 @@
+option('scenefx', type: 'feature', value: 'auto', description: 'rounded corners + shadows via scenefx (needs GLES2 at runtime)')

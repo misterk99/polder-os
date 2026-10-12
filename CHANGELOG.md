@@ -2,6 +2,8 @@
 
 _History reconstructed from the development log; intermediate file states were not preserved. Each revision lists its main changes._
 
+## Rev 31 — polder-comp fase 1: eigen wlroots/scenefx Wayland-compositor (xdg-shell, layer-shell, Xwayland, move/resize, Super→launcher). Headless getest met pixman.
+
 ## Rev 1: Initial ChromeOS-style desktop prototype
 
 - **xfwm4** window manager (Arc theme, Roboto title font)
