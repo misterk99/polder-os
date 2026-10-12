@@ -2,6 +2,10 @@
 
 _History reconstructed from the development log; intermediate file states were not preserved. Each revision lists its main changes._
 
+## Rev 34e — Schermopname op polder-comp gecontroleerd: buiten de selectie wordt 50% gedimd (pixelwaarden gemeten, zij-aan-zij screenshot 167); de melding ‘Schermafbeelding gemaakt’ met voorbeeld en ‘Map tonen’ verschijnt rechtsonder als osb-notifyd draait (166).
+
+## Rev 34d — Schermopname-balk op polder-comp: bevroren beeld via wlr-screencopy (grim), overlay + balk als layer-shell, modus Venster via een SIGUSR2-dump van de compositor ($XDG_RUNTIME_DIR/polder-windows.json, pid in POLDER_COMP_PID), kopiëren met wl-copy, video met wf-recorder (H.264) en dezelfde rode stoppil op de plank. Optie ‘Muisaanwijzer tonen’ verborgen op Wayland. Assistent blijft weer resident (verbergen i.p.v. afsluiten, dankzij de idle-fix). Screenshots 154–163.
+
 ## Rev 34c — Sneltoetsen in polder-comp uit dezelfde tabel als X11 (wm/shortcut_table.py → wm/wlkeys.py → compositor): Super+L/A/V, Print, Ctrl+Shift+F5, Ctrl+Alt+/, Alt+Tab (+Shift), Alt+[ ] = - (vastzetten/maximaliseren/minimaliseren); interne acties met '@', F3 (overzicht) volgt in groep 5. Klembordgeschiedenis op Wayland via wlr-data-control (wl-paste --watch), kiezen = wl-copy + Ctrl+V / Ctrl+Shift+V (terminals) in het vorige venster; paneel als overlay-layer. Fix: een layer-surface mappen vanuit een unix-signaalbron liet GDK-Wayland vastlopen → via idle. Screenshot 153.
 
 ## Rev 34b — Vergrendelen op polder-comp: compositor implementeert ext-session-lock-v1 (alles afgedekt tot de locker ontgrendelt; geen toetsen/klikken/sneltoetsen naar andere vensters; locker gecrasht → blijft vergrendeld, nieuwe locker kan overnemen) en ext-idle-notify-v1. Locker = swaylock (PAM) in Polder-kleuren met vervaagde wallpaper (lock/polder-lock-wayland.sh); lock-now.sh kiest dit pad in een polder-comp-sessie; idle-lock via swayidle na lock_idle_min (lock/polder-idle-wayland.sh), ook vóór slaapstand. Assistent bewaart het gesprek over heropenen (XDG_RUNTIME_DIR, 30 min). Screenshots 151–152.
