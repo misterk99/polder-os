@@ -38,8 +38,8 @@ jobs:
 
       - name: Build packages as an unprivileged user
         run: |
-          install -d -o nobody -g nogroup /tmp/polder-packages
-          runuser -u nobody -- tools/packages/build.sh \
+          install -d -o nobody -g nogroup /tmp/polder-packages /tmp/polder-home
+          runuser -u nobody -- env HOME=/tmp/polder-home tools/packages/build.sh \
             --output /tmp/polder-packages \
             --archive-keyring /tmp/polder-test-key/polder-archive-keyring.asc
 
@@ -51,7 +51,7 @@ jobs:
             --gpg-home /tmp/polder-test-key/gpg-home \
             --signing-key "$(cat /tmp/polder-test-key/fingerprint.txt)" \
             --allow-test-key
-          runuser -u nobody -- tools/packages/test-repository.sh --repository /tmp/polder-repository
+          runuser -u nobody -- env HOME=/tmp/polder-home tools/packages/test-repository.sh --repository /tmp/polder-repository
 
   publish:
     name: Publish signed ARM64 archive
@@ -97,8 +97,8 @@ jobs:
 
       - name: Build production packages
         run: |
-          install -d -o nobody -g nogroup /tmp/polder-packages
-          runuser -u nobody -- tools/packages/build.sh \
+          install -d -o nobody -g nogroup /tmp/polder-packages /tmp/polder-home
+          runuser -u nobody -- env HOME=/tmp/polder-home tools/packages/build.sh \
             --output /tmp/polder-packages \
             --archive-keyring /tmp/polder-archive-keyring.asc \
             --repository-url https://misterk99.github.io/polder-os/apt
@@ -110,7 +110,7 @@ jobs:
             --output /tmp/polder-repository \
             --gpg-home "$HOME/.gnupg" \
             --signing-key "$POLDER_SIGNING_FINGERPRINT"
-          runuser -u nobody -- tools/packages/test-repository.sh --repository /tmp/polder-repository
+          runuser -u nobody -- env HOME=/tmp/polder-home tools/packages/test-repository.sh --repository /tmp/polder-repository
           mkdir -p /tmp/polder-pages/apt
           cp -a /tmp/polder-repository/. /tmp/polder-pages/apt/
 
