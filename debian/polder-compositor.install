@@ -1,0 +1,6 @@
+usr/bin/polder-comp
+usr/bin/polder-comp-fx
+usr/bin/polder-toplevels
+usr/bin/polder-compositor
+usr/lib/*/polderos/libscenefx-0.2.so*
+usr/share/doc/polder-compositor/scenefx-LICENSE

@@ -1,0 +1,60 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/default.mk
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/buildflags.mk
+PRIVATE_LIBDIR = /usr/lib/$(DEB_HOST_MULTIARCH)/polderos
+ifneq ($(wildcard debian/components-only),)
+export POLDER_COMPONENTS_ONLY = 1
+endif
+ifeq ($(POLDER_COMPONENTS_ONLY),1)
+export DH_OPTIONS = -Npolder-archive-keyring
+endif
+JOBS = $(or $(filter parallel=%,$(DEB_BUILD_OPTIONS)),parallel=2)
+NJOBS = $(patsubst parallel=%,%,$(JOBS))
+
+%:
+	dh $@ --buildsystem=none
+
+override_dh_auto_configure:
+	@if test -n "$$(dh_listpackages -a)"; then \
+	  test -f .package-sources/scenefx/meson.build; \
+	  meson setup obj-scenefx .package-sources/scenefx --wrap-mode=nofallback --prefix=/usr --libdir=lib/$(DEB_HOST_MULTIARCH)/polderos --buildtype=plain -Dexamples=false -Drenderers=gles2; \
+	  meson setup obj-plain compositor/polder-comp --wrap-mode=nofallback --prefix=/usr --buildtype=plain -Dscenefx=disabled; \
+	fi
+
+override_dh_auto_build:
+	@if test -n "$$(dh_listpackages -a)"; then \
+	  meson compile -C obj-scenefx -j $(NJOBS); \
+	  meson compile -C obj-plain -j $(NJOBS); \
+	  PKG_CONFIG_PATH="$$(pwd)/obj-scenefx/meson-uninstalled" meson setup obj-effects compositor/polder-comp --wrap-mode=nofallback --prefix=/usr --buildtype=plain -Dscenefx=enabled -Dscenefx_libdir=$(PRIVATE_LIBDIR); \
+	  meson compile -C obj-effects -j $(NJOBS); \
+	fi
+
+override_dh_auto_install:
+	python3 tools/packages/stage.py --version '$(DEB_VERSION)' --destination debian/tmp
+	@if test -n "$$(dh_listpackages -a)"; then \
+	  install -Dm755 obj-plain/polder-comp debian/tmp/usr/bin/polder-comp; \
+	  install -Dm755 obj-plain/polder-toplevels debian/tmp/usr/bin/polder-toplevels; \
+	  DESTDIR="$$(pwd)/obj-effects-install" meson install -C obj-effects --no-rebuild; \
+	  install -Dm755 obj-effects-install/usr/bin/polder-comp debian/tmp/usr/bin/polder-comp-fx; \
+	  install -d debian/tmp$(PRIVATE_LIBDIR); \
+	  cp -a obj-scenefx/libscenefx-0.2.so* debian/tmp$(PRIVATE_LIBDIR)/; \
+	  install -Dm644 .package-sources/scenefx/LICENSE debian/tmp/usr/share/doc/polder-compositor/scenefx-LICENSE; \
+	fi
+
+override_dh_shlibdeps:
+	@if test -n "$$(dh_listpackages -a)"; then \
+	  printf 'libscenefx-0.2 0.2 polder-compositor (= $(DEB_VERSION))\n' > debian/shlibs.local; \
+	  dh_shlibdeps -l$(CURDIR)/debian/tmp$(PRIVATE_LIBDIR); \
+	fi
+
+override_dh_gencontrol:
+	dh_gencontrol -- -Vpolder:TestKey=$$(cat debian/archive-test-key)
+
+override_dh_missing:
+	dh_missing --fail-missing
+
+override_dh_auto_clean:
+	rm -rf obj-scenefx obj-plain obj-effects obj-effects-install debian/tmp debian/shlibs.local

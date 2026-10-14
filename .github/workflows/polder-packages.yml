@@ -1,0 +1,127 @@
+name: Polder packages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the verified archive to GitHub Pages
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Build and verify signed ARM64 archive
+    runs-on: ubuntu-24.04-arm
+    container: debian:trixie
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Install Debian package build tools
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            apt-utils build-essential ca-certificates curl debhelper devscripts dpkg-dev fakeroot \
+            gnupg libdrm-dev libegl-dev libgbm-dev libgles-dev libpixman-1-dev \
+            libwayland-dev libwlroots-0.18-dev libxcb1-dev libxkbcommon-dev \
+            meson ninja-build pkgconf python3 wayland-protocols xz-utils
+
+      - name: Create disposable signing key
+        run: tools/packages/test-key.sh --output /tmp/polder-test-key
+
+      - name: Build packages as an unprivileged user
+        run: |
+          install -d -o nobody -g nogroup /tmp/polder-packages
+          runuser -u nobody -- tools/packages/build.sh \
+            --output /tmp/polder-packages \
+            --archive-keyring /tmp/polder-test-key/polder-archive-keyring.asc
+
+      - name: Build and verify the disposable signed archive
+        run: |
+          tools/packages/repository.sh \
+            --packages /tmp/polder-packages \
+            --output /tmp/polder-repository \
+            --gpg-home /tmp/polder-test-key/gpg-home \
+            --signing-key "$(cat /tmp/polder-test-key/fingerprint.txt)" \
+            --allow-test-key
+          runuser -u nobody -- tools/packages/test-repository.sh --repository /tmp/polder-repository
+
+  publish:
+    name: Publish signed ARM64 archive
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish
+    needs: validate
+    runs-on: ubuntu-24.04-arm
+    container: debian:trixie
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Install Debian package build and publishing tools
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            apt-utils build-essential ca-certificates curl debhelper devscripts dpkg-dev fakeroot \
+            gnupg libdrm-dev libegl-dev libgbm-dev libgles-dev libpixman-1-dev \
+            libwayland-dev libwlroots-0.18-dev libxcb1-dev libxkbcommon-dev \
+            meson ninja-build pkgconf python3 wayland-protocols xz-utils
+
+      - name: Import production signing key and export public key
+        env:
+          POLDER_REPO_SIGNING_KEY: ${{ secrets.POLDER_REPO_SIGNING_KEY }}
+        run: |
+          test -n "$POLDER_REPO_SIGNING_KEY" || { echo 'Missing POLDER_REPO_SIGNING_KEY secret.' >&2; exit 1; }
+          install -d -m 700 "$HOME/.gnupg"
+          chmod 700 "$HOME/.gnupg"
+          printf '%s' "$POLDER_REPO_SIGNING_KEY" | gpg --batch --import
+          FINGERPRINT=$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1 == "fpr" { print $10; exit }')
+          test -n "$FINGERPRINT"
+          gpg --batch --armor --export "$FINGERPRINT" > /tmp/polder-archive-keyring.asc
+          echo "POLDER_SIGNING_FINGERPRINT=$FINGERPRINT" >> "$GITHUB_ENV"
+
+      - name: Build production packages
+        run: |
+          install -d -o nobody -g nogroup /tmp/polder-packages
+          runuser -u nobody -- tools/packages/build.sh \
+            --output /tmp/polder-packages \
+            --archive-keyring /tmp/polder-archive-keyring.asc \
+            --repository-url https://misterk99.github.io/polder-os/apt
+
+      - name: Sign and verify production archive
+        run: |
+          tools/packages/repository.sh \
+            --packages /tmp/polder-packages \
+            --output /tmp/polder-repository \
+            --gpg-home "$HOME/.gnupg" \
+            --signing-key "$POLDER_SIGNING_FINGERPRINT"
+          runuser -u nobody -- tools/packages/test-repository.sh --repository /tmp/polder-repository
+          mkdir -p /tmp/polder-pages/apt
+          cp -a /tmp/polder-repository/. /tmp/polder-pages/apt/
+
+      - name: Set up Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload APT archive
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: /tmp/polder-pages
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

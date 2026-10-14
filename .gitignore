@@ -7,3 +7,7 @@ __pycache__/
 qemu.log
 iso/shots/
 .polder-test/
+/build/packages/
+/build/repository/
+/build/test-keys/
+/build/package-check/

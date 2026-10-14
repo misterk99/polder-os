@@ -3,7 +3,9 @@ FROM ${BASE_IMAGE}
 
 # One Debian 13 toolchain for compositor checks, live-build, and QEMU.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    build-essential meson ninja-build pkg-config libwlroots-0.18-dev \
+    build-essential debhelper devscripts fakeroot dpkg-dev apt-utils gnupg \
+    meson ninja-build pkg-config libwlroots-0.18-dev libdrm-dev libpixman-1-dev \
+    libegl-dev libgles-dev libgbm-dev \
     libwayland-dev wayland-protocols libxkbcommon-dev libxcb1-dev \
     python3 python3-pil foot wtype grim wlr-randr fonts-dejavu-core dbus-daemon \
     live-build debootstrap rsync imagemagick ca-certificates curl \

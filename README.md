@@ -45,6 +45,16 @@ sudo ./build.sh          # → build/polderos-0.30.1-amd64.hybrid.iso (~1 GB)
 Live user: `polder` / `live` (autologin). See [CHANGELOG.md](CHANGELOG.md) for the full development log.
 The commit history was reconstructed from the development log; intermediate file states were not preserved.
 
+## ARM64 package updates
+
+ARM64 development images install the compositor, desktop, and settings from
+versioned Debian packages. Polder's APT archive is designed as a signed overlay
+alongside Debian's repositories, so Polder fixes can be delivered as package
+updates. See [the package and repository guide](docs/package-updates.md) for
+build, verification, key setup, and publishing instructions. The hosted
+archive is configured for GitHub Pages and will be populated by the first
+successful manual publishing run after the package workflow reaches `main`.
+
 ## Wayland development and testing
 
 The released 0.30.1 image uses X11. Current development also includes `polder-comp`,

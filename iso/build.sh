@@ -12,6 +12,37 @@ case "$ARCH" in
   arm64) BOOTLOADERS=grub-efi; BOOT_PACKAGES=(grub-efi-arm64); B=$ISO/build-arm64 ;;
   *) echo 'POLDER_ARCH must be amd64 or arm64' >&2; exit 2 ;;
 esac
+PACKAGED=0
+PACKAGE_DIR=${POLDER_PACKAGE_DIR:-$P/build/packages}
+if [ "$ARCH" = arm64 ]; then
+  for package in polder-compositor polder-desktop polder-settings; do
+    matches=("$PACKAGE_DIR"/"$package"_*.deb)
+    if [ ! -f "${matches[0]}" ] || [ "${#matches[@]}" -ne 1 ]; then
+      echo "Missing one built $package package in $PACKAGE_DIR; see docs/package-updates.md." >&2
+      exit 2
+    fi
+    expected_arch=all
+    [ "$package" != polder-compositor ] || expected_arch=arm64
+    if [ "$(dpkg-deb -f "${matches[0]}" Package)" != "$package" ] || \
+       [ "$(dpkg-deb -f "${matches[0]}" Architecture)" != "$expected_arch" ]; then
+      echo "Wrong package name or architecture for ${matches[0]} (expected $package/$expected_arch)." >&2
+      exit 2
+    fi
+  done
+  KEYRING_PACKAGES=("$PACKAGE_DIR"/polder-archive-keyring_*.deb)
+  if [ -f "${KEYRING_PACKAGES[0]}" ]; then
+    if [ "${#KEYRING_PACKAGES[@]}" -ne 1 ] || [ -f "$PACKAGE_DIR/TEST-ONLY" ]; then
+      echo 'Refusing ambiguous or TEST-ONLY archive keyring package in ISO input.' >&2
+      exit 2
+    fi
+    if [ "$(dpkg-deb -f "${KEYRING_PACKAGES[0]}" Package)" != polder-archive-keyring ] || \
+       [ "$(dpkg-deb -f "${KEYRING_PACKAGES[0]}" Architecture)" != all ]; then
+      echo "Wrong package name or architecture for ${KEYRING_PACKAGES[0]}." >&2
+      exit 2
+    fi
+  fi
+  PACKAGED=1
+fi
 case ${POLDER_WAYLAND:-0} in 0|1) ;; *) echo 'POLDER_WAYLAND must be 0 or 1' >&2; exit 2 ;; esac
 BUILD_WITH_CHROOT=true
 if [ "${POLDER_WAYLAND:-0}" = 1 ]; then
@@ -53,14 +84,25 @@ lb config --distribution trixie --architectures "$ARCH" --linux-flavours "$ARCH"
 cp "$ISO/src/polderos.list.chroot" config/package-lists/
 printf '%s\n' "linux-image-$ARCH" "${BOOT_PACKAGES[@]}" > config/package-lists/polderos-architecture.list.chroot
 # our code + session + branding
-R=config/includes.chroot; mkdir -p $R/usr/share/polderos $R/usr/share/xsessions $R/usr/share/xgreeters $R/etc/lightdm/lightdm.conf.d $R/usr/local/bin
-rsync -a --delete --exclude __pycache__ --exclude spotify-run.sh --exclude 'osb-desk-*' "$P/config/" "$R/usr/share/polderos/config/"
-echo "$VER" > "$R/usr/share/polderos/VERSION"
-install -m755 "$ISO/src/polderos-session" "$R/usr/share/polderos/polderos-session"
 G=$P/config/iso/greeter
-sed 's|^Exec=.*|Exec=/usr/share/polderos/polderos-session|' "$G/polderos.desktop" > "$R/usr/share/xsessions/polderos.desktop"
-sed 's|^Exec=.*|Exec=python3 /usr/share/polderos/config/lock/polderos-greeter.py|' "$G/polderos-greeter.desktop" > "$R/usr/share/xgreeters/polderos-greeter.desktop"
-{ cat "$G/50-polderos.conf"; echo autologin-session=polderos; } > "$R/etc/lightdm/lightdm.conf.d/50-polderos.conf"
+R=config/includes.chroot; mkdir -p "$R/usr/share/xsessions" "$R/usr/share/xgreeters" "$R/etc/lightdm/lightdm.conf.d" "$R/usr/local/bin"
+if [ "$PACKAGED" = 1 ]; then
+  mkdir -p config/packages.chroot
+  for package in polder-compositor polder-desktop polder-settings; do
+    cp "${PACKAGE_DIR}/${package}_"*.deb config/packages.chroot/
+  done
+  if [ -f "${KEYRING_PACKAGES[0]}" ]; then
+    cp "${KEYRING_PACKAGES[0]}" config/packages.chroot/
+  fi
+else
+  mkdir -p "$R/usr/share/polderos"
+  rsync -a --delete --exclude __pycache__ --exclude spotify-run.sh --exclude 'osb-desk-*' "$P/config/" "$R/usr/share/polderos/config/"
+  echo "$VER" > "$R/usr/share/polderos/VERSION"
+  install -m755 "$ISO/src/polderos-session" "$R/usr/share/polderos/polderos-session"
+  sed 's|^Exec=.*|Exec=/usr/share/polderos/polderos-session|' "$G/polderos.desktop" > "$R/usr/share/xsessions/polderos.desktop"
+  sed 's|^Exec=.*|Exec=python3 /usr/share/polderos/config/lock/polderos-greeter.py|' "$G/polderos-greeter.desktop" > "$R/usr/share/xgreeters/polderos-greeter.desktop"
+  { cat "$G/50-polderos.conf"; echo autologin-session=polderos; } > "$R/etc/lightdm/lightdm.conf.d/50-polderos.conf"
+fi
 cp -a "$ISO/src/rootfs/." "$R/"
 for hook in "$ISO/src/hooks/"*; do
   if [ "${POLDER_WAYLAND:-0}" != 1 ] && [ "$(basename "$hook")" = 0610-polderos-portal.hook.chroot ]; then
@@ -73,18 +115,18 @@ if [ "${POLDER_WAYLAND:-0}" = 1 ]; then
   # This opt-in development image boots the new session; the greeter also offers X11.
   sed -i 's/^user-session=.*/user-session=polderos-wayland/; s/^autologin-session=.*/autologin-session=polderos-wayland/' "$R/etc/lightdm/lightdm.conf.d/50-polderos.conf"
   cp "$ISO/src/polderos-wayland.list.chroot" config/package-lists/
-  mkdir -p "$R/usr/share/wayland-sessions" "$R/usr/local/src/polder-comp"
-  install -m755 "$ISO/src/polderos-wayland-session" "$ISO/src/polderos-wayland-components" "$R/usr/share/polderos/"
-  install -m755 "$ISO/src/polder-compositor" "$R/usr/local/bin/"
-  install -m755 "$P/tools/testing/build-scenefx.sh" "$R/usr/local/src/"
+  mkdir -p "$R/usr/share/wayland-sessions"
+  if [ "$PACKAGED" != 1 ]; then
+    mkdir -p "$R/usr/local/src/polder-comp"
+    install -m755 "$ISO/src/polderos-wayland-session" "$ISO/src/polderos-wayland-components" "$R/usr/share/polderos/"
+    install -m755 "$ISO/src/polder-compositor" "$R/usr/local/bin/"
+    install -m755 "$P/tools/testing/build-scenefx.sh" "$R/usr/local/src/"
+    rsync -a --exclude '/build*/' --exclude '*.o' "$P/compositor/polder-comp/" "$R/usr/local/src/polder-comp/"
+  fi
   mkdir -p "$R/usr/local/src/polder-portal"
   install -m755 "$P/tools/testing/build-capture-portal.sh" "$R/usr/local/src/polder-portal/"
   install -m644 "$P/tools/testing/xdg-desktop-portal-wlr-0.7.1-shm.patch" "$R/usr/local/src/polder-portal/"
   install -m644 "$G/polderos-wayland.desktop" "$R/usr/share/wayland-sessions/"
-  rsync -a --exclude '/build*/' --exclude '*.o' "$P/compositor/polder-comp/" "$R/usr/local/src/polder-comp/"
-  # Invalidate each user's generated config after any source change, even at the same release version.
-  (cd "$R/usr/share/polderos/config" && find . -type f ! -path '*/__pycache__/*' -print0 | sort -z | xargs -0 sha256sum) \
-    | sha256sum | cut -d' ' -f1 > "$R/usr/share/polderos/WAYLAND_CONFIG_VERSION"
   mkdir -p "$R/usr/share/xdg-desktop-portal"
   cat > "$R/usr/share/xdg-desktop-portal/polderos-portals.conf" <<'PORTALS'
 [preferred]
