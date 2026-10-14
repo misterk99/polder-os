@@ -2,25 +2,26 @@
 
 Prepared 14 October 2026. Repository: https://github.com/misterk99/polder-os.
 Work branch: `codex/wayland-test-foundation`, based on `76013460f87ff350def04660e66374e3c8c009d1`.
-This document accompanies the commit containing the implementation and test tools.
+This document accompanies the implementation, ARM64 image verifier and current
+build/VM results. The source is on this work branch; its latest commit contains
+the verifier and this updated handoff.
 
 ## Read this first
 
-The Wayland integration changes are implemented and have passed native ARM tests.
-**The updated ARM ISO is not finished and has not been boot-tested.** Do not
-describe this as a completed release or use the old ISO as evidence for the new code.
+The Wayland integration changes passed the native ARM tests listed below. An r6
+ARM64 ISO has now been built and checksum-verified. A test-only copy completed
+normal UEFI/GRUB boot and reached the live serial login, but the Wayland session
+did not report ready within the bounded probe; screenshots do not establish a
+visible desktop. **Desktop/launcher acceptance is unresolved, so this is not a
+completed release.** The original r6 ISO and the instrumented test copy have
+different hashes; do not treat the test copy as a release artifact.
 
 The user initially requested both CPU architectures, then explicitly narrowed the
 work to **ARM64 only**. Do not resume Intel/AMD builds. The user approved WSL2 and
-a VM for testing, then asked us to stop if completion was not close. We stopped
-the sole active build container and verified that no Docker containers remained
-running. No VM or compression job was launched for the new image.
-
-The latest request was to upload the source and create this handoff. It did not
-restart the stopped build work. Wait for a request to continue before starting
-long builds or VMs. Once asked to continue, the next task is packaging and
-validating the ARM image, not another broad feature pass. Keep progress updates
-short and concrete; the user has already found the task too lengthy.
+a VM for testing and has since explicitly asked us to finish the ARM work. The
+current next step is a focused diagnosis of why the live session readiness marker
+was absent, followed by a bounded VM rerun if the cause is understood. Keep
+updates short and concrete; the user has already found the task too lengthy.
 
 ## What changed
 
@@ -105,30 +106,58 @@ tests used a disposable container; no host user's password was changed. The
 container lacked system logind, so those tests do not establish physical suspend.
 The portal test is a real local PipeWire consumer, not a browser conference call.
 
+## r6 ARM64 image and VM results
+
+These are the current packaging results. Build evidence and ISO files are local
+only beneath ignored `.polder-test/`; the verifier and this handoff are in Git.
+The production image remains separate from the serial-instrumented VM copy.
+
+| Check | Result | Local evidence |
+| --- | --- | --- |
+| Runtime build | Plain and FX compositor plus the pinned portal payload built for Debian Trixie ARM64; runtime linking and package audit passed. Kernel release: `6.12.111+deb13-arm64`. | `iso-arm64/r6-build-rootfs.log` |
+| Production ISO | Repacked from the verified r4 UEFI image with updated root filesystem and manifest; 229 checksum entries; image SHA-256 `8737cb0713ef44055fab83e8bf1b9f403e57b500eeb1be535780326081831e91`. | `iso-arm64/polderos-0.30.1-wayland-dev-arm64-r6.hybrid.iso`, `grub-r6-repack.json` |
+| Read-only image verifier | Passed ISO hash, UEFI El Torito entry, squashfs, manifest, runtime/config hashes, kernel/initrd and module metadata checks on both images. | `tools/testing/verify-arm64-iso.py`, `iso-arm64/r6-verification.txt` |
+| Serial test copy | Replayed UEFI metadata and appended `console=tty0 console=ttyAMA0,115200` to the primary live GRUB kernel line. Test copy SHA-256 `672dd28c4bf4a90c7974baf014a9588fe1a81dc957b508c3b51c9292b352e47d`; it also passed the image verifier. This is test instrumentation, not the production image. | `iso-arm64/polderos-0.30.1-wayland-dev-arm64-r6-qemu-serial-test.iso`, `r6-serial-test.json` |
+| UEFI/GRUB and live login | Passed on ARM64 QEMU TCG using the instrumented copy. Firmware selected the CD, GRUB handed off to the kernel, and the probe authenticated to the live `polder` account. | `vm-arm64-r6-serial/serial.log`, `command.json` |
+| Wayland readiness and desktop | Not passed. The guest probe emitted `__POLDER_SESSION_READY__ 0` after its bounded wait; it found only the compositor role. The compositor logged DRM modeset and Xwayland startup, but no visible desktop was established. The launcher/terminal/lock exercise did not run. | `vm-arm64-r6-serial/session-probe.json`, `session-probe.log`, `serial.log` |
+| Screen evidence | Not a visual pass: initial capture says display output is inactive, later captures are black or console-only. At the end of the 750-second TCG window, QMP status timed out before the harness wrote `result.json`; treat remaining diagnostics as incomplete. | `vm-arm64-r6-serial/boot-*.png`, `qemu.log` |
+
+The VM result is a partial boot success and an unresolved desktop acceptance
+check, not evidence that the desktop works or that it is broken. The standard
+production ISO has no serial-console kernel arguments; the instrumented copy
+allows the session probe to observe normal firmware/GRUB boot without changing
+the production ISO. Hardware GPU/effects and native ARM device behavior remain
+untested.
+
 ## Exact stopping point and local caches
 
 The Windows workspace is `C:\Users\kyle_\Documents\ChatGPT\Polder OS`.
 WSL distro: `Ubuntu-24.04`, ARM64, approximately 7.6 GiB RAM, no `/dev/kvm`.
 QEMU therefore uses TCG software emulation. A prior normal ARM boot took about
 421 seconds to show the desktop; that is not a native performance measurement.
+The r6 run used a 750-second window and reached login. Its guest-side 120-second
+readiness wait emitted `ready 0`; the longer diagnostics and QMP final status
+timed out. Current r6 artifacts are:
 
 | Local resource | Contents |
 | --- | --- |
-| Docker volume `polder-build-arm64` | Original cached rootfs `/work/arm-r3-repair/rootfs`; incomplete new `/work/arm-r5-repair` |
+| Docker volume `polder-build-arm64` | Original cached rootfs `/work/arm-r3-repair/rootfs`; incomplete historical `/work/arm-r5-repair`; completed `/work/arm-r6-repair` |
 | Docker volume `polder-integration-arm64` | Incremental staged source `/work/source`, plain compositor `/work/build/polder-comp` |
 | Docker volume `polder-scenefx-arm64` | SceneFX installation `/work/install` and earlier `/work/compositor-fx`; rebuild final source |
 | Images `polder-test:integration-arm64`, `polder-live-test:integration-arm64` | SDK and GUI test runtime with wlr-randr |
-| `.polder-test/iso-arm64/R5-STOP-CHECKPOINT.md` | Detailed stopped-build record |
+| `.polder-test/iso-arm64/polderos-0.30.1-wayland-dev-arm64-r6.hybrid.iso` | Production r6 ARM64 image, SHA-256 `8737cb0713ef44055fab83e8bf1b9f403e57b500eeb1be535780326081831e91` |
+| `.polder-test/iso-arm64/polderos-0.30.1-wayland-dev-arm64-r6-qemu-serial-test.iso` | Test-only UEFI/GRUB copy with serial kernel args, SHA-256 `672dd28c4bf4a90c7974baf014a9588fe1a81dc957b508c3b51c9292b352e47d` |
+| `.polder-test/iso-arm64/r6-build-rootfs.log` | ARM64 rootfs/compositor/portal build log |
+| `.polder-test/iso-arm64/r6-verification.txt` | Fresh read-only verifier results for both r6 ISO files |
+| `.polder-test/vm-arm64-r6-serial/` | Normal UEFI/GRUB boot screenshots, serial log and incomplete session diagnostics for the test-only ISO |
+| `.polder-test/iso-arm64/R5-STOP-CHECKPOINT.md` | Detailed historical r5 stopped-build record; r5 was superseded by the completed r6 packaging work |
 | `.polder-test/iso-arm64/grub-stage-r5.sh` | Local cache-repack preparation script; not a portable clean-build entry point |
 | `.polder-test/capture-portal/portal-final-r3-install` | Exact tested portal binary, activation files and provenance |
 
-The only active container, `polder-arm-r5-stage`, was stopped. It exited 137
-during initial staging/base-rootfs copying; its log contains only `START`.
-**Treat the r5 source/rootfs as incomplete.** No r5 squashfs, ISO or verification
-result completed. The local staging script refuses an existing repair directory;
-do not run it blindly or delete the original cache. Inspect and preserve the
-partial state, then choose a fresh revision directory or resume verified steps.
-The explicit `libsystemd-dev` dependency was added after that snapshot began.
+Historical r5 staging exited 137 during initial copying. **Treat r5 source/rootfs
+as incomplete; r6 is built in a fresh repair directory and supersedes it.** Keep
+the original cached r3/r4 assets and the partial r5 state. Do not reuse the r5
+staging script as the r6 clean-build entry point.
 
 The old image is
 `.polder-test/iso-arm64/polderos-0.30.1-wayland-dev-arm64-r4.hybrid.iso`, SHA-256
@@ -138,24 +167,23 @@ was verified separately. **It does not contain this handoff's new features.**
 The exact tested portal executable SHA-256 is
 `38cf7b48d51a4cb17eb00d16389253633c11c5a20d7d39a8f8df3c4aab19ec18`.
 
-## Where to pick up after a request to continue
+## Where to pick up next
 
-1. Read this handoff, inspect Git status and available ARM caches. Use the final
-   committed source, including the last lock, preview-watchdog and dependency fixes.
-2. Finish an isolated ARM runtime image. Build/install both compositor variants,
-   the patched portal and its activation overrides, wlr-randr, session/config
-   files, chooser, and the 15-second logind inhibitor setting. Recompute
-   `WAYLAND_CONFIG_VERSION` using `iso/build.sh`'s full-config hash algorithm.
-3. Verify runtime libraries and exact packaged files, then compress/repack the
-   image. With local caches, preserve the previous ISO and rootfs. Check every
-   ISO checksum entry, boot metadata, kernel/initramfs and matching module tree.
-   A clean build is the portable alternative when those local caches are absent.
-4. Boot the new ISO through normal UEFI/GRUB in an ARM VM. Run the serial probe
-   and desktop exercise, then inspect screenshots/logs. The exercise now covers
-   launcher, terminal, maximize/close, and live-account lock/unlock. Key delivery
-   or a running QEMU process alone is not a pass. Direct-kernel boot is diagnostic
-   only and cannot replace normal firmware acceptance.
-5. Report the exact image hash, actual results and remaining hardware limitations.
+1. Inspect Git status and preserve local `.polder-test/` artifacts. Do not rebuild
+   the r6 image unless its source changes or the current hashes stop matching.
+2. Diagnose why `polderos-wayland-components` did not write
+   `/run/user/<uid>/polderos-wayland/ready`. The current evidence shows the
+   compositor and Xwayland running, but does not identify a blocking command.
+   Add concise stage markers around the GTK check, user-service setup, settings
+   calls and supervisor launch, then capture full process command lines.
+3. Make the probe report readiness independently of optional long diagnostics,
+   and persist partial VM status even when QMP or the diagnostic tail times out.
+   Keep shell exercise gated on a ready marker and visually visible screen.
+4. Rerun normal UEFI/GRUB boot on the test-only ISO with enough wall time for
+   ARM TCG, then inspect the named screenshots. Only claim launcher/terminal/
+   maximize/lock coverage if those actions actually complete and screenshots are
+   reviewed. A QEMU liveness signal is not desktop acceptance.
+5. Report the exact production and test-copy hashes and current limitations.
    Do not silently add AMD work, install onto a real disk, or publish a release.
 
 Commands below are for Linux/WSL from the repository root, **after resumption is
@@ -171,14 +199,16 @@ POLDER_ARCH=arm64 POLDER_BUILD_CPUS=2 \
   POLDER_TEST_OUTPUT="$PWD/.polder-test/iso-arm64-next" \
   bash tools/test-linux.sh iso
 
-# Normal firmware boot of the NEW image; replace the path with the actual output.
-POLDER_ARCH=arm64 POLDER_VM_SECONDS=750 \
+# Normal firmware boot of the r6 serial test copy; uses a long TCG window.
+POLDER_ARCH=arm64 POLDER_VM_SECONDS=1800 \
   POLDER_VM_PROBE_SESSION=1 POLDER_VM_EXERCISE_SHELL=1 \
-  POLDER_TEST_OUTPUT="$PWD/.polder-test/vm-arm64-next" \
-  bash tools/test-linux.sh vm /absolute/path/to/new-arm64.iso
+  POLDER_TEST_OUTPUT="$PWD/.polder-test/vm-arm64-r6-retry" \
+  bash tools/test-linux.sh vm "$PWD/.polder-test/iso-arm64/polderos-0.30.1-wayland-dev-arm64-r6-qemu-serial-test.iso"
 ```
 
-Use `--help` on `test-settings-ui.py`, `check-wayland-lock.py`,
+`verify-arm64-iso.py` requires `xorriso` and `unsquashfs`; run it from WSL/Linux
+with a native Linux `--work-dir` and sufficient privileges to extract squashfs
+device nodes. Use `--help` on `test-settings-ui.py`, `check-wayland-lock.py`,
 `check-renderer-fallback.py` and `capture-portal-smoke.py` for focused checks.
 They need the corresponding GTK/PAM/portal runtime dependencies; the basic
 headless SDK alone is insufficient. Portal frame consumption additionally needs
@@ -192,7 +222,8 @@ caches. A Git clone will not contain the local Docker volumes, raw evidence or I
 
 ## Known limitations
 
-- Final source still needs an FX rebuild and the complete ARM image/VM acceptance above.
+- The r6 FX image build completed, but Wayland session readiness, visible desktop
+  behavior and launcher/terminal/lock interactions still need VM acceptance.
 - Actual GPU effects, physical monitor hotplug/mixed scaling, and real ARM
   hardware suspend/resume remain unverified.
 - ARM images target generic UEFI/QEMU `virt`, not every ARM laptop or board.
