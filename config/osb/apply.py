@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Apply Polder OS settings to the running session. usage: apply.py theme|kbd|shelf|night|palette ...
 'palette' only regenerates files (no running processes touched), used early in start-session.sh."""
-import os, sys, subprocess, glob, shutil
+import os, sys, subprocess, glob, shutil, signal
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import osbsettings as S
 C = S.CFG
@@ -12,6 +12,15 @@ def sh(*a, t=30):
 
 def spawn(*a, log='/dev/null'):
     subprocess.Popen(a, stdout=open(log, 'a'), stderr=subprocess.STDOUT, start_new_session=True)
+
+def signal_service(name, sig):
+    """Signal a child tracked by this Wayland session's service supervisor."""
+    try:
+        with open(os.path.join(os.environ['OSB_RUNDIR'], name + '.service.pid')) as f:
+            pid = int(f.read())
+        if pid > 1: os.kill(pid, sig)
+    except (KeyError, OSError, ValueError):
+        pass  # The supervisor will also recover a service that already exited.
 
 def write_palette(s):
     th = S.effective_theme(s); p = S.palette_for(th, s['accent'])
@@ -32,17 +41,24 @@ def palette(s):
 def wayland_theme(s):
     """Rev 34h: live theme on polder-comp. GTK3 Wayland apps follow GSettings (org.gnome.desktop.interface, dconf) live;
     X11 apps under Xwayland follow XSETTINGS from xsettingsd (HUP = reload). The shelf/desktop reload palette.env + wallpaper.png by mtime."""
-    slot = open(os.path.expanduser('~/.config/osb/gtkslot')).read().strip()
+    with open(os.path.expanduser('~/.config/osb/gtkslot')) as f:
+        slot = f.read().strip()
     dark = S.effective_theme(s) == 'dark'; name = f'PolderOS-GTK-{slot}'
     for k, v in (('gtk-theme', name), ('color-scheme', 'prefer-dark' if dark else 'default'), ('icon-theme', 'Papirus'), ('font-name', 'Roboto 10')):
         sh('gsettings', 'set', 'org.gnome.desktop.interface', k, v)
     conf = os.path.expanduser('~/.config/xsettingsd/xsettingsd.conf'); os.makedirs(os.path.dirname(conf), exist_ok=True)
-    open(conf, 'w').write(f'Net/ThemeName "{name}"\nNet/IconThemeName "Papirus"\nGtk/FontName "Roboto 10"\nGtk/ApplicationPreferDarkTheme {int(dark)}\n')
+    with open(conf, 'w') as f:
+        f.write(f'Net/ThemeName "{name}"\nNet/IconThemeName "Papirus"\nGtk/FontName "Roboto 10"\nGtk/ApplicationPreferDarkTheme {int(dark)}\n')
     if os.environ.get('DISPLAY'):   # Xwayland
-        if sh('pkill', '-HUP', '-x', 'xsettingsd') == '' and subprocess.run(['pgrep', '-x', 'xsettingsd'], capture_output=True).returncode != 0:
+        if os.environ.get('POLDER_SESSION_SUPERVISED'):
+            signal_service('xsettings', signal.SIGHUP)
+        elif sh('pkill', '-HUP', '-x', 'xsettingsd') == '' and subprocess.run(['pgrep', '-x', 'xsettingsd'], capture_output=True).returncode != 0:
             spawn('xsettingsd', '-c', conf, log='/tmp/xsettingsd.log')
     for p in ('quicksettings/qs.py', 'calendar/cal.py'): sh('pkill', '-f', p)
-    sh('pkill', '-f', 'notify/osb-notifyd.py'); spawn('python3', os.path.join(C, 'notify/osb-notifyd.py'), log='/tmp/osb-notifyd.log')
+    if os.environ.get('POLDER_SESSION_SUPERVISED'):
+        signal_service('notifications', signal.SIGTERM)
+    else:
+        sh('pkill', '-f', 'notify/osb-notifyd.py'); spawn('python3', os.path.join(C, 'notify/osb-notifyd.py'), log='/tmp/osb-notifyd.log')
 
 def theme(s):
     palette(s)
@@ -61,11 +77,30 @@ def theme(s):
     spawn('env', 'OSB_LOCK_CACHE=/tmp/osb-lockbg', 'python3', os.path.join(C, 'lock/lockui.py'), '--prerender', log='/tmp/osb-lockbg.log')  # blurred lock bg
 
 def kbd(s):
+    if os.environ.get('POLDER_COMP'):
+        import wayland_control
+        wayland_control.keyboard(s['kbd_layout'], s.get('kbd_variant', ''))
+        return
     a = ['setxkbmap', s['kbd_layout']] + (['-variant', s['kbd_variant']] if s.get('kbd_variant') else [])
     sh(*a); shelf(s)
 
 def shelf(s):
     shutil.rmtree('/tmp/osb-status', ignore_errors=True); sh('pkill', '-USR1', '-x', 'tint2')
+
+def displays(s):
+    if os.environ.get('POLDER_COMP'):
+        import wayland_display
+        try:
+            wayland_display.restore_saved(s)
+        except Exception as exc:
+            print('Display preferences could not be restored:', exc, file=sys.stderr)
+
+def motion(s):
+    enabled = not s.get('reduced_motion', False)
+    sh('gsettings', 'set', 'org.gnome.desktop.interface', 'enable-animations', 'true' if enabled else 'false')
+    if os.environ.get('POLDER_COMP'):
+        import wayland_control
+        wayland_control.command('animations ' + ('1' if enabled else '0'))
 
 def night(s):
     out = next((l.split()[0] for l in sh('xrandr', '-q').splitlines() if ' connected' in l), None)

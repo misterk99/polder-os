@@ -1,0 +1,14 @@
+Description: Preserve only the installed private SceneFX search path
+ Meson installation removes its build-directory RUNPATH before packaging.
+Author: Polder OS contributors
+Forwarded: not-needed
+--- a/compositor/polder-comp/meson.build
++++ b/compositor/polder-comp/meson.build
+@@ -20 +20 @@
+-executable('polder-comp', 'polder-comp.c', protos, dependencies: deps, c_args: args, link_args: ['-rdynamic'], install: true)
++executable('polder-comp', 'polder-comp.c', protos, dependencies: deps, c_args: args, link_args: ['-rdynamic'], install: true, install_rpath: get_option('scenefx_libdir'))
+--- a/compositor/polder-comp/meson_options.txt
++++ b/compositor/polder-comp/meson_options.txt
+@@ -1 +1,2 @@
+ option('scenefx', type: 'feature', value: 'auto', description: 'rounded corners + shadows via scenefx (needs GLES2 at runtime)')
++option('scenefx_libdir', type: 'string', value: '', description: 'Installed private SceneFX library directory')

@@ -6,7 +6,15 @@ L=/workspace/osbuilder/config/lock/lock.py
 # Rev 34b/34f: polder-comp (Wayland) session -> own ext-session-lock-v1 locker (lock-wayland.py, same UI as X11, PAM).
 # If it can't lock or dies with an error, swaylock (polder-lock-wayland.sh) takes over the lock (the compositor stays locked meanwhile).
 if [ -n "$POLDER_COMP" ] && [ -n "$WAYLAND_DISPLAY" ]; then
-  D=$(cd "$(dirname "$0")" && pwd); [ "$1" = "-f" ] && { shift; setsid "$0" "$@" </dev/null >/dev/null 2>&1 & exit 0; }
+  D=$(cd "$(dirname "$0")" && pwd)
+  if [ ! -s "$HOME/.config/osb/lock-test-user" ]; then
+    exec python3 "$D/lock-session.py" "$@"
+  fi
+  # Legacy prototype-account mode is not an acknowledged lock and cannot gate suspend.
+  if [ "${1:-}" = '-f' ]; then
+    echo 'Acknowledged locking requires the logged-in user account.' >&2
+    exit 1
+  fi
   pgrep -x swaylock >/dev/null && exit 0; pgrep -f "$D/lock-wayland.py" >/dev/null && exit 0
   T=$(cat ~/.config/osb/lock-test-user 2>/dev/null); AS=""
   if [ -n "$T" ]; then   # prototype box: PAM checks the test account, so it needs access to our Wayland socket

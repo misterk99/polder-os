@@ -1,0 +1,28 @@
+#!/bin/sh
+set -eu
+# The source directory exists only in the explicitly requested Wayland image.
+[ -d /usr/local/src/polder-comp ] || exit 0
+meson setup /tmp/polder-comp-build /usr/local/src/polder-comp --prefix=/usr --buildtype=release -Dscenefx=disabled
+meson compile -C /tmp/polder-comp-build -j 2
+meson install -C /tmp/polder-comp-build
+test -x /usr/bin/polder-comp
+test -x /usr/bin/polder-toplevels
+# Build effects against the same distro wlroots. Keep the plain executable:
+# the session wrapper uses it when effects renderer initialization returns 78.
+bash /usr/local/src/build-scenefx.sh /tmp/polder-scenefx-build /usr
+ldconfig
+PKG_CONFIG_PATH=/usr/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH} \
+    meson setup /tmp/polder-comp-fx-build /usr/local/src/polder-comp --prefix=/usr --buildtype=release -Dscenefx=enabled
+meson compile -C /tmp/polder-comp-fx-build -j 2
+install -m755 /tmp/polder-comp-fx-build/polder-comp /usr/bin/polder-comp-fx
+test -x /usr/local/bin/polder-compositor
+# Typelibs alone can import successfully even when their shared library is absent.
+python3 - <<'PY'
+import ctypes
+for library in ('libgtk-layer-shell.so.0', 'libgtk-session-lock.so.0'):
+    ctypes.CDLL(library)
+PY
+# Windows checkouts may not preserve executable mode on the copied shell helpers.
+find /usr/share/polderos/config -type f -name '*.sh' -exec chmod 755 {} +
+rm -rf /tmp/polder-comp-build /tmp/polder-comp-fx-build /tmp/polder-scenefx-build /usr/local/src/polder-comp
+rm -f /usr/local/src/build-scenefx.sh

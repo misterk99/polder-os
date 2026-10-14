@@ -1,0 +1,10 @@
+# Scripts must remain executable by Linux tools after a Windows checkout.
+*.sh text eol=lf
+*.py text eol=lf
+iso/src/polderos-session text eol=lf
+iso/src/polderos-wayland-* text eol=lf
+iso/src/polder-compositor text eol=lf
+*.hook.chroot text eol=lf
+*.hook.binary text eol=lf
+# Unified diff context lines contain required leading spaces before source tabs.
+tools/testing/xdg-desktop-portal-wlr-0.7.1-shm.patch -whitespace

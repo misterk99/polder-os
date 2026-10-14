@@ -1,0 +1,44 @@
+Source: polderos
+Section: x11
+Priority: optional
+Maintainer: Polder OS contributors <packages@polderos.invalid>
+Build-Depends: debhelper-compat (= 13), meson, ninja-build, pkgconf, python3, libwlroots-0.18-dev, libwayland-dev, wayland-protocols, libxkbcommon-dev, libxcb1-dev, libdrm-dev, libpixman-1-dev, libegl-dev, libgles-dev, libgbm-dev
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Homepage: https://github.com/misterk99/polder-os
+Vcs-Git: https://github.com/misterk99/polder-os.git
+Vcs-Browser: https://github.com/misterk99/polder-os
+
+Package: polder-compositor
+Architecture: arm64
+Depends: ${shlibs:Depends}, ${misc:Depends}, xwayland, libgl1-mesa-dri, libegl-mesa0
+Description: Polder Wayland compositor and effects renderer
+ Provides polder-comp, polder-comp-fx, polder-toplevels and the compositor
+ launcher. The pinned SceneFX library is private to this package; both
+ renderers use Debian's wlroots and graphics libraries.
+
+Package: polder-desktop
+Architecture: all
+Depends: ${misc:Depends}, polder-compositor (= ${binary:Version}), python3, python3-gi, python3-gi-cairo, python3-dbus, python3-xlib, python3-requests, python3-pil, python3-icalendar, python3-recurring-ical-events, python3-pampy, gir1.2-gtk-3.0, gir1.2-rsvg-2.0, gir1.2-packagekitglib-1.0, gir1.2-appstream-1.0, gir1.2-flatpak-1.0, gir1.2-gtklayershell-0.1, libgtk-layer-shell0, gir1.2-gtksessionlock-0.1, libgtk-session-lock0, lightdm, gir1.2-lightdm-1, dbus-user-session, dbus-x11, xserver-xorg, xinit, x11-utils, x11-xserver-utils, x11-xkb-utils, xauth, libpam-systemd, xfwm4, xfce4-settings, xfconf, tint2, rofi, thunar, xfce4-terminal, picom, feh, lxpolkit, pipewire, pipewire-pulse, wireplumber, pulseaudio-utils, brightnessctl, foot, swayidle, swaylock, wl-clipboard, wtype, grim, wf-recorder, slurp, wlr-randr, xsettingsd, gsettings-desktop-schemas, dconf-gsettings-backend, xdg-desktop-portal, xdg-desktop-portal-wlr, xdg-desktop-portal-gtk, packagekit, packagekit-tools, flatpak, unattended-upgrades, network-manager, bluez, udisks2, gvfs, pkexec, polkitd, xdg-user-dirs, xdg-utils, xclip, wmctrl, xdotool, imagemagick, librsvg2-bin, ffmpeg, libnotify-bin, fonts-roboto, fonts-noto-color-emoji, papirus-icon-theme, arc-theme, chromium, chromium-l10n, libsecret-tools, gnome-keyring, libpam-gnome-keyring
+Recommends: polder-settings (= ${binary:Version}), kdeconnect, git, gh, python3-cryptography, age, openssh-client, mpv, mpv-mpris
+Description: Polder desktop sessions and shared shell configuration
+ Installs X11 and Wayland sessions, the shell, shared Python modules,
+ application assets and the desktop's integration policies.
+ All desktop and settings files are upgraded together to refresh each
+ user's generated configuration on the next login.
+
+Package: polder-settings
+Architecture: all
+Depends: ${misc:Depends}, polder-desktop (= ${binary:Version}), python3, python3-gi, python3-gi-cairo, gir1.2-gtk-3.0
+Description: Polder desktop settings application
+ Provides the Polder settings UI. Shared settings, notifications,
+ calendar, weather and web application modules belong to polder-desktop.
+
+Package: polder-archive-keyring
+Section: misc
+Architecture: all
+Depends: ${misc:Depends}, ca-certificates
+XB-X-Polder-Test-Key: ${polder:TestKey}
+Description: Public archive signing key and Polder APT source
+ Contains only the public Polder archive signing key, and a Deb822 APT
+ source bound to that key with Signed-By. Debian mirrors stay configured.

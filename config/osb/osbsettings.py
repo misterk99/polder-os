@@ -7,6 +7,7 @@ CACHE = os.path.expanduser('~/.cache/osb')
 VERSION = 'Polder OS 0.30.1'
 DEFAULTS = {
     'theme': 'light',            # light | dark | auto (licht 07:00-19:00)
+    'reduced_motion': False,
     'accent': 'blauw',
     'wallpaper': 'polderheuvel',  # dark theme automatically uses polderheuvel-avond
     'notifications': True,       # pop-ups aan/uit
@@ -17,6 +18,7 @@ DEFAULTS = {
     'kbd_layout': 'us', 'kbd_variant': '',
     'clock24': True, 'show_date': True,
     'night_light': False,
+    'displays': {},             # confirmed Wayland output profiles, matched to monitor identity
     'lock_idle_min': 10,         # automatisch vergrendelen na N min inactiviteit (0 = nooit)
     'pinned': ['chromium.desktop', 'xfce4-terminal.desktop', 'files.desktop', 'polder-store.desktop'],   # plank (desktop ids, in order)
     'app_order': [],             # launcher grid order (desktop ids); rest alphabetically

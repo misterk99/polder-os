@@ -1,0 +1,43 @@
+#!/bin/sh
+# Effects and plain wlroots use different scene graphs, so fallback needs a
+# separate process. Status 78 is reserved for unsupported renderer startup.
+set -u
+case ${POLDER_EFFECTS:-auto} in
+    0) exec polder-comp "$@" ;;
+    1|auto) ;;
+    *) echo 'POLDER_EFFECTS must be 0, 1 or auto.' >&2; exit 2 ;;
+esac
+if [ "${WLR_RENDERER:-}" = pixman ]; then
+    exec polder-comp "$@"
+fi
+if ! command -v polder-comp-fx >/dev/null 2>&1; then
+    if [ "${POLDER_EFFECTS:-auto}" = 1 ]; then
+        echo 'The effects compositor is not installed.' >&2
+        exit 127
+    fi
+    exec polder-comp "$@"
+fi
+
+child=
+stop() {
+    trap - HUP INT TERM
+    [ -z "$child" ] || kill -"$1" "$child" 2>/dev/null || true
+    [ -z "$child" ] || wait "$child" 2>/dev/null || true
+    exit "$2"
+}
+trap 'stop HUP 129' HUP
+trap 'stop INT 130' INT
+trap 'stop TERM 143' TERM
+polder-comp-fx "$@" &
+child=$!
+wait "$child"
+status=$?
+child=
+trap - HUP INT TERM
+if [ "$status" -eq 78 ]; then
+    echo 'Effects renderer unavailable; starting the plain compositor.' >&2
+    # A broken GLES/EGL driver must not be retried by wlroots autocreation.
+    export WLR_RENDERER=pixman
+    exec polder-comp "$@"
+fi
+exit "$status"

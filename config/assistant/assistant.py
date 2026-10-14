@@ -10,7 +10,7 @@ from gi.repository import Gtk, Gdk, GLib, GdkX11, Pango
 import osbnotify as N, actions as A, intents as I, llm as L
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'osb')); import layershell as LSH   # Rev 34
 W, H, SHELF = 560, 460, 62
-PIDF = '/tmp/osb-assistant.pid'
+PIDF = os.path.join(os.environ.get('OSB_RUNDIR', '/tmp'), 'osb-assistant.pid')
 EXAMPLES = ['Zet donker thema aan', 'Volume op 30%', 'Wat voor weer is het?', 'Open terminal', 'Zoek bestand factuur', 'Maak een screenshot']
 
 def css():

@@ -25,6 +25,22 @@ class Greeter(lockui.LockUI):
             users = [{'name': n.lower(), 'display': n} for n in names]
         super().__init__(users or [{'name': '', 'display': 'Gebruiker'}],
                          hint='VOORBEELDWEERGAVE — niet via LightDM, inloggen is uitgeschakeld' if args.preview else None, popup=False)
+        self.session = SESSION
+        sessions = ([(s.get_key(), s.get_name()) for s in self.LightDM.get_sessions()]
+                    if self.ldm else [('polderos', 'Polder OS (X11)'), ('polderos-wayland', 'Polder OS (Wayland)')])
+        if sessions:
+            default = self.ldm.get_default_session_hint() if self.ldm else SESSION
+            available = {key for key, _ in sessions}
+            self.session = default if default in available else (SESSION if SESSION in available else sessions[0][0])
+        if len(sessions) > 1:
+            row = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
+            row.pack_start(Gtk.Label(label='Bureaublad'), False, False, 0)
+            self.session_choice = Gtk.ComboBoxText()
+            for key, name in sessions: self.session_choice.append(key, name)
+            self.session_choice.set_active_id(self.session)
+            self.session_choice.connect('changed', lambda choice: setattr(self, 'session', choice.get_active_id() or SESSION))
+            row.pack_start(self.session_choice, False, False, 0)
+            self.col.pack_start(row, False, False, 0)
         self.pw_pending = None
         self.fullscreen(); self.show_all(); self.entry.grab_focus()
 
@@ -43,7 +59,7 @@ class Greeter(lockui.LockUI):
         else: self.done(False, 'Onjuist wachtwoord')
 
     def unlocked(self):
-        try: self.ldm.start_session_sync(SESSION)      # Polder OS session auto-selected
+        try: self.ldm.start_session_sync(self.session)
         except GLib.Error as e: self.msg.set_text(f'Sessie starten mislukt: {e.message}')
 
     def power(self, action):

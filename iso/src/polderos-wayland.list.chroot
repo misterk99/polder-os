@@ -1,0 +1,12 @@
+# Optional POLDER_WAYLAND=1 image. Debian trixie supplies wlroots 0.18.2;
+# SceneFX effects and a separately built software-rendering fallback.
+libwlroots-0.18 xwayland foot foot-terminfo libgl1-mesa-dri libegl-mesa0 libpam-systemd
+# The session-lock GIR package does not depend on its runtime library in trixie.
+gir1.2-gtklayershell-0.1 gir1.2-gtksessionlock-0.1 libgtk-session-lock0 swayidle swaylock
+wl-clipboard wtype grim wf-recorder slurp wlr-randr
+xdg-desktop-portal xdg-desktop-portal-wlr xdg-desktop-portal-gtk
+gsettings-desktop-schemas dconf-gsettings-backend xsettingsd
+# Build inside the target distribution: never ship host Mesa/library copies.
+build-essential meson ninja-build pkgconf libwlroots-0.18-dev libwayland-dev wayland-protocols libxkbcommon-dev libxcb1-dev
+curl ca-certificates libdrm-dev libpixman-1-dev libegl-dev libgles-dev libgbm-dev
+libpipewire-0.3-dev libinih-dev libsystemd-dev

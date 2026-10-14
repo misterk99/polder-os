@@ -1,0 +1,105 @@
+#!/bin/bash
+# LightDM Wayland session entrypoint. All desktop clients start via polder-comp -s,
+# inheriting its actual socket, Xwayland display, PID and command FIFO.
+set -euo pipefail
+umask 077
+BASE=/usr/share/polderos
+export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-"$HOME/.config"}
+export XDG_DATA_HOME=${XDG_DATA_HOME:-"$HOME/.local/share"}
+export XDG_CACHE_HOME=${XDG_CACHE_HOME:-"$HOME/.cache"}
+LOG="$XDG_CACHE_HOME/polderos/wayland"
+mkdir -p "$LOG"
+exec >>"$LOG/session.log" 2>&1
+if [ -z "${XDG_RUNTIME_DIR:-}" ] || [ ! -d "$XDG_RUNTIME_DIR" ] || [ "$(stat -c %u "$XDG_RUNTIME_DIR")" != "$(id -u)" ]; then
+  echo 'A user-owned XDG_RUNTIME_DIR from a login session is required.' >&2
+  exit 1
+fi
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+  if [ -S "$XDG_RUNTIME_DIR/bus" ]; then
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+  else
+    exec dbus-run-session -- "$0" "$@"
+  fi
+fi
+export OSB_RUNDIR="$XDG_RUNTIME_DIR/polderos-wayland"
+mkdir -p "$OSB_RUNDIR"
+chmod 700 "$OSB_RUNDIR"
+exec 9>"$OSB_RUNDIR/session.lock"
+flock -n 9 || { echo 'A Polder OS Wayland session is already running.' >&2; exit 1; }
+export POLDER_CONFIG="$XDG_DATA_HOME/polderos"
+export POLDEROS_ISO=1 XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=PolderOS XDG_SESSION_DESKTOP=polderos-wayland
+export POLDER_PALETTE="$POLDER_CONFIG/palette.env" POLDER_TERMINAL=foot POLDER_TOPLEVELS=/usr/bin/polder-toplevels
+export POLDER_LAUNCHER="\"$POLDER_CONFIG/launcher/launcher-toggle.sh\""
+export GDK_BACKEND=wayland,x11
+unset POLDER_SHELL DISPLAY WAYLAND_DISPLAY
+python3 - "$BASE" "$POLDER_CONFIG" <<'PY'
+import pathlib, shutil, sys, urllib.parse
+base, dest = map(pathlib.Path, sys.argv[1:])
+version = (base / 'WAYLAND_CONFIG_VERSION').read_text().strip()
+stamp = dest / '.wayland-version'
+if not stamp.exists() or stamp.read_text().strip() != version:
+    dest.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(base / 'config', dest, dirs_exist_ok=True)
+    home = str(pathlib.Path.home())
+    replacements = [('/workspace/osbuilder/config', str(dest)),
+                    ('/tmp/protohome/chromium', home + '/.config/chromium'),
+                    ('/tmp/protohome', home),
+                    ('/tmp/osb-files/Mijn%20bestanden', urllib.parse.quote(home)),
+                    ('/tmp/osb-files/Mijn bestanden', home)]
+    for path in dest.rglob('*'):
+        if not path.is_file() or '__pycache__' in path.parts:
+            continue
+        try:
+            text = path.read_text()
+        except (UnicodeError, OSError):
+            continue
+        updated = text
+        for old, new in replacements:
+            updated = updated.replace(old, new)
+        if updated != text:
+            path.write_text(updated)
+    launcher = dest / 'files/run-files.sh'
+    launcher.write_text('#!/bin/sh\nexec thunar "${1:-$HOME}"\n')
+    launcher.chmod(0o755)
+    (dest / '.version').write_text((base / 'VERSION').read_text())
+    stamp.write_text(version + '\n')
+PY
+mkdir -p "$XDG_CONFIG_HOME/gtk-3.0" "$XDG_CONFIG_HOME/osb" "$XDG_DATA_HOME/applications"
+cp "$POLDER_CONFIG/gtkrc-settings.ini" "$XDG_CONFIG_HOME/gtk-3.0/settings.ini"
+export OSB_FILES_HOME="$HOME"
+LC_ALL=nl_NL.UTF-8 xdg-user-dirs-update || true
+python3 "$POLDER_CONFIG/osb/apply.py" palette
+python3 - "$POLDER_CONFIG" "$OSB_RUNDIR/keyboard" <<'PY'
+import pathlib, sys
+sys.path.insert(0, str(pathlib.Path(sys.argv[1]) / 'osb'))
+import osbsettings
+s = osbsettings.load()
+if not pathlib.Path(osbsettings.FILE).exists():
+    osbsettings.save(s)
+pathlib.Path(sys.argv[2]).write_text(str(s.get('kbd_layout') or 'us') + '\n' + str(s.get('kbd_variant') or '') + '\n')
+PY
+mapfile -t keyboard < "$OSB_RUNDIR/keyboard"
+export XKB_DEFAULT_LAYOUT="${keyboard[0]}" XKB_DEFAULT_VARIANT="${keyboard[1]:-}"
+for app in settings/instellingen.desktop files/files.desktop store/polder-store.desktop; do
+  cp "$POLDER_CONFIG/$app" "$XDG_DATA_HOME/applications/"
+done
+rm -f "$OSB_RUNDIR/components.pid" "$OSB_RUNDIR/ready" "$OSB_RUNDIR/osb-shelf.pid" "$OSB_RUNDIR/osb-launcher.pid" "$OSB_RUNDIR/osb-clipd.pid"
+compositor_pid=
+cleanup() {
+  trap - EXIT HUP INT TERM
+  python3 "$POLDER_CONFIG/capture/capture_backend.py" --stop 2>/dev/null || true
+  if [ -f "$OSB_RUNDIR/components.pid" ]; then
+    read -r components_pid < "$OSB_RUNDIR/components.pid"
+    if [[ $components_pid =~ ^[0-9]+$ ]] && [ "$components_pid" -gt 1 ]; then
+      kill -TERM -- "-$components_pid" 2>/dev/null || true
+    fi
+  fi
+  [ -z "$compositor_pid" ] || kill -TERM "$compositor_pid" 2>/dev/null || true
+  [ -z "$compositor_pid" ] || wait "$compositor_pid" 2>/dev/null || true
+  rm -f "$OSB_RUNDIR/components.pid" "$OSB_RUNDIR/ready"
+}
+trap cleanup EXIT
+trap 'exit 143' HUP INT TERM
+polder-compositor -s "exec $BASE/polderos-wayland-components" 9>&- &
+compositor_pid=$!
+wait "$compositor_pid"

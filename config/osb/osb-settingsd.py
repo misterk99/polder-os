@@ -5,7 +5,7 @@ import os, sys, time, threading, subprocess
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, '..', 'calendar')); sys.path.insert(0, os.path.join(HERE, '..', 'weather'))
 import osbsettings as S, apply as A, feeds, weather as W
 GROUPS = {'theme': ('theme', 'accent', 'wallpaper'), 'kbd': ('kbd_layout', 'kbd_variant'),
-          'shelf': ('clock24', 'show_date'), 'night': ('night_light',)}
+          'shelf': ('clock24', 'show_date'), 'night': ('night_light',), 'motion': ('reduced_motion',)}
 
 def feed_sync():
     try: feeds.sync_all()
@@ -63,11 +63,17 @@ def polder_sync(restore=False):   # Revision 30: Polder Sync (runs in a thread, 
     except Exception as e: print('sync', e, flush=True)
 
 def main():
-    threading.Thread(target=idle_lock, daemon=True).start()
+    wayland_session = bool(os.environ.get('POLDER_COMP'))
+    if not wayland_session:
+        threading.Thread(target=idle_lock, daemon=True).start()
     threading.Thread(target=reboot_watch, daemon=True).start()
     s = S.load()
     if not os.path.exists(S.FILE): S.save(s)
-    A.kbd(s); A.night(s)
+    A.kbd(s)
+    A.motion(s)
+    if not wayland_session: A.night(s)
+    if wayland_session: A.displays(s)
+    display_signature = None; display_check = 0
     mtime = os.path.getmtime(S.FILE); eff = S.effective_theme(s); last_sync = 0; last_wx = 0
     sync_due = time.time() + 5 if s.get('sync_enabled') else 0   # Rev 30: sync at login, then debounced 15 s after changes + every 30 min
     SYNC_IGNORE = {'sync_last_request'}
@@ -79,12 +85,24 @@ def main():
             mtime = m; n = S.load()
             for fn, keys in GROUPS.items():
                 if any(n.get(k) != s.get(k) for k in keys):
+                    if wayland_session and fn == 'night':
+                        print(time.strftime('%H:%M:%S'), fn, 'requires native Wayland support or a new session', flush=True)
+                        continue
                     print(time.strftime('%H:%M:%S'), 'apply', fn, flush=True); getattr(A, fn)(n)
             if [f['id'] for f in n['feeds']] != [f['id'] for f in s['feeds']]: last_sync = 0
             if n.get('weather_loc') != s.get('weather_loc'): last_wx = 0
             if n.get('sync_enabled') and any(n.get(k) != s.get(k) for k in set(n) | set(s) if not k.startswith('sync_')): sync_due = time.time() + 15
             if n.get('sync_request') != s.get('sync_request') and n.get('sync_enabled'): sync_due = time.time()
             s = n; eff = S.effective_theme(s)
+        if wayland_session and time.monotonic() >= display_check:
+            display_check = time.monotonic() + 3
+            try:
+                import wayland_display as D
+                signature = sorted((o['name'], tuple(D.identity(o))) for o in D.outputs())
+                if display_signature is not None and signature != display_signature: A.displays(s)
+                display_signature = signature
+            except Exception as exc:
+                print('display detection:', exc, flush=True)
         if s.get('theme') == 'auto' and S.effective_theme(s) != eff:    # auto: switch at 07:00 / 19:00
             eff = S.effective_theme(s); print('auto theme ->', eff, flush=True); A.theme(s)
         if s['feeds'] and time.time() - last_sync > 60 * max(5, int(s.get('feed_refresh_min', 60))):

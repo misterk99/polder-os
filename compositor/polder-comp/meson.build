@@ -18,3 +18,9 @@ if scenefx.found()
   args += '-DPOLDER_SCENEFX'
 endif
 executable('polder-comp', 'polder-comp.c', protos, dependencies: deps, c_args: args, link_args: ['-rdynamic'], install: true)
+
+ftl_xml = 'tools/wlr-foreign-toplevel-management-unstable-v1.xml'
+ftl_header = custom_target('ftl-client.h', input: ftl_xml, output: 'ftl-client.h', command: [wl_scanner, 'client-header', '@INPUT@', '@OUTPUT@'])
+ftl_code = custom_target('ftl-protocol.c', input: ftl_xml, output: 'ftl-protocol.c', command: [wl_scanner, 'private-code', '@INPUT@', '@OUTPUT@'])
+executable('polder-toplevels', 'tools/polder-toplevels.c', ftl_header, ftl_code,
+  dependencies: dependency('wayland-client'), c_args: ['-D_POSIX_C_SOURCE=200809L'], install: true)

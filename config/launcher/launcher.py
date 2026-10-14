@@ -153,7 +153,7 @@ class Launcher(Gtk.Window):
         self.connect('focus-out-event', lambda *a: GLib.timeout_add(150, self.maybe_hide))
         self.connect('delete-event', lambda *a: self.hide_l() or True)
         self.connect('button-press-event', self.on_press); self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
-        GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGUSR1, self.toggle)
+        GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGUSR1, self.queue_toggle)
         GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGTERM, lambda *a: Gtk.main_quit() or False)
         box.show_all()
         if '--show' in sys.argv: self.show_l()
@@ -214,6 +214,15 @@ class Launcher(Gtk.Window):
             self.wpm = os.path.getmtime(wp); out = f'/tmp/osb-launcher-bg-{int(self.wpm)}.png'
             subprocess.run(['convert', wp, '-crop', f'{W}x{H}+{MARGIN}+{self.sh - SHELF - H}', '+repage', out], timeout=10)
             self.bgprov.load_from_data(f"#lwin {{ background-image: url('{out}'); background-color: transparent; }}".encode())
+
+    def queue_toggle(self, *a):
+        # Wayland window creation needs events below the signal source's priority.
+        GLib.idle_add(self._toggle_once)
+        return True
+
+    def _toggle_once(self):
+        self.toggle()
+        return False
 
     def toggle(self, *a):
         self.hide_l() if self.get_mapped() else self.show_l(); return True   # mapped, not visible: robust inside polder-shell

@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <math.h>
 #include <sys/stat.h>
 #include <drm_fourcc.h>
 #include <signal.h>
@@ -34,6 +35,8 @@
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
+#include <wlr/types/wlr_output_management_v1.h>
+#include <wlr/types/wlr_fractional_scale_v1.h>
 #include <wlr/types/wlr_pointer.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_subcompositor.h>
@@ -97,6 +100,12 @@ struct server {
 	double grab_x, grab_y; struct wlr_box grab_box; uint32_t resize_edges;
 	struct wlr_output_layout *output_layout;
 	struct wl_listener new_output;
+	struct wlr_output_manager_v1 *output_manager;
+	struct wl_listener output_apply, output_test, layout_change;
+	bool configuring_outputs;
+	struct xkb_keymap *keymap;
+	char keyboard_layout[64], keyboard_variant[64];
+	bool reduced_motion;
 	float bg_color[4];
 	bool super_alone;
 	const char *launcher, *terminal;
@@ -109,7 +118,13 @@ struct server {
 	struct wlr_foreign_toplevel_manager_v1 *ftm;   /* Rev 33: shelf task list on Wayland */   /* output area minus layer-shell exclusive zones */
 };
 
-struct output { struct wl_list link; struct server *server; struct wlr_output *wlr; struct wl_listener frame, request_state, destroy; };
+struct output {
+	struct wl_list link; struct server *server; struct wlr_output *wlr;
+	struct wl_listener frame, request_state, destroy, present;
+	struct wlr_box usable;
+	uint32_t lock_seq;
+	bool lock_covered, lock_committing;
+};
 
 struct view {
 	struct wl_list link;
@@ -124,18 +139,30 @@ struct view {
 	struct wlr_scene_rect *shadow[4];
 #endif
 	bool mapped, placed, minimized;
+	struct wl_event_source *fade_timer;
+	struct timespec fade_started;
+	float opacity;
 	int id, desk;   /* Rev 34g */
 	struct wlr_foreign_toplevel_handle_v1 *ftl; char *ftl_title, *ftl_appid;
 	struct wl_listener ftl_activate, ftl_close, ftl_minimize, request_minimize;
 	bool has_target; int tx, ty;   /* desired window-geometry origin; re-applied on commit because CSD geometry changes (GTK drops shadows when tiled) */
 	int snap;               /* SNAP_NONE/LEFT/RIGHT/MAX */
 	struct wlr_box saved;   /* geometry before snapping */
+	char reflow_output[128];
+	int reflow_x, reflow_y;
 	struct wl_listener map, unmap, commit, destroy, request_move, request_resize, associate, dissociate, request_configure, request_activate;
 };
 
 struct layer { struct wl_list link; struct server *server; struct wlr_layer_surface_v1 *ls; struct wlr_scene_layer_surface_v1 *sls;
 	struct wl_listener commit, map, unmap, destroy; };
-struct keyboard { struct wl_list link; struct server *server; struct wlr_keyboard *wlr; struct wl_listener modifiers, key, destroy; };
+struct keyboard { struct wl_list link; struct server *server; struct wlr_keyboard *wlr; bool virtual;
+	struct wl_listener modifiers, key, destroy; };
+
+static void publish_outputs(struct server *s);
+static void refresh_lock_geometry(struct server *s);
+static void maybe_lock_ack(struct server *s);
+static bool set_keyboard(struct server *s, const char *layout, const char *variant);
+static void keyboard_state(struct server *s, const char *error);
 
 static void crash_handler(int sig) {   /* print a backtrace to stderr (log) on a crash */
 	void *bt[64]; int n = backtrace(bt, 64);
@@ -163,6 +190,7 @@ static void read_palette(struct server *s) {
 }
 
 /* ---------------- views ---------------- */
+enum { SNAP_NONE, SNAP_LEFT, SNAP_RIGHT, SNAP_MAX };
 static struct wlr_surface *view_surface(struct view *v) { return v->type == VIEW_XDG ? v->xdg->base->surface : v->xs->surface; }
 static void view_geometry(struct view *v, struct wlr_box *b) {
 	/* wlr_scene_xdg_surface_create already shifts the surface by -geometry, so the view tree's
@@ -181,9 +209,39 @@ static void view_sync_enabled(struct view *v) { wlr_scene_node_set_enabled(&v->t
 static void switch_desk(struct server *s, int d);
 static struct view *top_view(struct server *s);
 
+static void fade_buffer(struct wlr_scene_buffer *buf, int sx, int sy, void *data) {
+	wlr_scene_buffer_set_opacity(buf, *(float *)data);
+}
+static void view_opacity(struct view *v, float opacity) {
+	v->opacity = opacity;
+	if (v->content) wlr_scene_node_for_each_buffer(&v->content->node, fade_buffer, &v->opacity);
+}
+static void finish_fade(struct view *v) {
+	if (v->fade_timer) { wl_event_source_remove(v->fade_timer); v->fade_timer = NULL; }
+	view_opacity(v, 1.0f);
+}
+static int fade_frame(void *data) {
+	struct view *v = data; struct timespec now; clock_gettime(CLOCK_MONOTONIC, &now);
+	double elapsed = (now.tv_sec - v->fade_started.tv_sec) * 1000.0 + (now.tv_nsec - v->fade_started.tv_nsec) / 1e6;
+	if (elapsed >= 160 || !v->mapped || v->server->reduced_motion) { finish_fade(v); return 0; }
+	float remaining = 1 - elapsed / 160.0;
+	view_opacity(v, 1 - remaining * remaining * remaining);
+	wl_event_source_timer_update(v->fade_timer, 16);
+	return 0;
+}
+static void start_fade(struct view *v) {
+	finish_fade(v);
+	if (v->server->reduced_motion) return;
+	v->fade_timer = wl_event_loop_add_timer(wl_display_get_event_loop(v->server->display), fade_frame, v);
+	if (!v->fade_timer) return;
+	clock_gettime(CLOCK_MONOTONIC, &v->fade_started);
+	view_opacity(v, 0.0f);
+	wl_event_source_timer_update(v->fade_timer, 16);
+}
+
 #ifdef POLDER_SCENEFX
 static void round_buffer(struct wlr_scene_buffer *buf, int sx, int sy, void *data) {
-	(void)sx; (void)sy; (void)data; wlr_scene_buffer_set_corner_radius(buf, RADIUS, CORNER_LOCATION_ALL);
+	wlr_scene_buffer_set_corner_radius(buf, *(int *)data, CORNER_LOCATION_ALL);
 }
 #endif
 
@@ -196,15 +254,17 @@ static void view_update_decor(struct view *v) {
 	}
 #ifdef POLDER_SCENEFX
 	/* scenefx: real rounded corners on the surface buffers + gaussian shadow behind */
-	if (!getenv("POLDER_FX_NOROUND")) wlr_scene_node_for_each_buffer(&v->content->node, round_buffer, NULL);
+	int radius = v->snap == SNAP_MAX || getenv("POLDER_FX_NOROUND") ? 0 : RADIUS;
+	wlr_scene_node_for_each_buffer(&v->content->node, round_buffer, &radius);
 	int blur = 16;
 	if (g.width < 2 * (RADIUS + 6) || g.height < 2 * (RADIUS + 6)) { wlr_scene_node_set_enabled(&v->shadow->node, false); return; }
 	wlr_scene_shadow_set_size(v->shadow, g.width + 2 * blur, g.height + 2 * blur);
-	wlr_scene_node_set_enabled(&v->shadow->node, !getenv("POLDER_FX_NOSHADOW"));
+	wlr_scene_node_set_enabled(&v->shadow->node, v->snap != SNAP_MAX && !getenv("POLDER_FX_NOSHADOW"));
 	wlr_scene_node_set_position(&v->shadow->node, g.x - blur, g.y - blur + 4);
 #else
 	/* pixman: four stacked translucent rectangles = stepped soft shadow (corners stay square) */
 	for (int i = 0; i < 4; i++) {
+		wlr_scene_node_set_enabled(&v->shadow[i]->node, v->snap != SNAP_MAX);
 		int d = (i + 1) * 3;
 		wlr_scene_rect_set_size(v->shadow[i], g.width + 2 * d, g.height + 2 * d);
 		wlr_scene_node_set_position(&v->shadow[i]->node, g.x - d, g.y - d + 3);
@@ -213,6 +273,7 @@ static void view_update_decor(struct view *v) {
 }
 
 static void view_create_tree(struct view *v) {
+	v->opacity = 1.0f;
 	v->tree = wlr_scene_tree_create(v->server->views_tree);
 	v->tree->node.data = v;
 #ifdef POLDER_SCENEFX
@@ -258,7 +319,6 @@ static struct view *view_at(struct server *s, double lx, double ly, struct wlr_s
 	return t ? t->node.data : NULL;
 }
 
-enum { SNAP_NONE, SNAP_LEFT, SNAP_RIGHT, SNAP_MAX };
 static void view_box(struct view *v, struct wlr_box *b);
 static void view_set_size(struct view *v, int x, int y, int w, int h);
 static void begin_grab(struct view *v, enum cursor_mode mode, uint32_t edges) {
@@ -291,11 +351,15 @@ static void view_box(struct view *v, struct wlr_box *b) {   /* window geometry i
 	struct wlr_box g; view_geometry(v, &g);
 	b->x = v->tree->node.x + g.x; b->y = v->tree->node.y + g.y; b->width = g.width; b->height = g.height;
 }
+static struct wlr_box area_at(struct server *s, double x, double y) {
+	wlr_output_layout_closest_point(s->output_layout, NULL, x, y, &x, &y);
+	struct wlr_output *wo = wlr_output_layout_output_at(s->output_layout, x, y);
+	struct output *o;
+	wl_list_for_each(o, &s->outputs, link) if (o->wlr == wo && o->usable.width > 0) return o->usable;
+	return (struct wlr_box){0, 0, 1366, 768};
+}
 static struct wlr_box usable_area(struct server *s) {
-	if (s->usable.width > 0) return s->usable;
-	struct wlr_box b = {0, 0, 1366, 768}; struct output *o;
-	wl_list_for_each(o, &s->outputs, link) { wlr_output_layout_get_box(s->output_layout, o->wlr, &b); break; }
-	return b;
+	return area_at(s, s->cursor ? s->cursor->x : 0, s->cursor ? s->cursor->y : 0);
 }
 static void view_move_to(struct view *v, int x, int y) {
 	struct wlr_box g; view_geometry(v, &g);
@@ -324,18 +388,19 @@ static void view_place(struct view *v) {
 	}
 	view_move_to(v, x, y); v->placed = true;
 }
-static struct wlr_box snap_target(struct server *s, int mode) {
-	struct wlr_box u = usable_area(s);
+static struct wlr_box snap_box(struct wlr_box u, int mode) {
 	switch (mode) {
 	case SNAP_LEFT:  return (struct wlr_box){ u.x + GAP, u.y + GAP, u.width / 2 - GAP - GAP / 2, u.height - 2 * GAP };
 	case SNAP_RIGHT: return (struct wlr_box){ u.x + u.width / 2 + GAP / 2, u.y + GAP, u.width / 2 - GAP - GAP / 2, u.height - 2 * GAP };
 	default: return u;
 	}
 }
+static struct wlr_box snap_target(struct server *s, int mode) { return snap_box(usable_area(s), mode); }
 static void view_snap(struct view *v, int mode) {
 	if (v->snap == SNAP_NONE && mode != SNAP_NONE) view_box(v, &v->saved);
 	struct wlr_box t;
-	if (mode == SNAP_NONE) { if (v->snap == SNAP_NONE) return; t = v->saved; } else t = snap_target(v->server, mode);
+	if (mode == SNAP_NONE) { if (v->snap == SNAP_NONE) return; t = v->saved; }
+	else { struct wlr_box g; view_box(v, &g); t = snap_box(area_at(v->server, g.x + g.width / 2, g.y + g.height / 2), mode); }
 	if (v->type == VIEW_XDG) {
 		wlr_xdg_toplevel_set_maximized(v->xdg, mode == SNAP_MAX);
 		wlr_xdg_toplevel_set_tiled(v->xdg, mode == SNAP_LEFT ? (WLR_EDGE_TOP|WLR_EDGE_BOTTOM|WLR_EDGE_RIGHT) :
@@ -343,6 +408,7 @@ static void view_snap(struct view *v, int mode) {
 	} else wlr_xwayland_surface_set_maximized(v->xs, mode == SNAP_MAX);
 	v->snap = mode;
 	view_set_size(v, t.x, t.y, t.width, t.height);
+	view_update_decor(v);
 	wlr_log(WLR_INFO, "snap %d -> %d,%d %dx%d", mode, t.x, t.y, t.width, t.height);
 }
 
@@ -409,10 +475,11 @@ static void view_map(struct wl_listener *l, void *d) {
 	if (!v->placed && (v->type == VIEW_XDG || (v->xs->x == 0 && v->xs->y == 0))) view_place(v);
 	wl_list_insert(&s->views, &v->link);
 	ftl_create(v);
-	view_update_decor(v); focus_view(v);
+	view_update_decor(v); focus_view(v); start_fade(v);
 }
 static void view_unmap(struct wl_listener *l, void *d) {
 	struct view *v = wl_container_of(l, v, unmap); (void)d;
+	finish_fade(v);
 	if (v == v->server->grabbed) { v->server->mode = CUR_PASS; v->server->grabbed = NULL; }
 	if (v->type == VIEW_X11 && v->content) { wlr_scene_node_destroy(&v->content->node); v->content = NULL; }
 	if (v->mapped && !(v->type == VIEW_X11 && v->xs->override_redirect)) wl_list_remove(&v->link);
@@ -430,7 +497,7 @@ static void view_commit(struct wl_listener *l, void *d) {
 		struct wlr_box g; view_geometry(v, &g);
 		wlr_scene_node_set_position(&v->tree->node, v->tx - g.x, v->ty - g.y);
 	}
-	if (v->mapped) { view_update_decor(v); ftl_sync(v); }
+	if (v->mapped) { view_update_decor(v); view_opacity(v, v->opacity); ftl_sync(v); }
 }
 static void view_request_move(struct wl_listener *l, void *d) { struct view *v = wl_container_of(l, v, request_move); (void)d; begin_grab(v, CUR_MOVE, 0); }
 static void view_request_resize(struct wl_listener *l, void *d) {
@@ -440,6 +507,7 @@ static void view_request_resize(struct wl_listener *l, void *d) {
 }
 static void view_destroy(struct wl_listener *l, void *d) {
 	struct view *v = wl_container_of(l, v, destroy); (void)d;
+	if (v->fade_timer) wl_event_source_remove(v->fade_timer);
 	wl_list_remove(&v->destroy.link); wl_list_remove(&v->request_move.link); wl_list_remove(&v->request_resize.link);
 	ftl_destroy(v);
 	if (v->type == VIEW_XDG) { wl_list_remove(&v->map.link); wl_list_remove(&v->unmap.link); wl_list_remove(&v->commit.link); wl_list_remove(&v->request_minimize.link); }
@@ -527,6 +595,7 @@ static void arrange_layers(struct server *s) {
 	struct output *o;
 	wl_list_for_each(o, &s->outputs, link) {
 		struct wlr_box full; wlr_output_layout_get_box(s->output_layout, o->wlr, &full);
+		if (!o->wlr->enabled || full.width <= 0) { o->usable = (struct wlr_box){0}; continue; }
 		struct wlr_box usable = full;
 		for (int li = 3; li >= 0; li--) {   /* overlay/top first so their exclusive zones shrink the area for lower layers */
 			struct layer *ly;
@@ -534,9 +603,12 @@ static void arrange_layers(struct server *s) {
 				if (ly->ls->output == o->wlr && (int)ly->ls->current.layer == li && ly->ls->initialized)
 					wlr_scene_layer_surface_v1_configure(ly->sls, &full, &usable);
 		}
-		wlr_scene_rect_set_size(s->bg, full.width, full.height);
-		s->usable = usable;
+		o->usable = usable;
 	}
+	struct wlr_box full; wlr_output_layout_get_box(s->output_layout, NULL, &full);
+	wlr_scene_node_set_position(&s->bg->node, full.x, full.y);
+	wlr_scene_rect_set_size(s->bg, full.width, full.height);
+	refresh_lock_geometry(s);
 }
 static void layer_commit(struct wl_listener *l, void *d) {
 	struct layer *ly = wl_container_of(l, ly, commit); (void)d;
@@ -583,7 +655,8 @@ static void new_layer_surface(struct wl_listener *l, void *d) {
 
 
 /* ---------------- Rev 34b: session lock (ext-session-lock-v1) ---------------- */
-struct lockstate { struct server *server; struct wlr_session_lock_v1 *lock; struct wl_listener new_surface, unlock, destroy; };
+struct lockstate { struct server *server; struct wlr_session_lock_v1 *lock; bool acknowledged;
+	struct wl_listener new_surface, unlock, destroy; };
 struct locksurf { struct wlr_session_lock_surface_v1 *ls; struct wlr_scene_tree *tree; struct wl_listener map, destroy; };
 static bool is_lock_surface(struct wlr_surface *surf) {
 	return surf && wlr_session_lock_surface_v1_try_from_wlr_surface(wlr_surface_get_root_surface(surf)) != NULL;
@@ -607,12 +680,39 @@ static void lock_new_surface(struct wl_listener *l, void *d) {
 	struct lockstate *st = wl_container_of(l, st, new_surface); struct wlr_session_lock_surface_v1 *lsurf = d;
 	struct server *s = st->server; struct locksurf *ls = calloc(1, sizeof(*ls)); ls->ls = lsurf;
 	lsurf->surface->data = st;
+	lsurf->data = ls;
 	ls->tree = wlr_scene_subsurface_tree_create(s->lock_tree, lsurf->surface);
 	struct wlr_box ob; wlr_output_layout_get_box(s->output_layout, lsurf->output, &ob);
 	wlr_scene_node_set_position(&ls->tree->node, ob.x, ob.y);
 	wlr_session_lock_surface_v1_configure(lsurf, ob.width, ob.height);
 	ls->map.notify = locksurf_map; wl_signal_add(&lsurf->surface->events.map, &ls->map);
 	ls->destroy.notify = locksurf_destroy; wl_signal_add(&lsurf->events.destroy, &ls->destroy);
+}
+static void refresh_lock_geometry(struct server *s) {
+	if (!s->locked) return;
+	struct wlr_box box; wlr_output_layout_get_box(s->output_layout, NULL, &box);
+	wlr_scene_node_set_position(&s->lock_bg->node, box.x, box.y);
+	wlr_scene_rect_set_size(s->lock_bg, box.width, box.height);
+	if (!s->cur_lock) return;
+	struct wlr_session_lock_surface_v1 *surface;
+	wl_list_for_each(surface, &s->cur_lock->lock->surfaces, link) {
+		struct locksurf *ls = surface->data;
+		if (!ls) continue;
+		wlr_output_layout_get_box(s->output_layout, surface->output, &box);
+		if (box.width <= 0 || box.height <= 0) continue;
+		wlr_scene_node_set_position(&ls->tree->node, box.x, box.y);
+		if (surface->pending.width != (uint32_t)box.width || surface->pending.height != (uint32_t)box.height)
+			wlr_session_lock_surface_v1_configure(surface, box.width, box.height);
+	}
+}
+static void maybe_lock_ack(struct server *s) {
+	if (!s->cur_lock || s->cur_lock->acknowledged) return;
+	struct output *o;
+	wl_list_for_each(o, &s->outputs, link)
+		if (o->wlr->enabled && (!o->lock_covered || o->lock_committing)) return;
+	s->cur_lock->acknowledged = true;
+	wlr_session_lock_v1_send_locked(s->cur_lock->lock);
+	wlr_log(WLR_INFO, "session lock cover presented on all enabled outputs");
 }
 static void lock_finish(struct lockstate *st) {
 	wl_list_remove(&st->new_surface.link); wl_list_remove(&st->unlock.link); wl_list_remove(&st->destroy.link);
@@ -641,12 +741,14 @@ static void new_lock(struct wl_listener *l, void *d) {
 	st->unlock.notify = lock_unlock; wl_signal_add(&lock->events.unlock, &st->unlock);
 	st->destroy.notify = lock_destroy; wl_signal_add(&lock->events.destroy, &st->destroy);
 	s->locked = true; s->mode = CUR_PASS; s->grabbed = NULL;
-	struct wlr_box ob; wlr_output_layout_get_box(s->output_layout, NULL, &ob);
-	wlr_scene_rect_set_size(s->lock_bg, ob.width, ob.height); wlr_scene_node_set_enabled(&s->lock_bg->node, true);
+	refresh_lock_geometry(s); wlr_scene_node_set_enabled(&s->lock_bg->node, true);
 	wlr_scene_node_raise_to_top(&s->lock_tree->node);
 	wlr_seat_keyboard_clear_focus(s->seat); wlr_seat_pointer_clear_focus(s->seat);
-	wlr_session_lock_v1_send_locked(lock);
-	wlr_log(WLR_INFO, "session locked");
+	struct output *o; wl_list_for_each(o, &s->outputs, link) {
+		o->lock_seq = 0; o->lock_covered = false;
+		if (o->wlr->enabled) wlr_output_schedule_frame(o->wlr);
+	}
+	maybe_lock_ack(s);
 }
 
 /* ---------------- keyboard ---------------- */
@@ -773,6 +875,25 @@ static void run_command(struct server *s, char *line) {
 	wlr_log(WLR_INFO, "cmd: %s", line);
 	if (s->locked && strcmp(cmd, "dump")) return;
 	if (!strcmp(cmd, "dump")) dump_state(s);
+	else if (!strcmp(cmd, "keyboard")) {
+		char layout[64], variant[64] = "-", extra;
+		int fields = sscanf(line, "%*s %63s %63s %c", layout, variant, &extra);
+		if (fields < 1 || fields > 2)
+			keyboard_state(s, "Invalid keyboard request");
+		else if (sscanf(line, "%*s %63s", layout) == 1)
+			set_keyboard(s, layout, strcmp(variant, "-") ? variant : "");
+	}
+	else if (!strcmp(cmd, "keyboard-state")) keyboard_state(s, "");
+	else if (!strcmp(cmd, "animations") && n >= 2) {
+		s->reduced_motion = a == 0;
+		if (s->reduced_motion) { struct view *v; wl_list_for_each(v, &s->views, link) finish_fade(v); }
+	}
+	else if (!strcmp(cmd, "focus-app")) {
+		char app[128]; if (sscanf(line, "%*s %127s", app) == 1) {
+			struct view *v; wl_list_for_each(v, &s->views, link)
+				if (v->mapped && !strcmp(view_appid(v), app)) { focus_view(v); break; }
+		}
+	}
 	else if (!strcmp(cmd, "focus") && n >= 2) { struct view *v = view_by_id(s, a); if (v) focus_view(v); }
 	else if (!strcmp(cmd, "close") && n >= 2) { struct view *v = view_by_id(s, a); if (v) { if (v->type == VIEW_XDG) wlr_xdg_toplevel_send_close(v->xdg); else wlr_xwayland_surface_close(v->xs); } }
 	else if (!strcmp(cmd, "desk") && n >= 2) switch_desk(s, a);
@@ -881,8 +1002,8 @@ static bool user_binding(struct server *s, xkb_keysym_t base, uint32_t mods) {
 }
 
 static bool keybinding(struct server *s, xkb_keysym_t sym, uint32_t mods) {
-	if ((mods & WLR_MODIFIER_LOGO) && (mods & WLR_MODIFIER_SHIFT) && sym == XKB_KEY_Escape) { wl_display_terminate(s->display); return true; }
 	if (s->locked) return false;   /* Rev 34b: keys go to the lock screen only */
+	if ((mods & WLR_MODIFIER_LOGO) && (mods & WLR_MODIFIER_SHIFT) && sym == XKB_KEY_Escape) { wl_display_terminate(s->display); return true; }
 	if (mods & WLR_MODIFIER_LOGO) {
 		if (sym == XKB_KEY_Return) { spawn(s, s->terminal); return true; }
 		if (sym == XKB_KEY_Left || sym == XKB_KEY_Right || sym == XKB_KEY_Up || sym == XKB_KEY_Down) {
@@ -936,13 +1057,47 @@ static void kb_destroy(struct wl_listener *l, void *d) {
 	struct keyboard *k = wl_container_of(l, k, destroy); (void)d;
 	wl_list_remove(&k->modifiers.link); wl_list_remove(&k->key.link); wl_list_remove(&k->destroy.link); wl_list_remove(&k->link); free(k);
 }
-static void add_keyboard(struct server *s, struct wlr_keyboard *wk) {
-	struct keyboard *k = calloc(1, sizeof(*k)); k->server = s; k->wlr = wk;
+static void keyboard_state(struct server *s, const char *error) {
+	char path[512], temporary[520];
+	snprintf(path, sizeof path, "%s/polder-keyboard.json", getenv("XDG_RUNTIME_DIR") ? getenv("XDG_RUNTIME_DIR") : "/tmp");
+	snprintf(temporary, sizeof temporary, "%s.tmp", path);
+	FILE *f = fopen(temporary, "w"); if (!f) return;
+	fputs("{\"layout\":", f); json_str(f, s->keyboard_layout);
+	fputs(",\"variant\":", f); json_str(f, s->keyboard_variant);
+	fputs(",\"error\":", f); json_str(f, error);
+	/* Report a symbol from the compiled map, rather than merely echoing a request. */
+	xkb_keycode_t key = s->keymap ? xkb_keymap_key_by_name(s->keymap, "AD06") : XKB_KEYCODE_INVALID;
+	const xkb_keysym_t *syms; int n = s->keymap ? xkb_keymap_key_get_syms_by_level(s->keymap, key, 0, 0, &syms) : 0;
+	char symbol[64] = ""; if (n > 0) xkb_keysym_get_name(syms[0], symbol, sizeof symbol);
+	fputs(",\"ad06\":", f); json_str(f, symbol);
+	fputs("}\n", f); fclose(f); rename(temporary, path);
+}
+static bool set_keyboard(struct server *s, const char *layout, const char *variant) {
+	if (strspn(layout, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-,") != strlen(layout) ||
+		strspn(variant, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-,") != strlen(variant)) {
+		keyboard_state(s, "Invalid keyboard layout"); return false;
+	}
 	struct xkb_context *ctx = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-	struct xkb_rule_names names = { .layout = getenv("XKB_DEFAULT_LAYOUT") ? getenv("XKB_DEFAULT_LAYOUT") : "us" };
+	struct xkb_rule_names names = { .layout = layout, .variant = variant };
 	struct xkb_keymap *km = xkb_keymap_new_from_names(ctx, &names, XKB_KEYMAP_COMPILE_NO_FLAGS);
-	if (wk->keymap == NULL) wlr_keyboard_set_keymap(wk, km);   /* virtual keyboards bring their own keymap */
-	xkb_keymap_unref(km); xkb_context_unref(ctx);
+	xkb_context_unref(ctx);
+	if (!km) { keyboard_state(s, "Keyboard layout could not be loaded"); return false; }
+	struct keyboard *k;
+	wl_list_for_each(k, &s->keyboards, link) if (!k->virtual && !wlr_keyboard_set_keymap(k->wlr, km)) {
+		wl_list_for_each(k, &s->keyboards, link) if (!k->virtual && s->keymap) wlr_keyboard_set_keymap(k->wlr, s->keymap);
+		xkb_keymap_unref(km); keyboard_state(s, "Keyboard update failed"); return false;
+	}
+	xkb_keymap_unref(s->keymap); s->keymap = km;
+	snprintf(s->keyboard_layout, sizeof s->keyboard_layout, "%s", layout);
+	snprintf(s->keyboard_variant, sizeof s->keyboard_variant, "%s", variant);
+	keyboard_state(s, ""); return true;
+}
+static void add_keyboard(struct server *s, struct wlr_keyboard *wk, bool virtual) {
+	struct keyboard *k = calloc(1, sizeof(*k)); k->server = s; k->wlr = wk; k->virtual = virtual;
+	/* A newly announced virtual device has no map until its client sends one.
+	 * Never publish format 0 to existing GTK/swaylock clients in that interval.
+	 * The client's subsequent map replaces this initial map and remains its own. */
+	if (!virtual || !wk->keymap) wlr_keyboard_set_keymap(wk, s->keymap);
 	wlr_keyboard_set_repeat_info(wk, 25, 600);
 	k->modifiers.notify = kb_modifiers; wl_signal_add(&wk->events.modifiers, &k->modifiers);
 	k->key.notify = kb_key; wl_signal_add(&wk->events.key, &k->key);
@@ -953,12 +1108,12 @@ static void add_keyboard(struct server *s, struct wlr_keyboard *wk) {
 }
 static void new_input(struct wl_listener *l, void *d) {
 	struct server *s = wl_container_of(l, s, new_input); struct wlr_input_device *dev = d;
-	if (dev->type == WLR_INPUT_DEVICE_KEYBOARD) add_keyboard(s, wlr_keyboard_from_input_device(dev));
+	if (dev->type == WLR_INPUT_DEVICE_KEYBOARD) add_keyboard(s, wlr_keyboard_from_input_device(dev), false);
 	else if (dev->type == WLR_INPUT_DEVICE_POINTER) wlr_cursor_attach_input_device(s->cursor, dev);
 	wlr_seat_set_capabilities(s->seat, WL_SEAT_CAPABILITY_POINTER | (wl_list_empty(&s->keyboards) ? 0 : WL_SEAT_CAPABILITY_KEYBOARD));
 }
 static void new_vkbd(struct wl_listener *l, void *d) {
-	struct server *s = wl_container_of(l, s, new_vkbd); struct wlr_virtual_keyboard_v1 *vk = d; add_keyboard(s, &vk->keyboard);
+	struct server *s = wl_container_of(l, s, new_vkbd); struct wlr_virtual_keyboard_v1 *vk = d; add_keyboard(s, &vk->keyboard, true);
 }
 static void new_vptr(struct wl_listener *l, void *d) {
 	struct server *s = wl_container_of(l, s, new_vptr); struct wlr_virtual_pointer_v1_new_pointer_event *e = d;
@@ -1079,16 +1234,160 @@ static void cursor_axis(struct wl_listener *l, void *d) {
 static void cursor_frame(struct wl_listener *l, void *d) { struct server *s = wl_container_of(l, s, cursor_frame); (void)d; wlr_seat_pointer_notify_frame(s->seat); }
 
 /* ---------------- outputs ---------------- */
+static struct wlr_output_configuration_v1 *output_snapshot(struct server *s) {
+	struct wlr_output_configuration_v1 *config = wlr_output_configuration_v1_create();
+	struct output *o;
+	wl_list_for_each(o, &s->outputs, link) {
+		struct wlr_output_configuration_head_v1 *head = wlr_output_configuration_head_v1_create(config, o->wlr);
+		struct wlr_output_layout_output *lo = wlr_output_layout_get(s->output_layout, o->wlr);
+		if (lo) { head->state.x = lo->x; head->state.y = lo->y; }
+	}
+	return config;
+}
+static void publish_outputs(struct server *s) {
+	if (s->output_manager && !s->configuring_outputs)
+		wlr_output_manager_v1_set_configuration(s->output_manager, output_snapshot(s));
+}
+static void reflow_outputs(struct server *s) {
+	arrange_layers(s);
+	struct view *v;
+	wl_list_for_each(v, &s->views, link) {
+		if (!v->mapped) continue;
+		struct wlr_box b; view_box(v, &b);
+		struct wlr_box u = area_at(s, b.x + b.width / 2, b.y + b.height / 2);
+		if (*v->reflow_output) {
+			struct output *o;
+			wl_list_for_each(o, &s->outputs, link) if (o->wlr->enabled && !strcmp(o->wlr->name, v->reflow_output)) {
+				struct wlr_output_layout_output *lo = wlr_output_layout_get(s->output_layout, o->wlr);
+				if (!lo) break;
+				int dx = lo->x - v->reflow_x, dy = lo->y - v->reflow_y;
+				b.x += dx; b.y += dy; u = o->usable;
+				v->saved.x += dx; v->saved.y += dy;
+				view_move_to(v, b.x, b.y);
+				break;
+			}
+			*v->reflow_output = '\0';
+		}
+		if (v->snap != SNAP_NONE) {
+			struct wlr_box target = snap_box(u, v->snap);
+			view_set_size(v, target.x, target.y, target.width, target.height);
+			view_update_decor(v); continue;
+		}
+		int w = b.width < u.width - 2 * GAP ? b.width : u.width - 2 * GAP;
+		int h = b.height < u.height - 2 * GAP ? b.height : u.height - 2 * GAP;
+		int x = b.x, y = b.y;
+		if (x + w > u.x + u.width) x = u.x + u.width - w - GAP;
+		if (y + h > u.y + u.height) y = u.y + u.height - h - GAP;
+		if (x < u.x) x = u.x + GAP;
+		if (y < u.y) y = u.y + GAP;
+		if (x != b.x || y != b.y || w != b.width || h != b.height)
+			view_set_size(v, x, y, w > 0 ? w : 1, h > 0 ? h : 1);
+	}
+	publish_outputs(s);
+}
+static void layout_changed(struct wl_listener *l, void *d) {
+	struct server *s = wl_container_of(l, s, layout_change); (void)d;
+	if (!s->configuring_outputs) reflow_outputs(s);
+}
+static void finish_backend_states(struct wlr_backend_output_state *states, size_t n) {
+	if (!states) return;
+	for (size_t i = 0; i < n; i++) wlr_output_state_finish(&states[i].base);
+	free(states);
+}
+static void configure_outputs(struct server *s, struct wlr_output_configuration_v1 *config, bool test) {
+	bool valid = !s->locked; int enabled = 0;
+	struct wlr_output_configuration_head_v1 *head;
+	wl_list_for_each(head, &config->heads, link) {
+		if (!head->state.enabled) continue;
+		enabled++;
+		int w = head->state.mode ? head->state.mode->width : head->state.custom_mode.width;
+		int h = head->state.mode ? head->state.mode->height : head->state.custom_mode.height;
+		if (!isfinite(head->state.scale) || head->state.scale < 0.5 || head->state.scale > 4 ||
+			w < 320 || h < 200 || w > 16384 || h > 16384 ||
+			head->state.x < -32768 || head->state.x > 32768 || head->state.y < -32768 || head->state.y > 32768)
+			valid = false;
+	}
+	valid = valid && enabled > 0;
+	size_t count = 0;
+	struct wlr_backend_output_state *states = valid ? wlr_output_configuration_v1_build_state(config, &count) : NULL;
+	valid = valid && states && wlr_backend_test(s->backend, states, count);
+	if (valid && !test) {
+		struct wlr_output_configuration_v1 *previous = output_snapshot(s);
+		/* Remember monitor membership before moving/scaling outputs. Otherwise
+		 * a maximized window's old centre can land on a different monitor. */
+		struct view *v;
+		wl_list_for_each(v, &s->views, link) {
+			struct wlr_box box; view_box(v, &box);
+			struct wlr_output *output = wlr_output_layout_output_at(s->output_layout, box.x + box.width / 2, box.y + box.height / 2);
+			struct wlr_output_layout_output *lo = output ? wlr_output_layout_get(s->output_layout, output) : NULL;
+			if (lo) {
+				snprintf(v->reflow_output, sizeof v->reflow_output, "%s", output->name);
+				v->reflow_x = lo->x; v->reflow_y = lo->y;
+			}
+		}
+		s->configuring_outputs = true;
+		valid = wlr_backend_commit(s->backend, states, count);
+		if (!valid) {  /* A backend may have partially committed despite a successful test. */
+			size_t old_count = 0;
+			struct wlr_backend_output_state *old = wlr_output_configuration_v1_build_state(previous, &old_count);
+			if (old && !wlr_backend_commit(s->backend, old, old_count))
+				wlr_log(WLR_ERROR, "output rollback failed; retaining available outputs");
+			finish_backend_states(old, old_count);
+		} else {
+			wl_list_for_each(head, &config->heads, link) {
+				if (head->state.enabled) {
+					struct wlr_output_layout_output *lo = wlr_output_layout_add(s->output_layout,
+						head->state.output, head->state.x, head->state.y);
+					struct wlr_scene_output *so = wlr_scene_get_scene_output(s->scene, head->state.output);
+					if (lo && so) wlr_scene_output_layout_add_output(s->scene_layout, lo, so);
+				} else wlr_output_layout_remove(s->output_layout, head->state.output);
+			}
+		}
+		wlr_output_configuration_v1_destroy(previous);
+		s->configuring_outputs = false; reflow_outputs(s);
+	}
+	finish_backend_states(states, count);
+	if (valid) wlr_output_configuration_v1_send_succeeded(config);
+	else wlr_output_configuration_v1_send_failed(config);
+	wlr_output_configuration_v1_destroy(config);
+}
+static void output_apply(struct wl_listener *l, void *d) {
+	struct server *s = wl_container_of(l, s, output_apply); configure_outputs(s, d, false);
+}
+static void output_test(struct wl_listener *l, void *d) {
+	struct server *s = wl_container_of(l, s, output_test); configure_outputs(s, d, true);
+}
+static void output_present(struct wl_listener *l, void *d) {
+	struct output *o = wl_container_of(l, o, present); struct wlr_output_event_present *event = d;
+	if (!o->lock_seq || event->commit_seq != o->lock_seq) return;
+	o->lock_covered = event->presented;
+	if (!event->presented) { o->lock_seq = 0; wlr_output_schedule_frame(o->wlr); }
+	maybe_lock_ack(o->server);
+}
 static void output_frame(struct wl_listener *l, void *d) {
 	struct output *o = wl_container_of(l, o, frame); (void)d;
 	struct wlr_scene_output *so = wlr_scene_get_scene_output(o->server->scene, o->wlr);
-	wlr_scene_output_commit(so, NULL);
+	if (!so || !o->wlr->enabled) return;
+	bool lock_frame = o->server->cur_lock && !o->server->cur_lock->acknowledged && !o->lock_covered && !o->lock_seq;
+	if (lock_frame) { o->lock_seq = o->wlr->commit_seq + 1; o->lock_committing = true; }
+	bool committed = wlr_scene_output_commit(so, NULL);
+	if (lock_frame) {
+		o->lock_committing = false;
+		if (!committed) { o->lock_seq = 0; o->lock_covered = false; wlr_output_schedule_frame(o->wlr); }
+		maybe_lock_ack(o->server);
+	}
 	struct timespec now; clock_gettime(CLOCK_MONOTONIC, &now); wlr_scene_output_send_frame_done(so, &now);
 }
-static void output_request_state(struct wl_listener *l, void *d) { struct output *o = wl_container_of(l, o, request_state); const struct wlr_output_event_request_state *e = d; wlr_output_commit_state(o->wlr, e->state); }
+static void output_request_state(struct wl_listener *l, void *d) {
+	struct output *o = wl_container_of(l, o, request_state); const struct wlr_output_event_request_state *e = d;
+	if (wlr_output_commit_state(o->wlr, e->state)) reflow_outputs(o->server);
+}
 static void output_destroy(struct wl_listener *l, void *d) {
 	struct output *o = wl_container_of(l, o, destroy); (void)d;
-	wl_list_remove(&o->frame.link); wl_list_remove(&o->request_state.link); wl_list_remove(&o->destroy.link); wl_list_remove(&o->link); free(o);
+	struct server *s = o->server;
+	wl_list_remove(&o->frame.link); wl_list_remove(&o->present.link); wl_list_remove(&o->request_state.link);
+	wl_list_remove(&o->destroy.link); wl_list_remove(&o->link); free(o);
+	maybe_lock_ack(s); publish_outputs(s);
 }
 static void new_output(struct wl_listener *l, void *d) {
 	struct server *s = wl_container_of(l, s, new_output); struct wlr_output *wo = d;
@@ -1098,13 +1397,14 @@ static void new_output(struct wl_listener *l, void *d) {
 	wlr_output_commit_state(wo, &st); wlr_output_state_finish(&st);
 	struct output *o = calloc(1, sizeof(*o)); o->server = s; o->wlr = wo;
 	o->frame.notify = output_frame; wl_signal_add(&wo->events.frame, &o->frame);
+	o->present.notify = output_present; wl_signal_add(&wo->events.present, &o->present);
 	o->request_state.notify = output_request_state; wl_signal_add(&wo->events.request_state, &o->request_state);
 	o->destroy.notify = output_destroy; wl_signal_add(&wo->events.destroy, &o->destroy);
 	wl_list_insert(&s->outputs, &o->link);
 	struct wlr_output_layout_output *lo = wlr_output_layout_add_auto(s->output_layout, wo);
 	struct wlr_scene_output *so = wlr_scene_output_create(s->scene, wo);
 	wlr_scene_output_layout_add_output(s->scene_layout, lo, so);
-	arrange_layers(s);
+	reflow_outputs(s);
 }
 
 static void add_headless_output(struct wlr_backend *b, void *data) {
@@ -1141,19 +1441,23 @@ int main(int argc, char *argv[]) {
 	wl_event_loop_add_signal(wl_display_get_event_loop(s.display), SIGUSR2, dump_windows, &s);   /* Rev 34d */
 	if (!s.backend) { wlr_log(WLR_ERROR, "no backend"); return 1; }
 #ifdef POLDER_SCENEFX
+	const int renderer_error = 78; /* Wrapper may try the separate software build. */
 	s.renderer = fx_renderer_create(s.backend);
 #else
+	const int renderer_error = 1;
 	s.renderer = wlr_renderer_autocreate(s.backend);
 #endif
-	if (!s.renderer) { wlr_log(WLR_ERROR, "no renderer (scenefx needs GLES2)"); return 1; }
-	wlr_renderer_init_wl_display(s.renderer, s.display);
+	if (!s.renderer) { wlr_log(WLR_ERROR, "no renderer (scenefx needs GLES2)"); return renderer_error; }
+	if (!wlr_renderer_init_wl_display(s.renderer, s.display)) return renderer_error;
 	s.allocator = wlr_allocator_autocreate(s.backend, s.renderer);
+	if (!s.allocator) return renderer_error;
 	s.compositor = wlr_compositor_create(s.display, 5, s.renderer);
 	wlr_subcompositor_create(s.display);
 	wlr_data_device_manager_create(s.display);
 	wlr_data_control_manager_v1_create(s.display);
 	wlr_primary_selection_v1_device_manager_create(s.display);
 	wlr_viewporter_create(s.display);
+	wlr_fractional_scale_manager_v1_create(s.display, 1);
 	s.output_layout = wlr_output_layout_create(s.display);
 	wl_list_init(&s.outputs); wl_list_init(&s.views); wl_list_init(&s.layer_surfaces); wl_list_init(&s.keyboards);
 	s.new_output.notify = new_output; wl_signal_add(&s.backend->events.new_output, &s.new_output);
@@ -1167,6 +1471,10 @@ int main(int argc, char *argv[]) {
 	s.lock_tree = wlr_scene_tree_create(&s.scene->tree);   /* Rev 34b: above everything, incl. overlay + Xwayland menus */
 	{ float lc[4] = { 0.06f, 0.07f, 0.09f, 1.0f }; s.lock_bg = wlr_scene_rect_create(s.lock_tree, 1, 1, lc); wlr_scene_node_set_enabled(&s.lock_bg->node, false); }
 	s.xdg_shell = wlr_xdg_shell_create(s.display, 3);
+	s.output_manager = wlr_output_manager_v1_create(s.display);
+	s.output_apply.notify = output_apply; wl_signal_add(&s.output_manager->events.apply, &s.output_apply);
+	s.output_test.notify = output_test; wl_signal_add(&s.output_manager->events.test, &s.output_test);
+	s.layout_change.notify = layout_changed; wl_signal_add(&s.output_layout->events.change, &s.layout_change);
 	s.new_xdg_toplevel.notify = new_xdg_toplevel; wl_signal_add(&s.xdg_shell->events.new_toplevel, &s.new_xdg_toplevel);
 	s.new_xdg_popup.notify = new_xdg_popup; wl_signal_add(&s.xdg_shell->events.new_popup, &s.new_xdg_popup);
 	s.layer_shell = wlr_layer_shell_v1_create(s.display, 4);
@@ -1197,6 +1505,8 @@ int main(int argc, char *argv[]) {
 	struct wlr_virtual_pointer_manager_v1 *vp = wlr_virtual_pointer_manager_v1_create(s.display);
 	s.new_vptr.notify = new_vptr; wl_signal_add(&vp->events.new_virtual_pointer, &s.new_vptr);
 	wlr_seat_set_capabilities(s.seat, WL_SEAT_CAPABILITY_POINTER);
+	if (!set_keyboard(&s, getenv("XKB_DEFAULT_LAYOUT") ? getenv("XKB_DEFAULT_LAYOUT") : "us",
+		getenv("XKB_DEFAULT_VARIANT") ? getenv("XKB_DEFAULT_VARIANT") : "")) set_keyboard(&s, "us", "");
 
 	const char *sock = wl_display_add_socket_auto(s.display);
 	if (!sock || !wlr_backend_start(s.backend)) { wlr_log(WLR_ERROR, "start failed"); return 1; }
@@ -1213,11 +1523,13 @@ int main(int argc, char *argv[]) {
 	wlr_log(WLR_INFO, "polder-comp on WAYLAND_DISPLAY=%s DISPLAY=%s", sock, getenv("DISPLAY") ? getenv("DISPLAY") : "-");
 	if (startup) spawn(&s, startup);
 	wl_display_run(s.display);
+	s.configuring_outputs = true;
 	if (s.xwayland) wlr_xwayland_destroy(s.xwayland);
 	wl_display_destroy_clients(s.display);
 	wlr_scene_node_destroy(&s.scene->tree.node);
 	wlr_xcursor_manager_destroy(s.xcursor); wlr_cursor_destroy(s.cursor);
 	wlr_allocator_destroy(s.allocator); wlr_renderer_destroy(s.renderer); wlr_backend_destroy(s.backend);
+	xkb_keymap_unref(s.keymap);
 	wl_display_destroy(s.display);
 	return 0;
 }

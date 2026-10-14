@@ -6,18 +6,22 @@ HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in ('osb', 'notify', 'calendar'): sys.path.insert(0, os.path.join(C, d))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
 from gi.repository import Gtk, Gdk, GLib, GdkPixbuf, Pango, Gio
+GLib.set_prgname('polder-settings')
 sys.path.insert(0, os.path.join(C, 'weather')); sys.path.insert(0, os.path.join(C, 'webapps'))
 import osbsettings as S, osbnotify as N, feeds
-PID = '/tmp/osb-settings.pid'
+PID = os.path.join(os.environ.get('OSB_RUNDIR', '/tmp'), 'osb-settings.pid')
+SECTION = os.path.join(os.environ.get('OSB_RUNDIR', '/tmp'), 'osb-settings.section')
 if os.path.exists(PID):   # single instance: raise the existing window (and switch section)
     try:
         os.kill(int(open(PID).read()), 0)
-        if len(sys.argv) > 1: open('/tmp/osb-settings.section', 'w').write(sys.argv[1])
-        subprocess.run(['wmctrl', '-a', 'Instellingen'], timeout=5); sys.exit(0)
+        open(SECTION, 'w').write(sys.argv[1] if len(sys.argv) > 1 else '')
+        if not os.environ.get('POLDER_COMP'): subprocess.run(['wmctrl', '-a', 'Instellingen'], timeout=5)
+        sys.exit(0)
     except (ProcessLookupError, ValueError): pass
 open(PID, 'w').write(str(os.getpid()))
 
 SECTIONS = [('personalisatie', 'preferences-desktop-wallpaper-symbolic', 'Personalisatie'),
+            ('beeldscherm', 'video-display-symbolic', 'Beeldschermen'),
             ('meldingen', 'preferences-system-notifications-symbolic', 'Meldingen'),
             ('agenda', 'x-office-calendar-symbolic', 'Agenda'),
             ('toetsenbord', 'input-keyboard-symbolic', 'Toetsenbord en taal'),
@@ -79,7 +83,9 @@ class App(Gtk.Window):
         hb = Gtk.Box(); self.add(hb)
         left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL); left.set_size_request(260, -1)
         t = Gtk.Label(label='Instellingen', xalign=0); t.get_style_context().add_class('apptitle'); left.pack_start(t, False, False, 0)
-        self.nav = Gtk.ListBox(); self.nav.set_name('nav'); left.pack_start(self.nav, True, True, 0)
+        self.nav = Gtk.ListBox(); self.nav.set_name('nav')
+        nav_scroll = Gtk.ScrolledWindow(); nav_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        nav_scroll.add(self.nav); left.pack_start(nav_scroll, True, True, 0)
         for key, icon, label in SECTIONS:
             r = Gtk.ListBoxRow(); r.key = key; b = Gtk.Box(spacing=16)
             b.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU), False, False, 0); b.pack_start(Gtk.Label(label=label, xalign=0), True, True, 0)
@@ -99,13 +105,24 @@ class App(Gtk.Window):
 
     def tick(self):
         self.reload_css()
-        f = '/tmp/osb-settings.section'
+        f = SECTION
         if os.path.exists(f):
             k = open(f).read().strip(); os.remove(f); keys = [s[0] for s in SECTIONS]
             if k in keys: self.nav.select_row(self.nav.get_row_at_index(keys.index(k)))
+            self.present()
+            if os.environ.get('POLDER_COMP'):
+                try:
+                    import wayland_control
+                    wayland_control.command('focus-app polder-settings')
+                except OSError: pass
         if getattr(self, 'cur', '') == 'agenda' and not getattr(self, 'syncing', False):
             st = feeds.status()
             if st != getattr(self, 'last_status', None): self.last_status = st; self.show('agenda')
+        if getattr(self, 'cur', '') == 'toetsenbord' and os.environ.get('POLDER_COMP'):
+            import wayland_control
+            state = wayland_control.keyboard_state()
+            name = next((label for l, v, label in S.LAYOUTS if (l, v) == (state.get('layout'), state.get('variant'))), state.get('layout', ''))
+            self.keyboard_status.set_text('Indeling kon niet worden toegepast.' if state.get('error') else 'Actief: ' + name)
         return True
 
     def show(self, key):
@@ -139,6 +156,84 @@ class App(Gtk.Window):
         cb_.set_active_id(str(cur)); cb_.connect('changed', lambda w: cb(w.get_active_id())); return cb_
 
     # ---------- pages ----------
+    def page_beeldscherm(self, o):
+        if not os.environ.get('POLDER_COMP'):
+            c = self.card(o, 'Beeldschermen')
+            b = Gtk.Button(label='Beeldschermen instellen')
+            b.connect('clicked', lambda *a: subprocess.Popen(['xfce4-display-settings']))
+            self.row(c, 'Resolutie en schaal', 'Open de beeldscherminstellingen.', b, last=True)
+            return
+        import wayland_display as D
+        try:
+            monitors = D.outputs()
+        except Exception:
+            self.row(self.card(o, 'Beeldschermen'), 'Beeldschermen niet beschikbaar', 'Probeer het opnieuw nadat het scherm is aangesloten.', last=True)
+            return
+        forms = []
+        for monitor in monitors:
+            p = D.profile(monitor); forms.append(p)
+            c = self.card(o, monitor.get('description') or monitor['name'])
+            self.row(c, 'Beeldscherm gebruiken', monitor['name'], self.switch(p['enabled'], lambda v, p=p: p.update(enabled=v)))
+            modes = monitor.get('modes', [])
+            cur = next((str(i) for i, m in enumerate(modes) if m.get('current')), '0')
+            items = [(str(i), f"{m['width']} × {m['height']}" + (f" · {m['refresh']:g} Hz" if m['refresh'] else '')) for i, m in enumerate(modes)]
+            self.row(c, 'Resolutie', None, self.combo(items, cur, lambda v, p=p, modes=modes: p.update(mode=modes[int(v)])))
+            scales = sorted(set([1, 1.25, 1.5, 1.75, 2, 2.5, 3, p['scale']]))
+            self.row(c, 'Schaal', 'Grootte van tekst en bedieningselementen.', self.combo([(v, f'{v * 100:g}%') for v in scales], p['scale'], lambda v, p=p: p.update(scale=float(v))))
+            transforms = [('normal', 'Liggend'), ('90', 'Staand links'), ('180', 'Liggend omgekeerd'), ('270', 'Staand rechts')]
+            if p['transform'] not in dict(transforms): transforms.append((p['transform'], 'Gespiegeld'))
+            self.row(c, 'Oriëntatie', None, self.combo(transforms, p['transform'], lambda v, p=p: p.update(transform=v)), last=len(monitors) == 1)
+            if len(monitors) > 1:
+                position = Gtk.Box(spacing=6)
+                for axis in ('x', 'y'):
+                    position.pack_start(Gtk.Label(label=axis.upper() + ':'), False, False, 0)
+                    spin = Gtk.SpinButton.new_with_range(-32768, 32768, 1)
+                    spin.set_value(p['position'][axis]); spin.set_width_chars(6)
+                    spin.connect('value-changed', lambda w, p=p, axis=axis: p['position'].update({axis: w.get_value_as_int()}))
+                    position.pack_start(spin, False, False, 0)
+                self.row(c, 'Plaatsing', 'Positie ten opzichte van de andere beeldschermen.', position, last=True)
+        buttons = Gtk.Box(spacing=8)
+        apply_button = Gtk.Button(label='Toepassen'); apply_button.get_style_context().add_class('btn')
+        def begin(*a):
+            apply_button.set_sensitive(False)
+            def worker():
+                try: token, error = D.begin_preview(forms), None
+                except Exception as exc: token, error = None, str(exc)
+                GLib.idle_add(self.display_preview, token, error)
+            threading.Thread(target=worker, daemon=True).start()
+        apply_button.connect('clicked', begin); buttons.pack_start(apply_button, False, False, 0)
+        refresh = Gtk.Button(label='Vernieuwen'); refresh.connect('clicked', lambda *a: self.show('beeldscherm'))
+        buttons.pack_start(refresh, False, False, 0); o.pack_start(buttons, False, False, 0)
+        hint = Gtk.Label(label='Bevestig binnen 15 seconden. Zonder bevestiging worden de vorige instellingen hersteld.', xalign=0)
+        hint.set_line_wrap(True); o.pack_start(hint, False, False, 0)
+
+    def display_preview(self, token, error):
+        import wayland_display as D
+        if error:
+            dialog = Gtk.MessageDialog(transient_for=self, modal=True, message_type=Gtk.MessageType.ERROR,
+                                       buttons=Gtk.ButtonsType.CLOSE, text='Beeldschermwijziging niet toegepast')
+            dialog.format_secondary_text(error); dialog.connect('response', lambda d, r: (d.destroy(), self.show('beeldscherm')))
+            dialog.show(); return False
+        dialog = Gtk.MessageDialog(transient_for=self, modal=True, text='Deze beeldscherminstellingen behouden?')
+        dialog.add_button('Herstellen', Gtk.ResponseType.REJECT); dialog.add_button('Behouden', Gtk.ResponseType.ACCEPT)
+        closed = [False]
+        def response(d, result):
+            if closed[0]: return
+            closed[0] = True
+            try: D.decide(token, result == Gtk.ResponseType.ACCEPT)
+            except RuntimeError: pass  # The independent watchdog may already have restored the display.
+            d.destroy(); GLib.timeout_add(300, lambda: (self.show('beeldscherm'), False)[1])
+        def countdown():
+            if closed[0]: return False
+            state = D.read_state()
+            left = max(0, int(state['deadline'] - time.monotonic()) + 1)
+            dialog.format_secondary_text(f'De vorige instellingen worden over {left} seconden hersteld.')
+            if state['token'] != token or state['status'] not in ('starting', 'preview'):
+                closed[0] = True; dialog.destroy(); self.show('beeldscherm'); return False
+            return True
+        dialog.connect('response', response); dialog.show(); countdown(); GLib.timeout_add(200, countdown)
+        return False
+
     def page_personalisatie(self, o):
         s = S.load()
         c = self.card(o, 'Personalisatie')
@@ -154,7 +249,9 @@ class App(Gtk.Window):
             cp = Gtk.CssProvider(); cp.load_from_data(f'.swatch {{ background: {S.ACCENTS[name][0]}; }}'.encode())
             b.get_style_context().add_provider(cp, 900); b.set_active(s['accent'] == name)
             b.connect('toggled', self.set_accent, name, sg); sg.append(b); sw.pack_start(b, False, False, 0)
-        self.row(c, 'Accentkleur', s['accent'].capitalize(), sw, last=True)
+        self.row(c, 'Accentkleur', s['accent'].capitalize(), sw)
+        self.row(c, 'Minder beweging', 'Verminder animaties bij het openen van vensters en in apps.',
+                 self.switch(s.get('reduced_motion', False), lambda v: S.update(reduced_motion=v)), last=True)
         c2 = self.card(o, 'Achtergrond')
         fb = Gtk.FlowBox(); fb.set_selection_mode(Gtk.SelectionMode.NONE); fb.set_max_children_per_line(3); fb.set_border_width(12); wg = []
         tdir = os.path.join(S.CACHE, 'thumbs'); os.makedirs(tdir, exist_ok=True)
@@ -253,11 +350,16 @@ class App(Gtk.Window):
 
     def page_toetsenbord(self, o):
         s = S.load(); c = self.card(o, 'Toetsenbord en taal')
-        cur = subprocess.run(['setxkbmap', '-query'], capture_output=True, text=True, timeout=5).stdout
-        cur = ' '.join(l.split(':', 1)[1].strip() for l in cur.splitlines() if l.startswith(('layout', 'variant')))
+        if os.environ.get('POLDER_COMP'):
+            cur = 'Wijzigingen gelden direct voor aangesloten toetsenborden.'
+        else:
+            cur = subprocess.run(['setxkbmap', '-query'], capture_output=True, text=True, timeout=5).stdout
+            cur = 'Actief: ' + ' '.join(l.split(':', 1)[1].strip() for l in cur.splitlines() if l.startswith(('layout', 'variant')))
         items = [(f'{l}:{v}', n) for l, v, n in S.LAYOUTS]
         def setl(k): l, v = k.split(':'); S.update(kbd_layout=l, kbd_variant=v)
-        self.row(c, 'Toetsenbordindeling', f'Nu actief (setxkbmap): {cur}. De plank toont de indeling.', self.combo(items, f"{s['kbd_layout']}:{s.get('kbd_variant', '')}", setl))
+        self.row(c, 'Toetsenbordindeling', cur, self.combo(items, f"{s['kbd_layout']}:{s.get('kbd_variant', '')}", setl))
+        self.keyboard_status = Gtk.Label(xalign=0)
+        if os.environ.get('POLDER_COMP'): c.pack_start(self.keyboard_status, False, False, 8)
         e = Gtk.Entry(placeholder_text='Typ hier om de indeling te testen'); e.set_size_request(260, -1)
         self.row(c, 'Testveld', None, e)
         self.row(c, 'Taal van de interface', 'Nederlands (Polder OS-onderdelen). Andere talen zijn nog niet beschikbaar.', last=True)

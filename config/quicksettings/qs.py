@@ -30,6 +30,9 @@ if os.path.exists('/tmp/osb-cal.pid'):
 
 def have(c): return shutil.which(c) is not None
 def run(*a): subprocess.Popen(a, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+WAYLAND = bool(os.environ.get('POLDER_COMP') and os.environ.get('WAYLAND_DISPLAY'))
+def backlight():
+    return have('brightnessctl') and os.path.isdir('/sys/class/backlight') and bool(os.listdir('/sys/class/backlight'))
 
 def battery():
     import glob
@@ -52,8 +55,9 @@ def kbd_name():
 TILES = []
 if have('nmcli'): TILES.append(('wifi', 'network-wireless-signal-excellent-symbolic', 'Wifi', None, True, True))
 if have('bluetoothctl'): TILES.append(('bt', 'bluetooth-active-symbolic', 'Bluetooth', None, False, True))
+if not WAYLAND:
+    TILES.append(('night', 'daytime-sunset-symbolic', 'Nachtlicht', 'Aan' if SET['night_light'] else 'Uit', SET['night_light'], True))
 TILES += [
-    ('night', 'daytime-sunset-symbolic', 'Nachtlicht', 'Aan' if SET['night_light'] else 'Uit', SET['night_light'], True),
     ('dark', 'weather-clear-night-symbolic', 'Donker thema', {'auto': 'Automatisch', 'dark': 'Aan', 'light': 'Uit'}[SET['theme']], OSBS.effective_theme(SET) == 'dark', True),
     ('kbd', 'input-keyboard-symbolic', 'Toetsenbord', kbd_name(), False, True),
     ('cap', 'camera-photo-symbolic', 'Schermopname', 'Screenshot of video', False, True),
@@ -147,7 +151,8 @@ class QS(Gtk.Window):
         # sliders
         if have('pactl') or have('amixer'):   # no audio stack in this session -> no fake slider
             panel.pack_start(self.slider('audio-volume-high-symbolic', 70, self.set_vol, None), False, False, 0)
-        panel.pack_start(self.slider('display-brightness-symbolic', self.cur_bri(), self.set_bri, None), False, False, 0)
+        if backlight() or (not WAYLAND and have('xrandr')):
+            panel.pack_start(self.slider('display-brightness-symbolic', self.cur_bri(), self.set_bri, None), False, False, 0)
         # footer
         ft = Gtk.Box(spacing=8); ft.set_name('footer')
         ft.pack_start(self.round_btn('system-shutdown-symbolic', self.power_menu), False, False, 0)
@@ -246,7 +251,7 @@ class QS(Gtk.Window):
             except Exception as e: print('dnd', e)
         if key == 'wifi' and have('nmcli'): run('nmcli', 'radio', 'wifi', 'on' if on else 'off')
         elif key == 'bt' and have('bluetoothctl'): run('bluetoothctl', 'power', 'on' if on else 'off')
-        elif key == 'cap' and have('import'):
+        elif key == 'cap' and have('grim' if WAYLAND else 'import'):
             self.quit(); run('sh', '-c', 'sleep 0.4; exec python3 "$0"', os.path.join(HERE, '..', 'capture', 'capture.py'))   # Revision 18: capture bar
         elif key == 'night': OSBS.update(night_light=on)            # osb-settingsd applies xrandr gamma
         elif key == 'dark': OSBS.update(theme='dark' if on else 'light')  # osb-settingsd regenerates + reloads everything
@@ -284,14 +289,19 @@ class QS(Gtk.Window):
         return next((l.split()[0] for l in o.splitlines() if ' connected' in l), None)
     def cur_bri(self):
         try:
+            if backlight():
+                current = int(subprocess.check_output(['brightnessctl', '-c', 'backlight', 'get'], timeout=5))
+                maximum = int(subprocess.check_output(['brightnessctl', '-c', 'backlight', 'max'], timeout=5))
+                return round(current * 100 / maximum)
+            if WAYLAND: return 100
             o = subprocess.run(['xrandr', '--verbose'], capture_output=True, text=True, timeout=5).stdout
             return int(float(next(l.split()[1] for l in o.splitlines() if 'Brightness:' in l)) * 100)
         except Exception: return 100
     def set_bri(self, v):
         # hardware backlight if present, else real software brightness via xrandr (keeps night-light gamma)
-        if have('brightnessctl') and os.listdir('/sys/class/backlight') if os.path.isdir('/sys/class/backlight') else False:
-            run('brightnessctl', 'set', f'{v}%')
-        elif self.output():
+        if backlight():
+            run('brightnessctl', '-c', 'backlight', 'set', f'{max(v, 5)}%')
+        elif not WAYLAND and self.output():
             g = ['--gamma', '1:0.82:0.64'] if OSBS.load().get('night_light') else []
             run('xrandr', '--output', self.output(), '--brightness', f'{max(v, 20) / 100:.2f}', *g)
 
@@ -303,11 +313,17 @@ class QS(Gtk.Window):
         d = Gtk.MessageDialog(transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION,
                               buttons=Gtk.ButtonsType.NONE, text='Wat wil je doen?')
         d.add_buttons('Annuleren', 0, 'Afmelden', 1, 'Opnieuw opstarten', 2, 'Uitschakelen', 3)
+        if WAYLAND: d.add_button('Slaapstand', 4)
         self.dialog_open = True; r = d.run(); d.destroy(); self.dialog_open = False; self.grab()
         # SAFETY: prototype never really powers off the box; ISO version maps to systemctl.
         if r in (1, 2, 3): print('would run:', {1: 'logout', 2: 'systemctl reboot', 3: 'systemctl poweroff'}[r])
         if r in (1, 2, 3) and os.environ.get('POLDEROS_ISO'):   # real system (ISO session): actually do it
             subprocess.Popen({1: ['sh', '-c', 'loginctl terminate-session "$XDG_SESSION_ID"'], 2: ['systemctl', 'reboot'], 3: ['systemctl', 'poweroff']}[r])
+        elif r == 4 and os.environ.get('POLDEROS_ISO'):
+            # Run independently so closing the panel cannot interrupt lock acknowledgement.
+            run('sh', '-c', '"$1" || notify-send "Slaapstand niet gestart" "Vergrendelen of slaapstand is mislukt. Probeer het opnieuw."',
+                'polder-suspend', os.path.join(HERE, '..', 'lock', 'suspend-now.sh'))
+            self.quit()
 
     def grab(self):
         # xfwm4 doesn't move focus on a bare-desktop click, so grab the pointer (owner_events keeps our widgets working)

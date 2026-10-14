@@ -4,7 +4,8 @@ right-click rounded menu (Losmaken/Vastzetten, Nieuw venster, Sluiten). Replaces
 has no per-icon context menus. Pinned list = settings.json 'pinned' (desktop ids); reloads live on change."""
 import os, sys, subprocess, shlex
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
-for d in ('osb', 'notify'): sys.path.insert(0, os.path.join(C, d))
+for d in ('osb', 'notify', 'capture'): sys.path.insert(0, os.path.join(C, d))
+import capture_backend
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
 from gi.repository import Gtk, Gdk, GLib, Gio
 from Xlib import display as xdisplay, X
@@ -289,7 +290,7 @@ class Shelf(Gtk.Window):
         return out
 
     def stop_rec(self, *a):
-        try: os.kill(json.load(open('/tmp/osb-rec.json'))['pid'], 2)
+        try: capture_backend.stop_recording()
         except Exception as e: print('stop rec', e, flush=True)
 
     def media_toggle(self, *a):
@@ -297,7 +298,7 @@ class Shelf(Gtk.Window):
 
     def update_extra(self):
         changed = False
-        try: st = json.load(open('/tmp/osb-rec.json'))
+        try: st = capture_backend.recording_state()
         except Exception: st = None
         if st:
             el = int(time.time() - st['start']); self.reclabel.set_text(f'{el // 60}:{el % 60:02d}')

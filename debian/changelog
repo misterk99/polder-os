@@ -1,0 +1,5 @@
+polderos (0.30.1-1polder1) trixie; urgency=medium
+
+  * Package the Polder compositor, desktop, settings and archive trust root.
+
+ -- Polder OS contributors <packages@polderos.invalid>  Wed, 14 Oct 2026 12:00:00 +0200
