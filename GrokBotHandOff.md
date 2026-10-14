@@ -1,5 +1,23 @@
 # Polder OS handoff to GrokBot
 
+## Latest Store update: 14 October 2026
+
+`codex/store-catalog-initialization` adds automatic Debian AppStream/icon and
+native Flathub catalog initialization, packaged as `0.30.1-1polder2`. The root
+helper runs at boot and periodically; the Store requests the same fixed service
+and reloads catalogs while open. Offline failures retain existing apps and retry.
+Package installation starts timers asynchronously instead of waiting on network
+work. ISO builds preseed catalogs and enable the same runtime fallback.
+
+Validation: 17 focused tests passed on native ARM64. In an isolated Debian ARM64
+container with real GTK/AppStream/Flatpak, a clean Store went from zero apps to
+4,846 Debian/Flathub apps while open; simulated offline refresh kept all apps.
+The active Windows ARM64 VM was preserved during these clean-catalog tests.
+Packaging and publication are described in `docs/package-updates.md`.
+
+The older Wayland handoff below records the initial implementation and its
+remaining hardware checks; it predates the signed-package repository work.
+
 Prepared 14 October 2026. Repository: https://github.com/misterk99/polder-os.
 Work branch: `codex/wayland-test-foundation`, based on `76013460f87ff350def04660e66374e3c8c009d1`.
 This document accompanies the implementation, ARM64 image verifier and current

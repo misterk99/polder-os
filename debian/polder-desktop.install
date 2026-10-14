@@ -43,5 +43,7 @@ usr/share/xgreeters
 usr/share/polkit-1/actions
 etc/lightdm/lightdm.conf.d
 etc/apt/apt.conf.d/52polderos-unattended-upgrades
+etc/apt/apt.conf.d/60polder-store-appstream
 etc/polkit-1/rules.d
 usr/lib/systemd/system
+usr/libexec/polder-store-catalog-refresh

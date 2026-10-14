@@ -1,0 +1,96 @@
+#!/usr/bin/python3 -I
+"""Fixed, metadata-only refresh. Run as root directly or through its systemd unit."""
+import fcntl
+import json
+import os
+from pathlib import Path
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+
+STATUS_DIR = Path('/var/lib/polderos/store-catalog')
+RUNTIME_DIR = Path('/run/polder-store-catalog')
+STEPS = (
+    ('debian', ('apt-get', '-o', 'APT::Update::Error-Mode=any', '-o', 'Acquire::Retries=1',
+                '-o', 'Acquire::http::Timeout=20', '-o', 'Acquire::https::Timeout=20', 'update'), 120),
+    ('appstream', ('appstreamcli', 'refresh', '--force', '--source=os'), 60),
+    ('flathub_remote', ('flatpak', 'remote-add', '--system', '--if-not-exists', 'flathub',
+                        'https://dl.flathub.org/repo/flathub.flatpakrepo'), 30),
+    ('flathub', ('flatpak', 'update', '--system', '--appstream', '--noninteractive', 'flathub'), 120),
+)
+
+
+def write_status(status, directory=STATUS_DIR):
+    directory.mkdir(mode=0o755, parents=True, exist_ok=True)
+    status = dict(status, schema=1, updated_at=int(time.time()))
+    with tempfile.NamedTemporaryFile(mode='w', dir=directory, prefix='.status-', delete=False) as stream:
+        json.dump(status, stream)
+        temporary = Path(stream.name)
+    temporary.chmod(0o644)
+    temporary.replace(directory / 'status.json')
+
+
+def run_command(argv, timeout):
+    environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'HOME': '/root',
+                   'LANG': 'C.UTF-8', 'DEBIAN_FRONTEND': 'noninteractive'}
+    try:
+        process = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   stdin=subprocess.DEVNULL, text=True, env=environment,
+                                   start_new_session=True)
+    except OSError:
+        return False, 'unavailable'
+    try:
+        output, _ = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.communicate()
+        return False, 'offline'
+    if process.returncode == 0:
+        return True, None
+    busy = any(marker in output.lower() for marker in ('could not get lock', 'unable to lock',
+                                                       'could not acquire lock', 'another instance'))
+    return False, 'busy' if busy else 'offline'
+
+
+def refresh(run=run_command, publish=write_status):
+    sources, failures = {}, []
+    publish({'phase': 'refreshing', 'sources': sources})
+    for source, argv, timeout in STEPS:
+        success, reason = run(argv, timeout)
+        sources[source] = 'ready' if success else reason
+        if not success:
+            failures.append(reason)
+        # Attempt cached AppStream refresh and the other source even when offline.
+        publish({'phase': 'refreshing', 'sources': dict(sources)})
+    if failures:
+        reason = 'busy' if 'busy' in failures else 'offline'
+        publish({'phase': 'retry', 'reason': reason, 'sources': sources})
+        print('Store catalog refresh deferred:', reason, flush=True)
+        return 75
+    publish({'phase': 'ready', 'sources': sources})
+    print('Store catalogs and icons refreshed', flush=True)
+    return 0
+
+
+def main():
+    if os.geteuid() != 0 or len(sys.argv) != 1:
+        print('Run the fixed catalog refresh as root, without arguments.', file=sys.stderr)
+        return 2
+    RUNTIME_DIR.mkdir(mode=0o755, parents=True, exist_ok=True)
+    descriptor = os.open(RUNTIME_DIR / 'refresh.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, 'w') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print('Store catalog refresh already running', flush=True)
+            return 75
+        return refresh()
+
+
+if __name__ == '__main__':
+    sys.exit(main())

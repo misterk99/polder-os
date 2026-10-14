@@ -1,0 +1,2 @@
+// Polder Store needs the desktop icon bundle as well as DEP-11 catalog metadata.
+Acquire::IndexTargets::deb::DEP-11-icons::DefaultEnabled "true";

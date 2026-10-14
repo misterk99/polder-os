@@ -53,6 +53,12 @@ override_dh_shlibdeps:
 override_dh_gencontrol:
 	dh_gencontrol -- -Vpolder:TestKey=$$(cat debian/archive-test-key)
 
+# Start timers, which enqueue their network work asynchronously. Installing a
+# desktop update must not wait for APT/Flatpak from inside its own maintscript.
+override_dh_installsystemd:
+	dh_installsystemd -ppolder-desktop --no-start polder-store-catalog.service polder-flatpak-update.service
+	dh_installsystemd -ppolder-desktop polder-store-catalog.timer polder-flatpak-update.timer
+
 override_dh_missing:
 	dh_missing --fail-missing
 

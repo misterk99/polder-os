@@ -104,6 +104,9 @@ else
   { cat "$G/50-polderos.conf"; echo autologin-session=polderos; } > "$R/etc/lightdm/lightdm.conf.d/50-polderos.conf"
 fi
 cp -a "$ISO/src/rootfs/." "$R/"
+if [ "$PACKAGED" != 1 ]; then
+  install -Dm755 "$ISO/src/polder-store-catalog-refresh" "$R/usr/libexec/polder-store-catalog-refresh"
+fi
 for hook in "$ISO/src/hooks/"*; do
   if [ "${POLDER_WAYLAND:-0}" != 1 ] && [ "$(basename "$hook")" = 0610-polderos-portal.hook.chroot ]; then
     continue

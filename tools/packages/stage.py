@@ -45,6 +45,7 @@ write('usr/share/polderos/WAYLAND_CONFIG_VERSION', digest.hexdigest() + '\n')
 for name in ('polderos-session', 'polderos-wayland-session', 'polderos-wayland-components'):
     copy('iso/src/' + name, 'usr/share/polderos/' + name, 0o755)
 copy('iso/src/polder-compositor', 'usr/bin/polder-compositor', 0o755)
+copy('iso/src/polder-store-catalog-refresh', 'usr/libexec/polder-store-catalog-refresh', 0o755)
 for session, target in (('polderos.desktop', 'xsessions'), ('polderos-wayland.desktop', 'wayland-sessions'), ('polderos-greeter.desktop', 'xgreeters')):
     text = (Path('config/iso/greeter') / session).read_text()
     if target == 'xsessions':
@@ -58,9 +59,12 @@ write('etc/apt/apt.conf.d/52polderos-unattended-upgrades',
       '  "origin=PolderOS,codename=${distro_codename},label=Polder OS";\n'
       '};\n')
 copy('iso/src/rootfs/etc/polkit-1/rules.d/49-polderos-store.rules', 'etc/polkit-1/rules.d/49-polderos-store.rules')
+copy('iso/src/rootfs/etc/apt/apt.conf.d/60polder-store-appstream', 'etc/apt/apt.conf.d/60polder-store-appstream')
 copy('iso/src/rootfs/usr/share/polkit-1/actions/nl.polderos.autoupdate.policy', 'usr/share/polkit-1/actions/nl.polderos.autoupdate.policy')
 for unit in ('polder-flatpak-update.service', 'polder-flatpak-update.timer'):
     copy('iso/src/rootfs/etc/systemd/system/' + unit, 'usr/lib/systemd/system/' + unit)
+for unit in ('polder-store-catalog.service', 'polder-store-catalog.timer'):
+    copy('iso/src/rootfs/usr/lib/systemd/system/' + unit, 'usr/lib/systemd/system/' + unit)
 write('usr/bin/polder-settings', '#!/bin/sh\nexec python3 "${POLDER_CONFIG:-${XDG_DATA_HOME:-$HOME/.local/share}/polderos}/settings/instellingen.py" "$@"\n', 0o755)
 text = Path('config/settings/instellingen.desktop').read_text()
 text = '\n'.join('Exec=polder-settings' if line.startswith('Exec=') else line for line in text.splitlines()) + '\n'
