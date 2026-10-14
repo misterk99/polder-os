@@ -15,7 +15,7 @@ python3 $S/config/osb/apply.py palette > $S/apply.log 2>&1   # like start-sessio
 $T/bin/polder-comp-pixman > $S/comp.log 2>&1 &
 for i in $(seq 50); do W=$(ls $S/run | grep -m1 '^wayland-[0-9]*$'); [ -n "$W" ] && break; sleep 0.2; done
 export WAYLAND_DISPLAY=$W
-python3 $S/config/notify/osb-notifyd.py > $S/notifyd.log 2>&1 &
+if [ "$POLDER_NOTIFY_IMPL" = rust ]; then polder-notifyd > $S/notifyd.log 2>&1 & else python3 $S/config/notify/osb-notifyd.py > $S/notifyd.log 2>&1 & fi
 python3 $S/config/osb/osb-settingsd.py > $S/settingsd.log 2>&1 &
 polder-shelf > $S/shelf.log 2>&1 &
 sleep 3

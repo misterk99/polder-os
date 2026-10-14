@@ -71,3 +71,11 @@ Resident GTK4 layer-shell launcher, same PID file (`$OSB_RUNDIR/osb-launcher.pid
 right-click pin/unpin/open/sort), search groups Webapp (`installeer <url> [als app] [naam]` via webapps.py), Rekenmachine
 (`src/calc.rs`, Python semantics, unit-tested), Apps, Instellingen sections, Bestanden (index of `$OSB_FILES_HOME`), Internet;
 Up/Down/Enter/Escape, hides on focus loss, live palette. Tests: `tests/components-session.sh`, `tests/pc-drag.c`.
+
+## polder-notifyd (Rust port of config/notify/osb-notifyd.py)
+Owns `org.freedesktop.Notifications` (Notify incl. replaces_id, actions, `image-path` thumbnails, CloseNotification,
+NotificationClosed/ActionInvoked signals) and `org.osbuilder.Notify` (ClearAll, Dismiss, MarkRead, SetDnd, Invoke).
+History/unread/DND are written to `$OSB_NOTIFY_DIR/state.json` (default /tmp/osb-notify) in the exact osb-notifyd.py
+format, so QS (Rust and Python), the shelf badge and the phone hub read it unchanged. Honors Instellingen › Meldingen
+(notifications, notif_history, popup_secs) per notification; toasts restyle live on palette changes (no restart).
+Opt in: `POLDER_NOTIFY_IMPL=rust` or `~/.config/osb/notify-impl` = `rust`.

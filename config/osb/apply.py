@@ -59,7 +59,8 @@ def wayland_theme(s):
     if os.environ.get('POLDER_SESSION_SUPERVISED'):
         signal_service('notifications', signal.SIGTERM)
     else:
-        sh('pkill', '-f', 'notify/osb-notifyd.py'); spawn('python3', os.path.join(C, 'notify/osb-notifyd.py'), log='/tmp/osb-notifyd.log')
+        if subprocess.run(['pgrep', '-x', 'polder-notifyd'], capture_output=True).returncode != 0:   # the Rust daemon restyles live
+            sh('pkill', '-f', 'notify/osb-notifyd.py'); spawn('python3', os.path.join(C, 'notify/osb-notifyd.py'), log='/tmp/osb-notifyd.log')
 
 def theme(s):
     palette(s)
