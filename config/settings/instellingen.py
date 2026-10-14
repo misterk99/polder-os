@@ -243,13 +243,27 @@ class App(Gtk.Window):
             b.connect('toggled', self.set_theme, k, group); group.append(b); seg.pack_start(b, False, False, 0)
         eff = 'licht' if S.effective_theme(s) == 'light' else 'donker'
         self.row(c, 'Thema', f'Automatisch: licht van 07:00 tot 19:00, daarna donker. Nu actief: {eff}.', seg)
+        dyn = s.get('color_source') == 'wallpaper'
+        seg2 = Gtk.Box(spacing=6); g2 = []
+        for k, label in (('accent', 'Accentkleur'), ('wallpaper', 'Kleuren uit achtergrond')):
+            b = Gtk.ToggleButton(label=label); b.get_style_context().add_class('seg'); b.set_active((k == 'wallpaper') == dyn)
+            b.connect('toggled', self.set_source, k, g2); g2.append(b); seg2.pack_start(b, False, False, 0)
+        self.row(c, 'Kleuren', 'Kleuren uit achtergrond: het systeem kiest kleuren die passen bij je achtergrond (licht en donker).', seg2)
         sw = Gtk.Box(spacing=8); sg = []
-        for name in S.ACCENTS:
-            b = Gtk.ToggleButton(); b.set_tooltip_text(name.capitalize()); b.get_style_context().add_class('swatch')
-            cp = Gtk.CssProvider(); cp.load_from_data(f'.swatch {{ background: {S.ACCENTS[name][0]}; }}'.encode())
-            b.get_style_context().add_provider(cp, 900); b.set_active(s['accent'] == name)
-            b.connect('toggled', self.set_accent, name, sg); sg.append(b); sw.pack_start(b, False, False, 0)
-        self.row(c, 'Accentkleur', s['accent'].capitalize(), sw)
+        seeds = S.dynamic_seeds(s['wallpaper']) if dyn else []
+        items = [(str(i), h, f'Kleur {i + 1} uit achtergrond') for i, h in enumerate(seeds)] if dyn else [(n, S.ACCENTS[n][0], n.capitalize()) for n in S.ACCENTS]
+        cur = str(min(int(s.get('dynamic_seed', 0)), max(len(seeds) - 1, 0))) if dyn else s['accent']
+        for key, colour, tip in items:
+            b = Gtk.ToggleButton(); b.set_tooltip_text(tip); b.get_style_context().add_class('swatch')
+            cp = Gtk.CssProvider(); cp.load_from_data(f'.swatch {{ background: {colour}; }}'.encode())
+            b.get_style_context().add_provider(cp, 900); b.set_active(key == cur)
+            b.connect('toggled', self.set_seed if dyn else self.set_accent, key, sg); sg.append(b); sw.pack_start(b, False, False, 0)
+        if dyn and not seeds:
+            self.row(c, 'Kleur uit achtergrond', 'Niet beschikbaar (polder-dynamic-color ontbreekt); de accentkleur wordt gebruikt.')
+        elif dyn:
+            self.row(c, 'Kleur uit achtergrond', f'{len(seeds)} kleur{"en" if len(seeds) != 1 else ""} gevonden in {s["wallpaper"].capitalize()}', sw)
+        else:
+            self.row(c, 'Accentkleur', s['accent'].capitalize(), sw)
         self.row(c, 'Minder beweging', 'Verminder animaties bij het openen van vensters en in apps.',
                  self.switch(s.get('reduced_motion', False), lambda v: S.update(reduced_motion=v)), last=True)
         c2 = self.card(o, 'Achtergrond')
@@ -280,7 +294,13 @@ class App(Gtk.Window):
     def set_accent(self, b, k, g):
         if self.exclusive(b, g): S.update(accent=k)
     def set_wall(self, b, k, g):
-        if self.exclusive(b, g): S.update(wallpaper=k)
+        if self.exclusive(b, g):
+            S.update(wallpaper=k, dynamic_seed=0)
+            if S.load().get('color_source') == 'wallpaper': GLib.idle_add(self.show, 'personalisatie')   # new seed swatches
+    def set_source(self, b, k, g):
+        if self.exclusive(b, g): S.update(color_source=k); GLib.idle_add(self.show, 'personalisatie')
+    def set_seed(self, b, k, g):
+        if self.exclusive(b, g): S.update(dynamic_seed=int(k))
     def page_meldingen(self, o):
         s = S.load(); c = self.card(o, 'Meldingen')
         self.row(c, 'Pop-ups weergeven', 'Uit: er verschijnen geen pop-ups meer.', self.switch(s['notifications'], lambda v: S.update(notifications=v)))

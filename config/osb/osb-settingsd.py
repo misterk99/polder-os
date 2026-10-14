@@ -4,7 +4,7 @@ Plain Python (no GTK) to stay light: polls the file mtime once per second."""
 import os, sys, time, threading, subprocess
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, '..', 'calendar')); sys.path.insert(0, os.path.join(HERE, '..', 'weather'))
 import osbsettings as S, apply as A, feeds, weather as W
-GROUPS = {'theme': ('theme', 'accent', 'wallpaper'), 'kbd': ('kbd_layout', 'kbd_variant'),
+GROUPS = {'theme': ('theme', 'accent', 'wallpaper', 'color_source', 'dynamic_seed'), 'kbd': ('kbd_layout', 'kbd_variant'),
           'shelf': ('clock24', 'show_date'), 'night': ('night_light',), 'motion': ('reduced_motion',)}
 
 def feed_sync():

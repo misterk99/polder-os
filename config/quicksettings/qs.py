@@ -59,6 +59,7 @@ if not WAYLAND:
     TILES.append(('night', 'daytime-sunset-symbolic', 'Nachtlicht', 'Aan' if SET['night_light'] else 'Uit', SET['night_light'], True))
 TILES += [
     ('dark', 'weather-clear-night-symbolic', 'Donker thema', {'auto': 'Automatisch', 'dark': 'Aan', 'light': 'Uit'}[SET['theme']], OSBS.effective_theme(SET) == 'dark', True),
+    ('dyn', 'preferences-desktop-wallpaper-symbolic', 'Kleuren uit achtergrond', 'Aan' if SET.get('color_source') == 'wallpaper' else 'Uit', SET.get('color_source') == 'wallpaper', True),
     ('kbd', 'input-keyboard-symbolic', 'Toetsenbord', kbd_name(), False, True),
     ('cap', 'camera-photo-symbolic', 'Schermopname', 'Screenshot of video', False, True),
     ('dnd', 'notifications-disabled-symbolic', 'Niet storen', None, N.load().get('dnd', False), True),
@@ -258,6 +259,7 @@ class QS(Gtk.Window):
         elif key == 'cap' and have('grim' if WAYLAND else 'import'):
             self.quit(); run('sh', '-c', 'sleep 0.4; exec python3 "$0"', os.path.join(HERE, '..', 'capture', 'capture.py'))   # Revision 18: capture bar
         elif key == 'night': OSBS.update(night_light=on)            # osb-settingsd applies xrandr gamma
+        elif key == 'dyn': OSBS.update(color_source='wallpaper' if on else 'accent')   # Material You
         elif key == 'dark': OSBS.update(theme='dark' if on else 'light')  # osb-settingsd regenerates + reloads everything
         elif key == 'kbd': self.quit(); run('python3', SETTINGS_APP, 'toetsenbord')
         elif key == 'phone':   # Telefoon-hub (Rust, shell/polder-shelf) when installed, else Instellingen > Telefoon

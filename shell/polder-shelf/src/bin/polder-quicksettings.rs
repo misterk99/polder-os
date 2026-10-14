@@ -91,6 +91,9 @@ fn tiles() -> Vec<Tile> {
     let th = s.get("theme").and_then(|v| v.as_str()).unwrap_or("light");
     t.push(Tile { key: "dark", icon: "weather-clear-night-symbolic", title: "Donker thema".into(),
                   sub: Some(match th { "auto" => "Automatisch", "dark" => "Aan", _ => "Uit" }.into()), active: theme::effective_dark(&s) });
+    let dyn_on = s.get("color_source").and_then(|v| v.as_str()) == Some("wallpaper");
+    t.push(Tile { key: "dyn", icon: "preferences-desktop-wallpaper-symbolic", title: "Kleuren uit achtergrond".into(),
+                  sub: Some(if dyn_on { "Aan" } else { "Uit" }.into()), active: dyn_on });
     let (l, v) = (s.get("kbd_layout").and_then(|x| x.as_str()).unwrap_or("us").to_string(), s.get("kbd_variant").and_then(|x| x.as_str()).unwrap_or("").to_string());
     let kn = theme::LAYOUTS.iter().find(|x| x.0 == l && x.1 == v).map(|x| x.2.to_string()).unwrap_or_else(|| l.to_uppercase());
     t.push(Tile { key: "kbd", icon: "input-keyboard-symbolic", title: "Toetsenbord".into(), sub: Some(kn), active: false });
@@ -131,6 +134,7 @@ fn on_toggle(key: &str, on: bool) {
         "bt" => run(&["bluetoothctl", "power", if on { "on" } else { "off" }]),
         "cap" if have(if wayland() { "grim" } else { "import" }) => { run(&["sh", "-c", "sleep 0.4; exec python3 \"$0\"", &cpath("capture/capture.py")]); quit() }
         "dark" => theme::update_setting("theme", Value::from(if on { "dark" } else { "light" })),   // osb-settingsd regenerates + reloads everything
+        "dyn" => theme::update_setting("color_source", Value::from(if on { "wallpaper" } else { "accent" })),   // Material You
         "kbd" => { run(&["python3", &cpath("settings/instellingen.py"), "toetsenbord"]); quit() }
         "phone" => { match hub_bin() { Some(b) => run(&[&b]), None => run(&["python3", &cpath("settings/instellingen.py"), "telefoon"]) } quit() }
         _ => {}
