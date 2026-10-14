@@ -171,3 +171,16 @@ button.mbtn.pp {{ background: {a}; color: {oa}; }}
 "#, s = g("SURFACE"), sv = g("SURFACE_VARIANT"), os = g("ON_SURFACE"), osv = g("ON_SURFACE_VARIANT"), a = g("ACCENT"),
         ac = g("ACCENT_CONTAINER"), oac = g("ON_ACCENT_CONTAINER"), oa = g("ON_ACCENT"), ol = g("OUTLINE"))
 }
+
+/// Extra styles for the Telefoon-hub (on top of qs_css).
+pub fn hub_css(p: &HashMap<String, String>) -> String {
+    let g = |k: &str| p.get(k).cloned().unwrap_or_default();
+    format!(r#"
+.htitle {{ font-weight: 500; font-size: 15px; }}
+.hsub {{ font-size: 12px; color: {osv}; }}
+.toast {{ background: {os}; color: {s}; border-radius: 14px; padding: 6px 12px; font-size: 12px; }}
+button.thumb {{ padding: 0; border: none; box-shadow: none; border-radius: 12px; background: {sv}; min-width: 80px; min-height: 80px; }}
+button.thumb picture {{ border-radius: 12px; }}
+entry {{ border-radius: 16px; min-height: 32px; background: {s}; color: {os}; border: 1px solid {ol}; }}
+"#, osv = g("ON_SURFACE_VARIANT"), os = g("ON_SURFACE"), s = g("SURFACE"), sv = g("SURFACE_VARIANT"), ol = g("OUTLINE"))
+}

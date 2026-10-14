@@ -3,6 +3,7 @@
 //! Run again -> closes the open panel (same PID file as qs.py, so the two implementations toggle each other).
 #[path = "../theme.rs"] mod theme;
 #[path = "../status.rs"] mod status;
+#[path = "../kdc.rs"] mod kdc;
 use gtk::{gdk, gio, glib, pango, prelude::*};
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use serde_json::Value;
@@ -68,17 +69,18 @@ fn notify_state() -> Value {
         .unwrap_or_else(|| serde_json::json!({"history": [], "unread": 0, "dnd": false}))
 }
 
-// ---- KDE Connect phone (osb/phone.py, never invented) ----
+// ---- KDE Connect phone: tile whenever KDE Connect exists; it opens the Telefoon-hub (never invents a device) ----
 fn phone() -> Option<(String, String, bool)> {
-    let bus = gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE).ok()?;
-    let r = bus.call_sync(Some("org.freedesktop.DBus"), "/org/freedesktop/DBus", "org.freedesktop.DBus", "NameHasOwner",
-                          Some(&("org.kde.kdeconnect",).to_variant()), None, gio::DBusCallFlags::NONE, 1000, gio::Cancellable::NONE).ok()?;
-    if !r.child_value(0).get::<bool>()? { return None; }
-    let j: Value = serde_json::from_str(&out(&["python3", &cpath("osb/phone.py"), "list"])).ok()?;
-    let d = j["devices"].as_array()?.iter().find(|d| d["paired"].as_bool() == Some(true))?.clone();
-    let reach = d["reachable"].as_bool().unwrap_or(false);
-    let sub = match d["battery"].as_i64() { Some(b) if reach && b != -1 => format!("{b}%"), _ => if reach { "Verbonden".into() } else { "Niet bereikbaar".into() } };
-    Some((d["name"].as_str().unwrap_or("Telefoon").into(), sub, reach))
+    if !kdc::running() { return if kdc::installed() { Some(("Telefoon".into(), "Uit".into(), false)) } else { None }; }
+    let devs = kdc::devices();
+    let Some(d) = devs.iter().find(|d| d.paired) else { return Some(("Telefoon".into(), "Niet gekoppeld".into(), false)) };
+    let sub = if !d.reachable { "Niet bereikbaar".to_string() } else { match kdc::info(d).battery { Some((b, _)) => format!("{b}%"), None => "Verbonden".into() } };
+    Some((d.name.clone(), sub, d.reachable))
+}
+fn hub_bin() -> Option<String> {
+    let side = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join("polder-phonehub"))).filter(|p| p.exists());
+    std::env::var("PATH").unwrap_or_default().split(':').map(|d| std::path::Path::new(d).join("polder-phonehub")).find(|p| p.exists())
+        .or(side).map(|p| p.to_string_lossy().into())
 }
 
 struct Tile { key: &'static str, icon: &'static str, title: String, sub: Option<String>, active: bool }
@@ -130,7 +132,7 @@ fn on_toggle(key: &str, on: bool) {
         "cap" if have(if wayland() { "grim" } else { "import" }) => { run(&["sh", "-c", "sleep 0.4; exec python3 \"$0\"", &cpath("capture/capture.py")]); quit() }
         "dark" => theme::update_setting("theme", Value::from(if on { "dark" } else { "light" })),   // osb-settingsd regenerates + reloads everything
         "kbd" => { run(&["python3", &cpath("settings/instellingen.py"), "toetsenbord"]); quit() }
-        "phone" => { run(&["python3", &cpath("settings/instellingen.py"), "telefoon"]); quit() }
+        "phone" => { match hub_bin() { Some(b) => run(&[&b]), None => run(&["python3", &cpath("settings/instellingen.py"), "telefoon"]) } quit() }
         _ => {}
     }
 }

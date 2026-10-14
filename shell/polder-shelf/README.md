@@ -44,3 +44,22 @@ Switch: `POLDER_QS=rust` or `echo rust > ~/.config/osb/qs-impl`; both shelves (R
 
 Tests: `tests/headless-session.sh` (headless polder-comp + private D-Bus + real osb-notifyd with clean data),
 `tests/pc-click.c` (real clicks via wlr-virtual-pointer), `tests/fakeplayer.py` (MPRIS test player).
+
+## polder-phonehub (Rust) – Telefoon-hub
+
+Phone Hub / Phone Link style panel on KDE Connect, talking to the real kdeconnectd D-Bus API (`src/kdc.rs`;
+interfaces from KDE Connect 24.12 `core/` and `plugins/`). Opened from the `Telefoon` tile in Rust QS and in qs.py
+(tile shown whenever KDE Connect is installed/running; launches `polder-phonehub` if installed, else Instellingen).
+- paired phone: name, reachable state, battery % + charging (battery plugin), cellular type + signal bars (connectivity_report)
+- Telefoon zoeken (findmyphone.ring), Bestand sturen (GTK file chooser -> share.shareUrls), Klembord delen toggle
+  (setPluginEnabled kdeconnect_clipboard), Foto's en bestanden (sftp.mountAndWait + getDirectories: newest four
+  camera photos, shared folders, all files; opened in the file manager)
+- phone notifications (notifications.activeNotifications): dismiss when dismissable, inline reply only when the
+  phone provides a replyId (notification.sendReply)
+- states: KDE Connect not installed / not running (Starten: D-Bus activation or the daemon binary) / no device
+  visible (hint + Opnieuw zoeken) / pairing (Koppelen, code, Annuleren) / incoming request (Accepteren / Weigeren) /
+  paired but unreachable; Ontkoppelen
+- toggle like QS (`$OSB_RUNDIR/polder-phonehub.pid`), Escape, outside click, live palette
+
+`tests/mock-kdeconnect.py` is a TEST FIXTURE ONLY: a fake kdeconnectd with made-up data for headless tests
+(`--state paired|unpaired|request|none`); it is never installed. `POLDER_KDECONNECTD` overrides the daemon binary.
