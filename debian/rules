@@ -18,14 +18,14 @@ NJOBS = $(patsubst parallel=%,%,$(JOBS))
 	dh $@ --buildsystem=none
 
 override_dh_auto_configure:
-	@if test -n "$$(dh_listpackages -a)"; then \
+	@set -e; if test -n "$$(dh_listpackages -a)"; then \
 	  test -f .package-sources/scenefx/meson.build; \
 	  meson setup obj-scenefx .package-sources/scenefx --wrap-mode=nofallback --prefix=/usr --libdir=lib/$(DEB_HOST_MULTIARCH)/polderos --buildtype=plain -Dexamples=false -Drenderers=gles2; \
 	  meson setup obj-plain compositor/polder-comp --wrap-mode=nofallback --prefix=/usr --buildtype=plain -Dscenefx=disabled; \
 	fi
 
 override_dh_auto_build:
-	@if test -n "$$(dh_listpackages -a)"; then \
+	@set -e; if test -n "$$(dh_listpackages -a)"; then \
 	  meson compile -C obj-scenefx -j $(NJOBS); \
 	  meson compile -C obj-plain -j $(NJOBS); \
 	  PKG_CONFIG_PATH="$$(pwd)/obj-scenefx/meson-uninstalled" meson setup obj-effects compositor/polder-comp --wrap-mode=nofallback --prefix=/usr --buildtype=plain -Dscenefx=enabled -Dscenefx_libdir=$(PRIVATE_LIBDIR); \
@@ -34,7 +34,7 @@ override_dh_auto_build:
 
 override_dh_auto_install:
 	python3 tools/packages/stage.py --version '$(DEB_VERSION)' --destination debian/tmp
-	@if test -n "$$(dh_listpackages -a)"; then \
+	@set -e; if test -n "$$(dh_listpackages -a)"; then \
 	  install -Dm755 obj-plain/polder-comp debian/tmp/usr/bin/polder-comp; \
 	  install -Dm755 obj-plain/polder-toplevels debian/tmp/usr/bin/polder-toplevels; \
 	  DESTDIR="$$(pwd)/obj-effects-install" meson install -C obj-effects --no-rebuild; \
@@ -45,7 +45,7 @@ override_dh_auto_install:
 	fi
 
 override_dh_shlibdeps:
-	@if test -n "$$(dh_listpackages -a)"; then \
+	@set -e; if test -n "$$(dh_listpackages -a)"; then \
 	  printf 'libscenefx-0.2 0.2 polder-compositor (= $(DEB_VERSION))\n' > debian/shlibs.local; \
 	  dh_shlibdeps -l$(CURDIR)/debian/tmp$(PRIVATE_LIBDIR); \
 	fi

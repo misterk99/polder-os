@@ -4,6 +4,6 @@ Author: Polder OS contributors
 Forwarded: not-needed
 --- a/.package-sources/scenefx/meson.build
 +++ b/.package-sources/scenefx/meson.build
-@@ -178,0 +179,2 @@
+@@ -152,0 +153,2 @@
 +	version: '0.2.1',
 +	soversion: '0.2',
