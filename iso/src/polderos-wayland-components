@@ -1,0 +1,77 @@
+#!/bin/bash
+# Started in its own process group by polder-comp after the display is ready.
+set -euo pipefail
+umask 077
+: "${POLDER_CONFIG:?}" "${POLDER_COMP_PID:?}" "${WAYLAND_DISPLAY:?}" "${OSB_RUNDIR:?}"
+C=$POLDER_CONFIG
+export POLDER_SESSION_SUPERVISED=1
+LOG="${XDG_CACHE_HOME:-$HOME/.cache}/polderos/wayland"
+mkdir -p "$LOG"
+printf '%s\n' "$$" > "$OSB_RUNDIR/components.pid"
+cleanup() {
+  trap - EXIT HUP INT TERM
+  # Terminating the session compositor also closes every Wayland/Xwayland client.
+  kill -TERM "$POLDER_COMP_PID" 2>/dev/null || true
+}
+trap cleanup EXIT
+trap 'exit 143' HUP INT TERM
+python3 - <<'PY'
+import gi
+gi.require_version('Gtk', '3.0')
+gi.require_version('GtkLayerShell', '0.1')
+gi.require_version('GtkSessionLock', '0.1')
+from gi.repository import Gtk, GtkLayerShell, GtkSessionLock
+if not GtkLayerShell.is_supported() or not GtkSessionLock.is_supported():
+    raise SystemExit('The compositor must support layer-shell and session-lock.')
+PY
+env_names=(WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE POLDER_COMP POLDER_COMP_PID POLDER_COMP_CMD POLDER_CONFIG OSB_RUNDIR)
+[ -z "${DISPLAY:-}" ] || env_names+=(DISPLAY)
+dbus-update-activation-environment --systemd "${env_names[@]}" || echo 'Could not import the session environment into the user service manager.' >&2
+# Native logind sessions have a user service manager; headless test sessions may not.
+systemctl --user start pipewire.socket pipewire-pulse.socket wireplumber.service 2>/dev/null || echo 'PipeWire user services unavailable.' >&2
+python3 - "$C" <<'PY'
+import pathlib, subprocess, sys
+sys.path.insert(0, str(pathlib.Path(sys.argv[1]) / 'osb'))
+import osbsettings as S
+s = S.load()
+slot = (pathlib.Path.home() / '.config/osb/gtkslot').read_text().strip()
+name = 'PolderOS-GTK-' + slot
+dark = S.effective_theme(s) == 'dark'
+for key, value in [('gtk-theme', name), ('color-scheme', 'prefer-dark' if dark else 'default'),
+                   ('icon-theme', 'Papirus'), ('font-name', 'Roboto 10')]:
+    subprocess.run(['gsettings', 'set', 'org.gnome.desktop.interface', key, value], check=True)
+conf = pathlib.Path.home() / '.config/xsettingsd/xsettingsd.conf'
+conf.parent.mkdir(parents=True, exist_ok=True)
+conf.write_text(f'Net/ThemeName "{name}"\nNet/IconThemeName "Papirus"\nGtk/FontName "Roboto 10"\nGtk/ApplicationPreferDarkTheme {int(dark)}\n')
+PY
+supervise() {
+  local name=$1
+  shift
+  (
+    trap 'exit 0' HUP INT TERM
+    while kill -0 "$POLDER_COMP_PID" 2>/dev/null; do
+      "$@" >>"$LOG/$name.log" 2>&1 &
+      child=$!
+      printf '%s\n' "$child" > "$OSB_RUNDIR/$name.service.pid"
+      wait "$child" || true
+      rm -f "$OSB_RUNDIR/$name.service.pid"
+      sleep 2
+    done
+  ) &
+}
+supervise notifications python3 "$C/notify/osb-notifyd.py"
+supervise shelf python3 "$C/shelf/shelf.py"
+supervise launcher python3 "$C/launcher/launcher.py"
+supervise clipboard python3 "$C/clip/clipd.py"
+supervise settings python3 "$C/osb/osb-settingsd.py"
+supervise polkit lxpolkit
+if [ -n "${DISPLAY:-}" ]; then
+  supervise xsettings xsettingsd -c "$HOME/.config/xsettingsd/xsettingsd.conf"
+fi
+supervise idle "$C/lock/polder-idle-wayland.sh"
+if command -v kdeconnectd >/dev/null; then
+  QT_QPA_PLATFORM=offscreen kdeconnectd >>"$LOG/kdeconnect.log" 2>&1 &
+fi
+python3 "$C/welcome/welkom.py" --first-run >>"$LOG/welcome.log" 2>&1 &
+printf '%s\n' "$WAYLAND_DISPLAY" > "$OSB_RUNDIR/ready"
+wait

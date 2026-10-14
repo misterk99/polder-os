@@ -1,7 +1,7 @@
 """Revision 27: one IPC channel for polder-shell (unix socket, newline-terminated commands:
 launcher | clip | assistant | clip-clear | notify-reload | ping). send() returns True if the shell took it."""
 import os, socket
-SOCK = os.path.join(os.environ.get('XDG_RUNTIME_DIR') or '/tmp', f'polder-shell-{os.getuid()}.sock')
+SOCK = os.path.join(os.environ.get('OSB_RUNDIR') or os.environ.get('XDG_RUNTIME_DIR') or '/tmp', f'polder-shell-{os.getuid()}.sock')
 
 def send(cmd, timeout=3.0):
     try:

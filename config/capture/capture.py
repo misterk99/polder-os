@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Polder OS screen capture (ChromeOS capture bar). On-demand process (exits after capturing), so no resident RAM.
 Bar: Screenshot/Video, Volledig scherm / Gedeelte / Venster, settings gear, close. Screenshots are cut from a frozen
-grab taken at start; video = ffmpeg x11grab, state in /tmp/osb-rec.json (shelf shows the red stop pill).
+grab taken at start; video uses wf-recorder on Wayland and ffmpeg on X11.
 If a recording is running, starting this stops it instead."""
-import os, sys, json, time, signal, subprocess, shlex
+import os, sys, json, time, signal, subprocess, shlex, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in ('osb', 'notify'): sys.path.insert(0, os.path.join(C, d))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
@@ -12,13 +12,10 @@ import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.pa
 import cairo
 import osbsettings as S, osbnotify as N, popmenu
 import layershell as LSH   # Rev 34d: polder-comp = wlr-screencopy (grim / wf-recorder) + layer surfaces
+import capture_backend as backend
 WL = bool(os.environ.get('POLDER_COMP') and os.environ.get('WAYLAND_DISPLAY'))
 FILES_HOME = os.environ.get('OSB_FILES_HOME', '/tmp/osb-files/Mijn bestanden')
-REC = '/tmp/osb-rec.json'; SHELF = 52
-
-def stop_recording():
-    try: st = json.load(open(REC)); os.kill(st['pid'], signal.SIGINT); return True
-    except Exception: return False
+SHELF = 52
 
 def dirs():
     s = S.load(); base = s.get('capture_dir') or ''
@@ -154,15 +151,32 @@ class Overlay(Gtk.Window):
 class App:
     def __init__(self):
         scr = Gdk.Screen.get_default(); self.sw, self.sh = scr.get_width(), scr.get_height()
+        self.origin = (0, 0); self.monitor = None
+        self.bar_background = str(backend.runtime_dir() / 'osb-capbar-bg.png')
         if WL:   # frozen frame via wlr-screencopy (grim), taken before our overlay maps
-            tmp = os.path.join(os.environ.get('XDG_RUNTIME_DIR', '/tmp'), 'polder-capture-frozen.png')
-            subprocess.run(['grim', tmp], timeout=10); self.frozen = GdkPixbuf.Pixbuf.new_from_file(tmp); os.remove(tmp)
-            self.sw, self.sh = self.frozen.get_width(), self.frozen.get_height()
+            display = Gdk.Display.get_default()
+            self.monitor = display.get_primary_monitor() or display.get_monitor(0)
+            geometry = self.monitor.get_geometry()
+            self.origin = (geometry.x, geometry.y)
+            self.sw, self.sh = geometry.width, geometry.height
+            fd, tmp = tempfile.mkstemp(prefix='capture-', suffix='.png', dir=backend.runtime_dir())
+            os.close(fd)
+            try:
+                subprocess.run(['grim', '-s', '1', '-g', f'{geometry.x},{geometry.y} {self.sw}x{self.sh}', tmp],
+                               timeout=10, check=True, capture_output=True)
+                self.frozen = GdkPixbuf.Pixbuf.new_from_file(tmp)
+            finally:
+                os.unlink(tmp)
         else:
             root = Gdk.get_default_root_window(); self.frozen = Gdk.pixbuf_get_from_window(root, 0, 0, self.sw, self.sh)
         self.wins = windows(); self.mode = 'shot'; self.source = 'region'
+        if WL:
+            for window in self.wins:
+                window['x'] -= self.origin[0]; window['y'] -= self.origin[1]
         prov = Gtk.CssProvider(); prov.load_from_data(css().encode()); Gtk.StyleContext.add_provider_for_screen(scr, prov, 850)
-        self.ov = Overlay(self); self.ov.show_all()
+        self.ov = Overlay(self)
+        if WL: LSH.LS.set_monitor(self.ov, self.monitor)
+        self.ov.show_all()
         self.bar = Gtk.Window(type=Gtk.WindowType.TOPLEVEL if WL else Gtk.WindowType.POPUP); self.bar.set_name('barwin'); RGBA.enable(self.bar)
         b = Gtk.Box(spacing=4); b.set_name('bar'); self.bar.add(b)
         seg1 = Gtk.Box(spacing=2); seg1.get_style_context().add_class('seg'); self.mbtn = {}
@@ -183,8 +197,10 @@ class App:
         self._busy = False; self.mbtn['shot'].set_active(True); self.sbtn['region'].set_active(True)
         b.show_all(); bw, bh = b.get_preferred_size()[1].width, b.get_preferred_size()[1].height
         self.bx, self.by = (self.sw - bw) // 2, self.sh - SHELF - bh - 16
-        if WL: LSH.setup(self.bar, 'polder-capture-bar', layer='overlay', anchors=('bottom',), margins={'bottom': SHELF + 16}, exclusive=-1, keyboard='none')
-        bg = '/tmp/osb-capbar-bg.png'
+        if WL:
+            LSH.setup(self.bar, 'polder-capture-bar', layer='overlay', anchors=('bottom',), margins={'bottom': SHELF + 16}, exclusive=-1, keyboard='none')
+            LSH.LS.set_monitor(self.bar, self.monitor)
+        bg = self.bar_background
         if RGBA.active(self.bar):
             p2 = Gtk.CssProvider(); p2.load_from_data(b'#barwin { background: transparent; background-image: none; }'); self.bar.get_style_context().add_provider(p2, 905)
         else: self.frozen.new_subpixbuf(self.bx, self.by, bw, bh).savev(bg, 'png', [], [])   # rounded corners show the real screen
@@ -198,8 +214,8 @@ class App:
     def bar_bg(self, bw, bh):
         """Bar corners must match the dimmed overlay underneath -> render overlay pixels for that rect."""
         surf = cairo.ImageSurface(cairo.FORMAT_RGB24, bw, bh); cr = cairo.Context(surf); cr.translate(-self.bx, -self.by)
-        self.ov.draw(None, cr); surf.write_to_png('/tmp/osb-capbar-bg.png')
-        p = Gtk.CssProvider(); p.load_from_data(b"#barwin { background-image: url('/tmp/osb-capbar-bg.png'); }")
+        self.ov.draw(None, cr); surf.write_to_png(self.bar_background)
+        p = Gtk.CssProvider(); p.load_from_data(f"#barwin {{ background-image: url('{self.bar_background}'); }}".encode())
         self.bar.get_style_context().add_provider(p, 901); self.bar.queue_draw()
 
     def grab(self):
@@ -236,7 +252,7 @@ class App:
                  ('folder-symbolic', 'Map wijzigen…', choose_dir)]
         if s.get('capture_dir'): items.append(('edit-undo-symbolic', 'Standaardmappen herstellen', lambda: S.update(capture_dir='')))
         if not WL: items += [None, ('object-select-symbolic' if ptr else None, 'Muisaanwijzer tonen (video)', toggle_ptr)]   # wf-recorder can't draw the pointer
-        # no audio stack in this session (no PulseAudio/PipeWire) -> microphone option hidden, not faked
+        # Audio capture is not offered until its source selection is implemented.
         a = btn.get_allocation(); x, y = (self.bx, self.by) if WL else self.bar.get_window().get_origin()[1:]
         popmenu.PopMenu(items, x + a.x, y - 8, anchor='above', title='Schermopname', on_close=lambda: self.grab() and False)
 
@@ -248,33 +264,42 @@ class App:
     def rect(self):
         if self.source == 'full': return (0, 0, self.sw, self.sh)
         if self.source == 'window' and self.ov.hover: h = self.ov.hover; return (h['x'], h['y'], h['w'], h['h'])
-        if self.source == 'region' and self.ov.sel and self.ov.sel[2] > 8: return tuple(int(v) for v in self.ov.sel)
+        if self.source == 'region' and self.ov.sel and min(self.ov.sel[2:]) > 8: return tuple(int(v) for v in self.ov.sel)
         return None
 
     def capture(self):
         r = self.rect()
         if not r: return
-        x, y, w, h = r; x, y = max(0, x), max(0, y); w, h = min(w, self.sw - x), min(h, self.sh - y)
-        shot, vid = dirs(); stamp = time.strftime('%Y-%m-%d %H.%M.%S')
+        r = backend.clip_rect(r, self.sw, self.sh)
+        if not r: return
+        x, y, w, h = r
+        shot, vid = dirs(); stamp = time.strftime('%Y-%m-%d %H.%M.%S') + f'.{time.time_ns() % 1000000000:09d}'
         if self.mode == 'shot':
             os.makedirs(shot, exist_ok=True); path = os.path.join(shot, f'Schermafbeelding {stamp}.png')
             self.frozen.new_subpixbuf(x, y, w, h).savev(path, 'png', [], [])
-            if WL: subprocess.Popen(['sh', '-c', 'wl-copy -t image/png < "$0" >/dev/null 2>&1', path])   # wl-copy forks and keeps serving it
+            if WL:
+                try:
+                    with open(path, 'rb') as image:
+                        # wl-copy's clipboard owner forks and keeps inherited pipes open.
+                        copied = subprocess.run(['wl-copy', '-t', 'image/png'], stdin=image,
+                                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                                timeout=5).returncode == 0
+                except (OSError, subprocess.SubprocessError):
+                    copied = False
             else: subprocess.Popen(['sh', '-c', 'xclip -selection clipboard -t image/png -i "$0" >/dev/null 2>&1 &', path])   # xclip keeps owning the clipboard
-            self.notify('Schermafbeelding gemaakt', 'Ook gekopieerd naar het klembord.', path, shot)
+            self.notify('Schermafbeelding gemaakt', 'Ook gekopieerd naar het klembord.' if not WL or copied else 'Opgeslagen; kopiëren naar het klembord is mislukt.', path, shot)
             self.quit(); return
         # video: even sizes for x264
-        w -= w % 2; h -= h % 2; os.makedirs(vid, exist_ok=True); path = os.path.join(vid, f'Schermopname {stamp}.mp4')
-        ptr = '1' if S.load().get('capture_pointer', False) else '0'
-        ff = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'x11grab', '-draw_mouse', ptr, '-framerate', '20', '-video_size', f'{w}x{h}',
-              '-i', f"{os.environ.get('DISPLAY', ':0')}+{x},{y}", '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-threads', '2', '-crf', '28', '-pix_fmt', 'yuv420p', '-t', '3600', path]
-        if WL:   # wlr-screencopy recorder; SIGINT finalizes the file like ffmpeg
-            ff = ['wf-recorder', '-y', '-g', f'{x},{y} {w}x{h}', '-r', '20', '-c', 'libx264', '-p', 'preset=ultrafast', '-p', 'crf=28', '-x', 'yuv420p', '-f', path]
+        os.makedirs(vid, exist_ok=True); path = os.path.join(vid, f'Schermopname {stamp}.mp4')
+        ff = backend.recording_command(path, r, WL, S.load().get('capture_pointer', False), self.origin)
         self.hide_all()
-        if WL: time.sleep(0.3)   # let the overlay unmap before the first frame
-        subprocess.Popen([sys.executable, os.path.abspath(__file__), '--record', json.dumps(ff)], start_new_session=True,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        GLib.timeout_add(300, Gtk.main_quit)
+        def start_recording():
+            subprocess.Popen([sys.executable, os.path.abspath(__file__), '--record', json.dumps(ff)], start_new_session=True,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            Gtk.main_quit()
+            return False
+        # Keep dispatching Wayland events while the overlay unmaps.
+        GLib.timeout_add(300, start_recording)
 
     def notify(self, title, body, image, folder):
         notify(title, body, image, folder)
@@ -298,21 +323,21 @@ def notify(title, body, image, folder):
 if __name__ == '__main__':
     if sys.argv[1:2] == ['--record']:   # detached recorder: ffmpeg + state file for the shelf pill, notify when done
         ff = json.loads(sys.argv[2]); p = ff[-1]
-        pr = subprocess.Popen(ff, stdin=subprocess.DEVNULL, stdout=open('/tmp/osb-rec.log', 'a'), stderr=subprocess.STDOUT)
-        json.dump({'pid': pr.pid, 'start': time.time(), 'file': p}, open(REC, 'w'))
-        signal.signal(signal.SIGINT, signal.SIG_IGN); pr.wait()
-        try: os.remove(REC)
-        except OSError: pass
-        subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-sseof', '-0.5', '-i', p, '-frames:v', '1', '-vf', 'scale=240:-1', '/tmp/osb-rec-thumb.png'], timeout=30)
-        ok = os.path.exists(p) and os.path.getsize(p) > 0
-        notify('Schermopname opgeslagen' if ok else 'Schermopname mislukt', os.path.basename(p) if ok else 'Zie /tmp/osb-rec.log',
-               '/tmp/osb-rec-thumb.png', os.path.dirname(p)); sys.exit(0)
-    if stop_recording(): sys.exit(0)     # Print / Ctrl+Shift+F5 / QS tile while recording = stop
-    if os.path.exists('/tmp/osb-capture.lock'):
-        try: os.kill(int(open('/tmp/osb-capture.lock').read()), 0); sys.exit(0)
-        except (OSError, ValueError): pass
-    open('/tmp/osb-capture.lock', 'w').write(str(os.getpid()))
-    try: App(); Gtk.main()
+        ok = backend.run_recording(ff)
+        thumb = str(backend.runtime_dir() / 'osb-rec-thumb.png')
+        if ok:
+            try:
+                subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-sseof', '-0.5', '-i', p, '-frames:v', '1', '-vf', 'scale=240:-1', thumb], timeout=30)
+            except (OSError, subprocess.SubprocessError): pass
+        notify('Schermopname opgeslagen' if ok else 'Schermopname mislukt', os.path.basename(p) if ok else f'Zie {backend.runtime_dir() / "osb-rec.log"}',
+               thumb if ok else '', os.path.dirname(p)); sys.exit(0 if ok else 1)
+    if backend.stop_recording(): sys.exit(0)     # Print / Ctrl+Shift+F5 / QS tile while recording = stop
+    lock = backend.acquire_lock('osb-capture.lock')
+    if lock is None: sys.exit(0)
+    try:
+        App(); Gtk.main()
+    except (OSError, ValueError, GLib.Error, subprocess.SubprocessError) as error:
+        print(f'capture: {error}', file=sys.stderr, flush=True)
+        notify('Schermopname mislukt', 'Het scherm kon niet worden vastgelegd.', '', dirs()[0])
     finally:
-        try: os.remove('/tmp/osb-capture.lock')
-        except OSError: pass
+        os.close(lock)

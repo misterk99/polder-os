@@ -1,0 +1,15 @@
+#!/bin/sh
+# Opt-in Wayland image: software rendering must support consented portal streams.
+set -eu
+source_dir=/usr/local/src/polder-portal
+[ -f "$source_dir/build-capture-portal.sh" ] || {
+    echo 'Missing staged portal build helper' >&2
+    exit 1
+}
+sh "$source_dir/build-capture-portal.sh" "$source_dir/work" /
+test -x /usr/local/libexec/xdg-desktop-portal-wlr
+if ldd /usr/local/libexec/xdg-desktop-portal-wlr | grep -q 'not found'; then
+    echo 'Portal backend has missing runtime libraries' >&2
+    exit 1
+fi
+rm -rf -- /usr/local/src/polder-portal

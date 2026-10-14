@@ -1,7 +1,9 @@
 iso/build/
+iso/build-arm64/
 *.iso
 __pycache__/
 *.pyc
 *.ppm
 qemu.log
 iso/shots/
+.polder-test/

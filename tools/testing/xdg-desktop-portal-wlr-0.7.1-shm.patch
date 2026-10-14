@@ -1,0 +1,41 @@
+Subject: Allow screencopy v3 with SHM-only software renderers
+
+wlr-screencopy v3 does not require a linux_dmabuf event. A pixman
+compositor can supply a valid wl_shm buffer without a render node.
+Keep the existing PipeWire SHM fallback and avoid advertising unusable
+DMA-BUF formats. See upstream issue https://github.com/emersion/xdg-desktop-portal-wlr/issues/289.
+Also honor the configured frame limit when an output reports refresh 0, as
+upstream 0.8.0 does; headless outputs otherwise negotiate max_framerate 0.
+
+--- a/src/screencast/screencast.c
++++ b/src/screencast/screencast.c
+@@ -62,7 +62,8 @@ void xdpw_screencast_instance_init(struct xdpw_screencast_context *ctx,
+ 	cast->ctx = ctx;
+ 	cast->target = target;
+ 	if (ctx->state->config->screencast_conf.max_fps > 0) {
+-		cast->max_framerate = ctx->state->config->screencast_conf.max_fps < (uint32_t)target->output->framerate ?
++		cast->max_framerate = target->output->framerate == 0 ||
++			ctx->state->config->screencast_conf.max_fps < (uint32_t)target->output->framerate ?
+ 			ctx->state->config->screencast_conf.max_fps : (uint32_t)target->output->framerate;
+ 	} else {
+ 		cast->max_framerate = (uint32_t)target->output->framerate;
+@@ -195,14 +195,16 @@ static int start_screencast(struct xdpw_screencast_instance *cast) {
+ 	// remote state connected event
+ 	wl_display_dispatch(cast->ctx->state->wl_display);
+ 	wl_display_roundtrip(cast->ctx->state->wl_display);
+ 
+-	if (cast->screencopy_frame_info[WL_SHM].format == DRM_FORMAT_INVALID ||
+-			(cast->ctx->state->screencast_version >= 3 &&
+-			 cast->screencopy_frame_info[DMABUF].format == DRM_FORMAT_INVALID)) {
++	if (cast->screencopy_frame_info[WL_SHM].format == DRM_FORMAT_INVALID) {
+ 		logprint(INFO, "wlroots: unable to receive a valid format from wlr_screencopy");
+ 		return -1;
+ 	}
+ 
++	// DMA-BUF is optional, including with screencopy v3 (e.g. pixman).
++	cast->avoid_dmabufs = !cast->ctx->gbm ||
++		cast->screencopy_frame_info[DMABUF].format == DRM_FORMAT_INVALID;
++
+ 	xdpw_pwr_stream_create(cast);
+ 
+ 	cast->initialized = true;

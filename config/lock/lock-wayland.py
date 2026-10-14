@@ -9,7 +9,6 @@ import gi; gi.require_version('GtkSessionLock', '0.1')
 import lockui
 from lockui import Gtk, Gdk, GLib, S
 from gi.repository import GtkSessionLock
-PID = os.path.join(os.environ.get('XDG_RUNTIME_DIR', '/tmp'), 'osb-lock-wl.pid')
 
 class Lock(lockui.LockUI):
     def __init__(self, lock):
@@ -19,6 +18,18 @@ class Lock(lockui.LockUI):
             display = s.get('display_name') or 'Gebruiker'; hint = f'Testaccount voor deze prototype-box: {me.pw_name}'
         super().__init__([{'name': me.pw_name, 'display': display, 'face': os.path.join(me.pw_dir, '.face')}], hint=hint, popup=False)
         self.set_decorated(False)   # no GTK client-side titlebar on the lock surface
+        # The shared X11 UI requests the whole screen as a minimum. A Wayland
+        # lock surface must exactly match its output's configured size, which
+        # can be smaller than the combined desktop (or change with scaling).
+        self.set_size_request(-1, -1)
+        self.set_default_size(1, 1)
+        self.entry.connect('key-press-event', self.entry_key)
+
+    def entry_key(self, _entry, event):
+        if event.keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
+            if self.entry.get_sensitive(): self.submit()
+            return True
+        return False
 
     def authenticate(self, user, pw, done):
         def work():
@@ -27,12 +38,12 @@ class Lock(lockui.LockUI):
                 ok = pam.pam().authenticate(self.user, pw, service='login'); why = '' if ok else 'Onjuist wachtwoord'
             except Exception as e:   # never leave the UI stuck on 'Controleren…'
                 print('pam error:', e, flush=True); ok, why = False, 'Wachtwoordcontrole niet beschikbaar'
+            if not ok: print('authentication rejected', flush=True)
             GLib.idle_add(done, ok, why)
         threading.Thread(target=work, daemon=True).start()
 
     def unlocked(self):
-        self.lock.unlock_and_destroy(); Gdk.Display.get_default().flush()
-        print('unlocked', flush=True); GLib.timeout_add(200, Gtk.main_quit)
+        self.lock.unlock()
 
     def power(self, action):
         # SAFETY: the prototype never powers off/logs out the box; the ISO maps these to systemctl/loginctl.
@@ -40,26 +51,88 @@ class Lock(lockui.LockUI):
         if os.environ.get('POLDEROS_ISO'):
             subprocess.Popen({'shutdown': ['systemctl', 'poweroff'], 'logout': ['sh', '-c', 'loginctl terminate-session "$XDG_SESSION_ID"']}[action])
 
+class SessionLock:
+    def __init__(self):
+        self.display = Gdk.Display.get_default()
+        self.windows = {}
+        self.confirmed = False
+        self.ended = False
+        self.result = 3
+        self.lock = GtkSessionLock.prepare_lock()
+        self.lock.connect('locked', self.on_locked)
+        self.lock.connect('finished', self.on_finished)
+        self.display.connect('monitor-added', self.monitor_added)
+        self.display.connect('monitor-removed', self.monitor_removed)
+
+    def on_locked(self, *_):
+        self.confirmed = True
+        # The compositor's locked event, not window creation or a PID, gates suspend.
+        ready = os.environ.pop('POLDER_LOCK_READY_FD', None)
+        if ready is not None:
+            fd = int(ready)
+            try: os.write(fd, b'\n')
+            except BrokenPipeError: pass
+            finally: os.close(fd)
+        print('locked: compositor acknowledged', flush=True)
+        # Background rendering can take time; the opaque compositor cover already protects us.
+        GLib.idle_add(self.show_monitors)
+
+    def show_monitors(self):
+        for index in range(self.display.get_n_monitors()):
+            self.add_monitor(self.display.get_monitor(index))
+        return False
+
+    def add_monitor(self, monitor):
+        if self.ended or not self.confirmed or monitor in self.windows:
+            return False
+        if not any(self.display.get_monitor(i) == monitor for i in range(self.display.get_n_monitors())):
+            return False
+        try:
+            window = Lock(self)
+            self.windows[monitor] = window
+            self.lock.new_surface(window, monitor)
+            window.show_all(); window.entry.grab_focus()
+        except Exception as error:
+            # Leave the compositor locked and let the supervisor start its fallback.
+            print(f'Could not create lock screen: {error}', flush=True)
+            Gtk.main_quit()
+        return False
+
+    def monitor_added(self, _display, monitor):
+        GLib.idle_add(self.add_monitor, monitor)
+
+    def monitor_removed(self, _display, monitor):
+        window = self.windows.pop(monitor, None)
+        if window is not None: window.destroy()
+
+    def on_finished(self, *_):
+        self.ended = True
+        self.lock.destroy()
+        print('Compositor refused the session lock', flush=True)
+        Gtk.main_quit()
+
+    def unlock(self):
+        if self.ended or not self.confirmed: return
+        self.ended = True
+        self.lock.unlock_and_destroy()
+        for window in self.windows.values(): window.destroy()
+        self.windows.clear()
+        # Wait for the unlock request to reach the compositor before exiting.
+        self.display.sync()
+        self.result = 0
+        print('unlocked', flush=True)
+        Gtk.main_quit()
+
+
 def main():
-    if not GtkSessionLock.is_supported(): print('ext-session-lock-v1 not supported', flush=True); sys.exit(3)
-    lock = GtkSessionLock.prepare_lock(); lock.lock_lock()
-    disp = Gdk.Display.get_default(); ui = None
-    for i in range(disp.get_n_monitors()):   # full UI on the primary monitor, blurred wallpaper on the others
-        mon = disp.get_monitor(i)
-        if ui is None and (mon.is_primary() or i == disp.get_n_monitors() - 1 or disp.get_primary_monitor() is None):
-            ui = w = Lock(lock)
-        else:
-            w = Gtk.Window(); w.set_name('lockwin'); w.set_decorated(False)
-        lock.new_surface(w, mon); w.show_all()
-    ui.entry.grab_focus(); print('locked', flush=True)
+    if not GtkSessionLock.is_supported():
+        print('ext-session-lock-v1 not supported', flush=True)
+        return 3
+    session = SessionLock()
+    session.lock.lock_lock()
     Gtk.main()
+    return session.result
 
 if __name__ == '__main__':
-    try: os.kill(int(open(PID).read()), 0); print('already locked'); sys.exit(0)
-    except (OSError, ValueError): pass
-    open(PID, 'w').write(str(os.getpid()))
     signal.signal(signal.SIGTERM, signal.SIG_IGN)   # a stray pkill must not unlock (the compositor would keep it locked anyway)
-    try: main()
-    finally:
-        try: os.remove(PID)
-        except OSError: pass
+    sys.exit(main())

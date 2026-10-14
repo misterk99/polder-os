@@ -6,7 +6,8 @@ C=$(cd "$(dirname "$0")/.." && pwd); . "$C/palette.env" 2>/dev/null
 h(){ echo "${1#\#}"; }
 WP="$C/wallpaper.png"; [ -f "$WP" ] || WP="$C/wallpapers/polderheuvel.png"
 BG=${XDG_RUNTIME_DIR:-/tmp}/polder-lock-bg.png
-if [ ! -f "$BG" ] || [ "$WP" -nt "$BG" ]; then convert "$WP" -resize 25% -blur 0x6 -resize 400% -fill black -colorize 35% "$BG" 2>/dev/null || BG=""; fi
+# Never delay a suspend inhibitor to render a backdrop; use an existing cache or wallpaper.
+if [ ! -f "$BG" ] || [ "$WP" -nt "$BG" ]; then BG="$WP"; fi
 exec swaylock ${BG:+-i "$BG"} -s fill -c "$(h ${SURFACE:-#1f2023})" -F -e \
   --font Roboto --font-size 22 --indicator-radius 72 --indicator-thickness 8 \
   --inside-color "$(h ${SURFACE:-#f8f9fc})dd" --inside-clear-color "$(h ${SURFACE:-#f8f9fc})dd" --inside-ver-color "$(h ${ACCENT_CONTAINER:-#d3e3fd})ee" --inside-wrong-color ffdad6ee \

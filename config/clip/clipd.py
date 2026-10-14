@@ -12,7 +12,7 @@ from gi.repository import Gtk, Gdk, GLib, GdkPixbuf, Pango, GdkX11
 import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), '..', 'osb')); import rgba as RGBA   # Rev 29.2: real rounded corners
 import osbsettings as S, osbnotify as N
 import layershell as LSH, wltop   # Rev 34c: Wayland (polder-comp) paths
-DIR = os.path.join(S.CACHE, 'clipboard'); IDX = os.path.join(DIR, 'history.json'); MAX = 10; PID = '/tmp/osb-clipd.pid'
+DIR = os.path.join(S.CACHE, 'clipboard'); IDX = os.path.join(DIR, 'history.json'); MAX = 10; PID = os.path.join(LSH.rundir(), 'osb-clipd.pid')
 SECRET = {'x-kde-passwordManagerHint', 'x-kde-passwordmanagerhint'}
 TERMS = {'foot', 'footclient', 'xfce4-terminal', 'gnome-terminal-server', 'xterm', 'uxterm', 'konsole', 'terminator', 'alacritty', 'kitty'}
 

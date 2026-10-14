@@ -1,5 +1,6 @@
 # Polder OS 0.30 package list (trixie, --apt-recommends false so everything needed is listed)
-linux-image-amd64 live-boot live-config live-config-systemd user-setup iproute2 systemd-sysv sudo locales console-setup keyboard-configuration tzdata
+# build.sh selects the kernel and GRUB packages for POLDER_ARCH separately.
+live-boot live-config live-config-systemd user-setup iproute2 systemd-sysv sudo locales console-setup keyboard-configuration tzdata
 firmware-linux-free firmware-misc-nonfree firmware-realtek firmware-iwlwifi firmware-atheros
 network-manager wpasupplicant bluez dbus-x11 dbus-user-session pkexec polkitd udisks2 gvfs ca-certificates curl apt-transport-https
 pipewire pipewire-pulse wireplumber pipewire-alsa pulseaudio-utils alsa-utils brightnessctl
@@ -10,7 +11,7 @@ python3-xlib python3-icalendar python3-recurring-ical-events python3-pampy pytho
 xclip ffmpeg mpv mpv-mpris libnotify-bin wmctrl xdotool imagemagick librsvg2-bin librsvg2-common xdg-user-dirs xdg-utils
 fonts-roboto fonts-noto-color-emoji papirus-icon-theme arc-theme adwaita-icon-theme hicolor-icon-theme shared-mime-info
 flatpak packagekit packagekit-tools appstream gir1.2-packagekitglib-1.0 gir1.2-appstream-1.0 gir1.2-flatpak-1.0 lxpolkit
-calamares calamares-settings-debian squashfs-tools rsync cryptsetup dosfstools e2fsprogs btrfs-progs os-prober grub-efi-amd64 grub-pc-bin efibootmgr
+calamares calamares-settings-debian squashfs-tools rsync cryptsetup dosfstools e2fsprogs btrfs-progs os-prober efibootmgr
 nano less bash-completion man-db
 
 # Revision 26: automatic updates
