@@ -60,7 +60,14 @@ supervise() {
   ) &
 }
 supervise notifications python3 "$C/notify/osb-notifyd.py"
-supervise shelf python3 "$C/shelf/shelf.py"
+# Rust shelf (shell/polder-shelf) is opt-in: POLDER_SHELF=rust in the session environment or ~/.config/osb/shelf-impl
+# containing "rust". Without the binary, or by default, the Python shelf runs (same PID file, so never both).
+shelf_impl=${POLDER_SHELF:-$(cat "$HOME/.config/osb/shelf-impl" 2>/dev/null || echo python)}
+if [ "$shelf_impl" = rust ] && command -v polder-shelf >/dev/null; then
+  supervise shelf polder-shelf
+else
+  supervise shelf python3 "$C/shelf/shelf.py"
+fi
 supervise launcher python3 "$C/launcher/launcher.py"
 supervise clipboard python3 "$C/clip/clipd.py"
 supervise settings python3 "$C/osb/osb-settingsd.py"

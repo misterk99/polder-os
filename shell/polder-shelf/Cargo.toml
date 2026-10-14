@@ -1,0 +1,15 @@
+[package]
+name = "polder-shelf"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+description = "Polder OS shelf (taskbar) for polder-comp, GTK4 + wlr-layer-shell"
+
+[dependencies]
+gtk = { package = "gtk4", version = "0.9" }
+gtk4-layer-shell = "0.4"
+serde_json = "1"
+libc = "0.2"
+
+[profile.release]
+lto = true
