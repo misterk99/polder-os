@@ -63,3 +63,11 @@ interfaces from KDE Connect 24.12 `core/` and `plugins/`). Opened from the `Tele
 
 `tests/mock-kdeconnect.py` is a TEST FIXTURE ONLY: a fake kdeconnectd with made-up data for headless tests
 (`--state paired|unpaired|request|none`); it is never installed. `POLDER_KDECONNECTD` overrides the daemon binary.
+
+## polder-launcher (Rust port of config/launcher/launcher.py)
+Resident GTK4 layer-shell launcher, same PID file (`$OSB_RUNDIR/osb-launcher.pid`) and SIGUSR1 toggle as launcher.py, so
+`launcher/launcher-toggle.sh` drives either. Opt in with `POLDER_LAUNCHER_IMPL=rust` or `~/.config/osb/launcher-impl` = `rust`
+(note: `POLDER_LAUNCHER` itself is polder-comp's Super-key command). Parity: app grid (5 per row, `app_order` drag & drop,
+right-click pin/unpin/open/sort), search groups Webapp (`installeer <url> [als app] [naam]` via webapps.py), Rekenmachine
+(`src/calc.rs`, Python semantics, unit-tested), Apps, Instellingen sections, Bestanden (index of `$OSB_FILES_HOME`), Internet;
+Up/Down/Enter/Escape, hides on focus loss, live palette. Tests: `tests/components-session.sh`, `tests/pc-drag.c`.

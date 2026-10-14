@@ -68,7 +68,13 @@ if [ "$shelf_impl" = rust ] && command -v polder-shelf >/dev/null; then
 else
   supervise shelf python3 "$C/shelf/shelf.py"
 fi
-supervise launcher python3 "$C/launcher/launcher.py"
+# Rust launcher / notification daemon / clipboard history: same opt-in rule (POLDER_<X>_IMPL=rust or ~/.config/osb/<x>-impl).
+impl_of() { local v; v=$(printenv "POLDER_$(echo "$1" | tr a-z A-Z)_IMPL"); echo "${v:-$(cat "$HOME/.config/osb/$1-impl" 2>/dev/null || echo python)}"; }
+if [ "$(impl_of launcher)" = rust ] && command -v polder-launcher >/dev/null; then
+  supervise launcher polder-launcher
+else
+  supervise launcher python3 "$C/launcher/launcher.py"
+fi
 supervise clipboard python3 "$C/clip/clipd.py"
 supervise settings python3 "$C/osb/osb-settingsd.py"
 supervise polkit lxpolkit
