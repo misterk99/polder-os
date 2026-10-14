@@ -90,7 +90,10 @@ class SessionProbe:
         if self.collecting:
             self.diagnostics.append(line)
             if line.startswith("__POLDER_SESSION_READY__ "):
+                previous_ready = self.ready
                 self.ready = line.split()[-1] == "1"
+                if self.ready != previous_ready:
+                    self.write_readiness()
             elif line.startswith("__POLDER_PROCESS__ "):
                 _, role, *pids = line.split()
                 self.processes[role] = [int(pid) for pid in pids if pid.isdigit()]
@@ -135,7 +138,7 @@ report_process clipboard -f '[/]clip/clipd.py'
 report_process settings -f '[/]osb/osb-settingsd.py'
 report_process combined_shell -f '[/]shell/polder-shell.py'
 printf '\n--- Live-account process state ---\n'
-ps -u "$uid" -o pid,stat,pcpu,wchan:24,comm
+ps -ww -u "$uid" -o pid,stat,pcpu,wchan:24,args
 log_dir="$HOME/.cache/polderos/wayland"
 for name in session notifications shelf launcher clipboard settings idle xsettings; do
   printf '\n--- session log: %s ---\n' "$name"
@@ -235,6 +238,15 @@ printf '\n__POLDER_PROBE_END__\n'
         (self.output / "session-probe.log").write_text("\n".join(self.diagnostics) + "\n")
         return result
 
+    def write_readiness(self):
+        """Persist the fast readiness signal before optional diagnostics finish."""
+        result = {"status": "ready" if self.ready else "not_ready",
+                  "session_ready": self.ready, "logged_in": self.logged_in,
+                  "phase": self.phase,
+                  "desktop_result": "readiness signal only; diagnostics are still running"}
+        (self.output / "session-probe-readiness.json").write_text(
+            json.dumps(result, indent=2) + "\n")
+
     def close(self):
         self.log.close()
         self.socket.close()
@@ -328,6 +340,17 @@ def main():
         (output / "command.json").write_text(json.dumps(command, indent=2) + "\n")
         monitor = None
         probe = None
+        report = {"status": "running", "qemu_status": None, "architecture": args.arch,
+                  "seconds": args.seconds, "screenshots": [],
+                  "desktop_result": "requires visual review; VM liveness is not desktop acceptance",
+                  "acceleration": "TCG software emulation"}
+        report['boot_path'] = 'direct kernel (GRUB not tested)' if args.direct_kernel else 'ISO firmware/GRUB'
+        result_path = output / "result.json"
+
+        def save_result():
+            result_path.write_text(json.dumps(report, indent=2) + "\n")
+
+        save_result()
         with (output / "qemu.log").open("wb") as log:
             process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
             try:
@@ -359,7 +382,9 @@ def main():
                 exercise_due = None
                 visible_since = None
                 final_probe_sent = False
+                next_readiness_refresh = 30
                 exercise_step = 0
+                last_saved_readiness = probe.ready if probe is not None else None
                 exercise = [(0, "capture", "desktop-ready"), (2, "key", "meta_l"),
                             (14, "capture", "launcher"), (15, "key", "esc"),
                             (18, "key", "meta_l-ret"), (43, "capture", "terminal"),
@@ -372,6 +397,10 @@ def main():
                 while time.monotonic() - started < args.seconds:
                     if probe is not None:
                         probe.pump()
+                        if probe.ready != last_saved_readiness:
+                            report["session_ready"] = probe.ready
+                            save_result()
+                            last_saved_readiness = probe.ready
                     if process.poll() is not None:
                         raise RuntimeError(f"QEMU exited early: {process.returncode}")
                     elapsed = int(time.monotonic() - started)
@@ -379,9 +408,15 @@ def main():
                             and probe.phase == "collected"):
                         probe.refresh()
                         final_probe_sent = True
+                    elif (probe is not None and not probe.ready and probe.phase == "collected"
+                          and elapsed >= next_readiness_refresh):
+                        probe.refresh()
+                        next_readiness_refresh = elapsed + 30
                     if elapsed >= next_capture:
                         name = f"boot-{elapsed:04d}"
                         captures.append(capture(monitor, output, name))
+                        report["screenshots"] = captures
+                        save_result()
                         if (args.exercise_shell and visible_since is None and probe.ready and
                                 has_visible_content(output / captures[-1])):
                             visible_since = time.monotonic()
@@ -401,15 +436,18 @@ def main():
                                 else:
                                     monitor.execute("human-monitor-command", {"command-line": "sendkey " + value})
                                 exercise_step += 1
+                                report["screenshots"] = captures
+                                if args.exercise_shell:
+                                    report["shell_exercise"] = {
+                                        "steps_completed": exercise_step, "steps_planned": len(exercise),
+                                        "visible_content_seconds": None if visible_since is None else round(visible_since - started, 1),
+                                        "result": "review named screenshots; key delivery alone is not a pass"}
+                                save_result()
                                 if exercise_step < len(exercise):
                                     # Preserve the wait after each action even if a screenshot was slow.
                                     exercise_due = time.monotonic() + exercise[exercise_step][0] - delay
                     time.sleep(0.25)
-                report = {"qemu_status": monitor.execute("query-status"), "architecture": args.arch,
-                          "seconds": args.seconds, "screenshots": captures,
-                          "desktop_result": "requires visual review; VM liveness is not desktop acceptance",
-                          "acceleration": "TCG software emulation"}
-                report['boot_path'] = 'direct kernel (GRUB not tested)' if args.direct_kernel else 'ISO firmware/GRUB'
+                report["qemu_status"] = monitor.execute("query-status")
                 if args.exercise_shell:
                     report['shell_exercise'] = {"steps_completed": exercise_step, "steps_planned": len(exercise),
                                                 "visible_content_seconds": None if visible_since is None else round(visible_since - started, 1),
@@ -417,10 +455,22 @@ def main():
                 if probe is not None:
                     probe.pump()
                     report["session_probe"] = probe.report()
-                (output / "result.json").write_text(json.dumps(report, indent=2) + "\n")
+                report["status"] = "complete"
+                save_result()
                 if probe is not None and report["session_probe"]["status"] == "failed":
                     raise RuntimeError(report["session_probe"]["error"] + "; see session-probe.json and serial.log")
                 print("VM evidence collected. Review screenshots and logs before judging the desktop.", flush=True)
+            except Exception as error:
+                report["status"] = "incomplete"
+                report["error"] = f"{type(error).__name__}: {error}"
+                if probe is not None:
+                    report["session_ready"] = probe.ready
+                    try:
+                        report["session_probe"] = probe.report()
+                    except OSError:
+                        pass
+                save_result()
+                raise
             finally:
                 if probe is not None:
                     try:

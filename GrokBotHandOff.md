@@ -8,20 +8,24 @@ the verifier and this updated handoff.
 
 ## Read this first
 
-The Wayland integration changes passed the native ARM tests listed below. An r6
-ARM64 ISO has now been built and checksum-verified. A test-only copy completed
-normal UEFI/GRUB boot and reached the live serial login, but the Wayland session
-did not report ready within the bounded probe; screenshots do not establish a
-visible desktop. **Desktop/launcher acceptance is unresolved, so this is not a
-completed release.** The original r6 ISO and the instrumented test copy have
-different hashes; do not treat the test copy as a release artifact.
+The Wayland integration changes passed the native ARM tests listed below. The
+r6 ARM64 production ISO is built and checksum-verified. The latest test-only ISO
+run has completed UEFI/GRUB boot, live login, and Wayland session readiness; a
+rendered desktop and terminal open/maximize/restore are visible in reviewed
+screenshots. Launcher activation and the precise lock/unlock transition are
+still unconfirmed. The 1800-second TCG run completed with the VM active at its
+final QMP status query and the session probe collected without error. Check
+`.polder-test/vm-arm64-r6-interaction/result.json` for the full report. This is
+not a completed release. The production ISO and serial-instrumented test copy
+have different hashes; do not treat the test copy as a release artifact.
 
 The user initially requested both CPU architectures, then explicitly narrowed the
 work to **ARM64 only**. Do not resume Intel/AMD builds. The user approved WSL2 and
-a VM for testing and has since explicitly asked us to finish the ARM work. The
-current next step is a focused diagnosis of why the live session readiness marker
-was absent, followed by a bounded VM rerun if the cause is understood. Keep
-updates short and concrete; the user has already found the task too lengthy.
+a VM for testing and explicitly asked us to finish the ARM work. The final VM
+result and screenshots are recorded below. Next, investigate the launcher
+shortcut and lock capture timing with focused tests; do not repeat the full ISO
+build or 1800-second run without a code change that requires it. Keep updates
+short and concrete; the user has already found the task too lengthy.
 
 ## What changed
 
@@ -118,16 +122,23 @@ The production image remains separate from the serial-instrumented VM copy.
 | Production ISO | Repacked from the verified r4 UEFI image with updated root filesystem and manifest; 229 checksum entries; image SHA-256 `8737cb0713ef44055fab83e8bf1b9f403e57b500eeb1be535780326081831e91`. | `iso-arm64/polderos-0.30.1-wayland-dev-arm64-r6.hybrid.iso`, `grub-r6-repack.json` |
 | Read-only image verifier | Passed ISO hash, UEFI El Torito entry, squashfs, manifest, runtime/config hashes, kernel/initrd and module metadata checks on both images. | `tools/testing/verify-arm64-iso.py`, `iso-arm64/r6-verification.txt` |
 | Serial test copy | Replayed UEFI metadata and appended `console=tty0 console=ttyAMA0,115200` to the primary live GRUB kernel line. Test copy SHA-256 `672dd28c4bf4a90c7974baf014a9588fe1a81dc957b508c3b51c9292b352e47d`; it also passed the image verifier. This is test instrumentation, not the production image. | `iso-arm64/polderos-0.30.1-wayland-dev-arm64-r6-qemu-serial-test.iso`, `r6-serial-test.json` |
-| UEFI/GRUB and live login | Passed on ARM64 QEMU TCG using the instrumented copy. Firmware selected the CD, GRUB handed off to the kernel, and the probe authenticated to the live `polder` account. | `vm-arm64-r6-serial/serial.log`, `command.json` |
-| Wayland readiness and desktop | Not passed. The guest probe emitted `__POLDER_SESSION_READY__ 0` after its bounded wait; it found only the compositor role. The compositor logged DRM modeset and Xwayland startup, but no visible desktop was established. The launcher/terminal/lock exercise did not run. | `vm-arm64-r6-serial/session-probe.json`, `session-probe.log`, `serial.log` |
-| Screen evidence | Not a visual pass: initial capture says display output is inactive, later captures are black or console-only. At the end of the 750-second TCG window, QMP status timed out before the harness wrote `result.json`; treat remaining diagnostics as incomplete. | `vm-arm64-r6-serial/boot-*.png`, `qemu.log` |
+| UEFI/GRUB and live login | Passed on ARM64 QEMU TCG using the instrumented copy. Firmware selected the CD, GRUB handed off to the kernel, and the probe authenticated to the live `polder` account. The 1800-second run completed; QMP reported the VM still running at its final status query. | `vm-arm64-r6-interaction/serial.log`, `command.json`, `result.json` |
+| Wayland readiness | Passed for session startup: the probe observed `session_ready=true` by about 270 seconds. Its final snapshot was collected without error and found the compositor, shelf, launcher, notifications, clipboard and settings processes. | `vm-arm64-r6-interaction/session-probe-readiness.json`, `session-probe.json`, `serial.log` |
+| Visible desktop and interaction | A rendered desktop, panel and first-run welcome wizard are visible by about 390 seconds and remain visible through the final 1770-second capture. The terminal opened, maximized, and returned to the welcome desktop in reviewed screenshots. The launcher checkpoint still shows the welcome wizard, so launcher activation is unconfirmed. Lock-flow screenshots show a `Verifying` state and a later return to the desktop by 600 seconds, but do not clearly capture the locked state; treat lock acceptance as inconclusive. All 18 scripted steps ran, but key delivery alone is not a pass. | `vm-arm64-r6-interaction/desktop-ready.png`, `launcher.png`, `terminal.png`, `terminal-maximized.png`, `desktop-restored.png`, `screen-locked.png`, `screen-unlocked.png`, `boot-0600.png`, `boot-1770.png`, `result.json` |
 
-The VM result is a partial boot success and an unresolved desktop acceptance
-check, not evidence that the desktop works or that it is broken. The standard
-production ISO has no serial-console kernel arguments; the instrumented copy
-allows the session probe to observe normal firmware/GRUB boot without changing
-the production ISO. Hardware GPU/effects and native ARM device behavior remain
-untested.
+The VM harness now persists readiness as soon as the signal changes, repeats a
+readiness probe every 30 seconds after a completed negative snapshot, records
+full process command lines, and keeps `result.json` updated while the run is in
+progress or if an exception interrupts it. Its focused socket tests passed
+before this run.
+
+The completed VM run confirms firmware/GRUB boot, live login, a ready Wayland
+session, rendered desktop, and terminal open/maximize/restore. It does not
+confirm launcher activation or a clear lock/unlock pass. QEMU uses TCG, so its
+timing is not a native performance measurement. The standard production ISO
+has no serial-console kernel arguments; the instrumented copy lets the session
+probe observe normal firmware/GRUB boot without changing the production ISO.
+Hardware GPU/effects and native ARM device behavior remain untested.
 
 ## Exact stopping point and local caches
 
@@ -135,9 +146,11 @@ The Windows workspace is `C:\Users\kyle_\Documents\ChatGPT\Polder OS`.
 WSL distro: `Ubuntu-24.04`, ARM64, approximately 7.6 GiB RAM, no `/dev/kvm`.
 QEMU therefore uses TCG software emulation. A prior normal ARM boot took about
 421 seconds to show the desktop; that is not a native performance measurement.
-The r6 run used a 750-second window and reached login. Its guest-side 120-second
-readiness wait emitted `ready 0`; the longer diagnostics and QMP final status
-timed out. Current r6 artifacts are:
+The latest r6 interaction run completed its 1800-second window. `result.json`
+records `status=complete`, QMP `running=true`, and `session_ready=true`; the
+final session probe was collected without error. All 18 input/screenshot steps
+ran; terminal behavior passed visual review, while launcher activation and the
+lock/unlock checkpoint remain inconclusive. Current r6 artifacts are:
 
 | Local resource | Contents |
 | --- | --- |
@@ -150,6 +163,7 @@ timed out. Current r6 artifacts are:
 | `.polder-test/iso-arm64/r6-build-rootfs.log` | ARM64 rootfs/compositor/portal build log |
 | `.polder-test/iso-arm64/r6-verification.txt` | Fresh read-only verifier results for both r6 ISO files |
 | `.polder-test/vm-arm64-r6-serial/` | Normal UEFI/GRUB boot screenshots, serial log and incomplete session diagnostics for the test-only ISO |
+| `.polder-test/vm-arm64-r6-interaction/` | Completed 1800-second ARM64 QEMU run: periodic readiness, named shell screenshots, serial log and final QMP/probe report |
 | `.polder-test/iso-arm64/R5-STOP-CHECKPOINT.md` | Detailed historical r5 stopped-build record; r5 was superseded by the completed r6 packaging work |
 | `.polder-test/iso-arm64/grub-stage-r5.sh` | Local cache-repack preparation script; not a portable clean-build entry point |
 | `.polder-test/capture-portal/portal-final-r3-install` | Exact tested portal binary, activation files and provenance |
@@ -169,26 +183,24 @@ The exact tested portal executable SHA-256 is
 
 ## Where to pick up next
 
-1. Inspect Git status and preserve local `.polder-test/` artifacts. Do not rebuild
-   the r6 image unless its source changes or the current hashes stop matching.
-2. Diagnose why `polderos-wayland-components` did not write
-   `/run/user/<uid>/polderos-wayland/ready`. The current evidence shows the
-   compositor and Xwayland running, but does not identify a blocking command.
-   Add concise stage markers around the GTK check, user-service setup, settings
-   calls and supervisor launch, then capture full process command lines.
-3. Make the probe report readiness independently of optional long diagnostics,
-   and persist partial VM status even when QMP or the diagnostic tail times out.
-   Keep shell exercise gated on a ready marker and visually visible screen.
-4. Rerun normal UEFI/GRUB boot on the test-only ISO with enough wall time for
-   ARM TCG, then inspect the named screenshots. Only claim launcher/terminal/
-   maximize/lock coverage if those actions actually complete and screenshots are
-   reviewed. A QEMU liveness signal is not desktop acceptance.
-5. Report the exact production and test-copy hashes and current limitations.
-   Do not silently add AMD work, install onto a real disk, or publish a release.
+1. Preserve `.polder-test/vm-arm64-r6-interaction/` as the final VM evidence.
+   `result.json`, `session-probe.json`, serial/session logs, and the named
+   screenshots have been reviewed. The ISO and raw screenshots remain local.
+2. Launcher activation remains unconfirmed: the `launcher.png` checkpoint shows
+   the welcome wizard. Check the actual launcher shortcut/focus behavior and
+   repeat only that interaction if needed.
+3. Lock behavior is inconclusive: the run showed `Verifying` and then returned
+   to the welcome desktop, but the capture named `screen-locked.png` does not
+   show a lock screen. Confirm the exact transition with a focused repeat before
+   claiming lock/unlock acceptance.
+4. Do not rebuild the r6 image unless its source changes or the current hashes
+   stop matching. Report the exact production and test-copy hashes and current
+   limitations. Do not silently add AMD work, install onto a real disk, or
+   publish a release.
 
-Commands below are for Linux/WSL from the repository root, **after resumption is
-requested**. They can take substantial time; do not run all of them just to
-recreate already-valid evidence. Use two build CPUs on this host.
+Commands below are for Linux/WSL from the repository root. They can take
+substantial time; do not run all of them just to recreate already-valid
+evidence. Use two build CPUs on this host.
 
 ```sh
 # Portable headless regression suite (rebuilds the SDK if needed).
@@ -199,10 +211,11 @@ POLDER_ARCH=arm64 POLDER_BUILD_CPUS=2 \
   POLDER_TEST_OUTPUT="$PWD/.polder-test/iso-arm64-next" \
   bash tools/test-linux.sh iso
 
-# Normal firmware boot of the r6 serial test copy; uses a long TCG window.
+# Repeat the normal firmware boot only if a code change requires it. Use a new
+# output directory so the completed evidence is preserved.
 POLDER_ARCH=arm64 POLDER_VM_SECONDS=1800 \
   POLDER_VM_PROBE_SESSION=1 POLDER_VM_EXERCISE_SHELL=1 \
-  POLDER_TEST_OUTPUT="$PWD/.polder-test/vm-arm64-r6-retry" \
+  POLDER_TEST_OUTPUT="$PWD/.polder-test/vm-arm64-r6-interaction-next" \
   bash tools/test-linux.sh vm "$PWD/.polder-test/iso-arm64/polderos-0.30.1-wayland-dev-arm64-r6-qemu-serial-test.iso"
 ```
 
@@ -222,8 +235,11 @@ caches. A Git clone will not contain the local Docker volumes, raw evidence or I
 
 ## Known limitations
 
-- The r6 FX image build completed, but Wayland session readiness, visible desktop
-  behavior and launcher/terminal/lock interactions still need VM acceptance.
+- The r6 FX image's Wayland session readiness, visible desktop, and terminal
+  open/maximize/restore are confirmed in ARM64 QEMU TCG. Launcher activation is
+  not confirmed and lock/unlock evidence remains inconclusive. The full 1800-
+  second VM run completed; its process liveness does not represent native
+  performance.
 - Actual GPU effects, physical monitor hotplug/mixed scaling, and real ARM
   hardware suspend/resume remain unverified.
 - ARM images target generic UEFI/QEMU `virt`, not every ARM laptop or board.

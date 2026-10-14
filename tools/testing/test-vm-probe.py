@@ -60,7 +60,12 @@ class SerialSessionProbe(unittest.TestCase):
                 self.assertNotIn(probe.BEGIN.encode(), command)
                 guest.sendall(b"\r\n__POLDER_PROBE_BEGIN__\r\n__POLDER_SESSION_RE")
                 probe.pump()
-                guest.sendall(b"ADY__ 1\r\n__POLDER_PROCESS__ compositor 123\r\n"
+                guest.sendall(b"ADY__ 1\r\n")
+                probe.pump()
+                readiness = json.loads((output / "session-probe-readiness.json").read_text())
+                self.assertEqual(readiness["status"], "ready")
+                self.assertTrue(readiness["session_ready"])
+                guest.sendall(b"__POLDER_PROCESS__ compositor 123\r\n"
                               b"__POLDER_PROCESS__ shelf 124 125\r\n"
                               b"__POLDER_PROCESS__ combined_shell \r\nknown log line\r\n"
                               b"__POLDER_PROBE_END__\r\n")
@@ -79,6 +84,7 @@ class SerialSessionProbe(unittest.TestCase):
                               b"__POLDER_PROCESS__ compositor \r\n__POLDER_PROBE_END__\r\n")
                 probe.pump()
                 self.assertEqual(probe.report()["status"], "failed")
+                self.assertEqual(json.loads((output / "session-probe-readiness.json").read_text())["status"], "not_ready")
                 self.assertFalse(probe.ready)
                 self.assertEqual(probe.processes["compositor"], [])
                 self.assertIn("known log line", (output / "session-probe.log").read_text())
