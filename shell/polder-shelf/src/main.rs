@@ -16,7 +16,14 @@ const MONTHS: [&str; 12] = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "au
 fn run(argv: &[&str]) {
     let mut c = Command::new(argv[0]); c.args(&argv[1..]).stdout(Stdio::null()).stderr(Stdio::null());
     use std::os::unix::process::CommandExt; c.process_group(0);
-    if let Err(e) = c.spawn() { eprintln!("run {argv:?}: {e}"); }
+    match c.spawn() { Ok(mut ch) => { std::thread::spawn(move || ch.wait()); } Err(e) => eprintln!("run {argv:?}: {e}") }   // reap: no zombies
+}
+/// POLDER_QS=rust / ~/.config/osb/qs-impl = rust and the binary exists (PATH, or next to this shelf binary).
+fn rust_qs() -> Option<String> {
+    if theme::impl_of("qs") != "rust" { return None; }
+    let side = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join("polder-quicksettings"))).filter(|p| p.exists());
+    std::env::var("PATH").unwrap_or_default().split(':').map(|d| std::path::Path::new(d).join("polder-quicksettings")).find(|p| p.exists())
+        .or(side).map(|p| p.to_string_lossy().into())
 }
 fn cpath(rel: &str) -> String { theme::config_dir().join(rel).to_string_lossy().into() }
 
@@ -148,7 +155,7 @@ fn build(app: &gtk::Application) -> S {
     wx.connect_clicked(move |b| if let Some(s) = w.upgrade() { let r = right_of(&s.borrow(), b); run(&["python3", &cpath("calendar/cal.py"), "--weather", &r]); });
     let w = Rc::downgrade(&s);
     date.connect_clicked(move |b| if let Some(s) = w.upgrade() { let r = right_of(&s.borrow(), b); run(&["python3", &cpath("calendar/cal.py"), &r]); });
-    tray.connect_clicked(|_| run(&["python3", &cpath("quicksettings/qs.py")]));
+    tray.connect_clicked(|_| match rust_qs() { Some(b) => run(&[&b]), None => run(&["python3", &cpath("quicksettings/qs.py")]) });
 
     let g = gtk::GestureClick::new(); g.set_button(3);
     let w = Rc::downgrade(&s);

@@ -128,6 +128,15 @@ def sh(cmd, t=3):
     except Exception: return ''
 def run(*a): subprocess.Popen(list(a), start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+def qs_cmd():
+    """Rust quick settings (shell/polder-shelf) when POLDER_QS=rust or ~/.config/osb/qs-impl says rust and it is installed."""
+    impl = os.environ.get('POLDER_QS')
+    if impl is None:
+        try: impl = open(os.path.expanduser('~/.config/osb/qs-impl')).read().strip()
+        except OSError: impl = 'python'
+    b = shutil.which('polder-quicksettings')
+    return [b] if impl == 'rust' and b else ['python3', os.path.join(C, 'quicksettings', 'qs.py')]
+
 class Status:
     """Rev 33b: launcher button + right-hand status pills, native GTK (tint2 + render-status.sh do this on X11).
     Same rules as render-status.sh: wifi/volume/battery icons only when the real hardware/info exists."""
@@ -143,7 +152,7 @@ class Status:
         self.kb = self.pill(self.kb_menu, 'Toetsenbordindeling')
         self.wx = self.pill(lambda b: run('python3', os.path.join(C, 'calendar', 'cal.py'), '--weather', self.right_of(b)), 'Weer')
         self.date = self.pill(lambda b: run('python3', os.path.join(C, 'calendar', 'cal.py'), self.right_of(b)), 'Agenda')
-        self.tray = self.pill(lambda *a: run('python3', os.path.join(C, 'quicksettings', 'qs.py')), 'Snelle instellingen')
+        self.tray = self.pill(lambda *a: run(*qs_cmd()), 'Snelle instellingen')
         for p in (self.kb, self.wx, self.date, self.tray): self.right.pack_start(p, False, False, 0)
         self.key = None; self.slow = 0; self.wxtext = ''; self.right.show_all(); self.wx.set_no_show_all(True); self.wx.hide()
     def layout(self):

@@ -21,6 +21,6 @@ Runtime deps: libgtk-4-1, libgtk4-layer-shell0, polder-toplevels (polder-composi
 helpers it launches (launcher, calendar, quick settings, weather, capture).
 
 Planned packaging (NOT yet in debian/control, so the current CI is unchanged): a new binary package
-`polder-shelf` with `Build-Depends: dh-cargo` plus the list above, installing `target/release/polder-shelf` to
-`/usr/bin/polder-shelf`. Once that exists, the session picks it up when `POLDER_SHELF=rust` is set.
+`polder-shelf` with `Build-Depends: dh-cargo` plus the list above, installing `target/release/polder-shelf` and `target/release/polder-quicksettings` to
+`/usr/bin/`. Once that exists, the session picks it up when `POLDER_SHELF=rust` is set.
 Tested: Rust 1.85 / gtk4-rs 0.9.6 / gtk4-layer-shell 0.4.0 on x86_64; arm64 not yet built.

@@ -45,7 +45,7 @@ pub fn weather_pill() -> String {
 
 /// Notification daemon state (osb-notifyd.py): (unread, dnd)
 pub fn notify_state() -> (i64, bool) {
-    let v: serde_json::Value = fs::read_to_string("/tmp/osb-notify/state.json").ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+    let v: serde_json::Value = fs::read_to_string(crate::theme::notify_dir().join("state.json")).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
     (v["unread"].as_i64().unwrap_or(0), v["dnd"].as_bool().unwrap_or(false))
 }
 
@@ -70,7 +70,7 @@ pub fn stop_recording() {
 }
 
 #[derive(Clone, Debug)]
-pub struct Media { pub name: String, pub status: String, pub title: String, pub artist: String }
+pub struct Media { pub name: String, pub status: String, pub title: String, pub artist: String, pub art: String, pub app: String, pub can_prev: bool, pub can_next: bool }
 fn call(bus: &gio::DBusConnection, name: &str, path: &str, iface: &str, method: &str, args: Option<&glib::Variant>) -> Option<glib::Variant> {
     bus.call_sync(Some(name), path, iface, method, args, None, gio::DBusCallFlags::NONE, 800, gio::Cancellable::NONE).ok()
 }
@@ -81,7 +81,14 @@ fn mstate(bus: &gio::DBusConnection, name: &str) -> Option<Media> {
     let md = d.lookup_value("Metadata", None).map(|m| glib::VariantDict::new(Some(&m)));
     let title = md.as_ref().and_then(|m| m.lookup::<String>("xesam:title").ok().flatten()).unwrap_or_default();
     let artist = md.as_ref().and_then(|m| m.lookup::<Vec<String>>("xesam:artist").ok().flatten()).unwrap_or_default().join(", ");
-    Some(Media { name: name.into(), status, title, artist })
+    let art = md.as_ref().and_then(|m| m.lookup::<String>("mpris:artUrl").ok().flatten()).unwrap_or_default();
+    let art = art.strip_prefix("file://").map(String::from).unwrap_or_default();
+    let can_prev = d.lookup::<bool>("CanGoPrevious").ok().flatten().unwrap_or(false);
+    let can_next = d.lookup::<bool>("CanGoNext").ok().flatten().unwrap_or(false);
+    let app = call(bus, name, "/org/mpris/MediaPlayer2", "org.freedesktop.DBus.Properties", "Get", Some(&("org.mpris.MediaPlayer2", "Identity").to_variant()))
+        .and_then(|v| v.child_value(0).as_variant()).and_then(|v| v.get::<String>())
+        .unwrap_or_else(|| name.split('.').nth(3).unwrap_or("").to_string());
+    Some(Media { name: name.into(), status, title, artist, art, app, can_prev, can_next })
 }
 /// Playing first, then Paused; None when nothing is loaded (no fake pill).
 pub fn media_active() -> Option<Media> {
@@ -96,8 +103,10 @@ pub fn media_active() -> Option<Media> {
     }
     best
 }
-pub fn media_toggle(name: &str) {
+pub fn media_toggle(name: &str) { media_control(name, "PlayPause") }
+/// PlayPause | Next | Previous
+pub fn media_control(name: &str, method: &str) {
     if let Ok(bus) = gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE) {
-        call(&bus, name, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", "PlayPause", None);
+        call(&bus, name, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", method, None);
     }
 }

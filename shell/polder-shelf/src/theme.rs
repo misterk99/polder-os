@@ -87,3 +87,87 @@ button.pmitem image {{ color: {osv}; }}
 "#, s = g("SURFACE"), sv = g("SURFACE_VARIANT"), ac = g("ACCENT_CONTAINER"), osv = g("ON_SURFACE_VARIANT"), a = g("ACCENT"),
         os = g("ON_SURFACE"), oac = g("ON_ACCENT_CONTAINER"))
 }
+
+/// Notification daemon directory (osbnotify.DIR); OSB_NOTIFY_DIR lets a test session use clean data.
+pub fn notify_dir() -> PathBuf { PathBuf::from(std::env::var("OSB_NOTIFY_DIR").unwrap_or_else(|_| "/tmp/osb-notify".into())) }
+
+/// "Polder OS x.y.z" exactly as osbsettings.VERSION says.
+pub fn version() -> String {
+    fs::read_to_string(config_dir().join("osb/osbsettings.py")).ok()
+        .and_then(|s| s.lines().find(|l| l.starts_with("VERSION")).and_then(|l| l.split('\'').nth(1).map(String::from)))
+        .unwrap_or_else(|| "Polder OS".into())
+}
+pub const LAYOUTS: [(&str, &str, &str); 7] = [("us", "", "Engels (VS)"), ("us", "intl", "Engels (VS, internationaal)"), ("nl", "", "Nederlands"),
+    ("be", "", "Belgisch"), ("de", "", "Duits"), ("gb", "", "Engels (VK)"), ("fr", "", "Frans")];
+
+/// osbsettings.effective_theme
+pub fn effective_dark(s: &serde_json::Map<String, serde_json::Value>) -> bool {
+    match s.get("theme").and_then(|v| v.as_str()).unwrap_or("light") {
+        "dark" => true,
+        "auto" => { let h = gtk::glib::DateTime::now_local().map(|d| d.hour()).unwrap_or(12); !(7..19).contains(&h) }
+        _ => false,
+    }
+}
+/// osbsettings.update(**kw): merge keys, atomic write.
+pub fn update_setting(k: &str, v: serde_json::Value) {
+    let mut s = settings(); s.insert(k.into(), v);
+    let f = settings_file();
+    if let Some(d) = f.parent() { let _ = fs::create_dir_all(d); }
+    let tmp = f.with_extension("json.tmp");
+    if fs::write(&tmp, serde_json::to_string_pretty(&serde_json::Value::Object(s)).unwrap_or_default()).is_ok() { let _ = fs::rename(tmp, f); }
+}
+
+/// Which implementation of a component runs: env POLDER_<NAME> or ~/.config/osb/<name>-impl, default "python".
+pub fn impl_of(name: &str) -> String {
+    if let Ok(v) = std::env::var(format!("POLDER_{}", name.to_uppercase())) { return v; }
+    fs::read_to_string(PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(format!(".config/osb/{name}-impl")))
+        .map(|s| s.trim().to_string()).unwrap_or_else(|_| "python".into())
+}
+
+/// qs.css (build-theme.sh) + osb-notifyd CSS + media card CSS, generated from the live palette.
+pub fn qs_css(p: &HashMap<String, String>) -> String {
+    let g = |k: &str| p.get(k).cloned().unwrap_or_else(|| "#d3dbe5".into());
+    format!(r#"
+* {{ font-family: Roboto; }}
+window#qswin {{ background: transparent; }}
+#panel {{ background-color: {s}; border-radius: 24px; padding: 16px; color: {os}; }}
+button.pill {{ background: {sv}; border: none; box-shadow: none; border-radius: 16px; padding: 4px 12px; min-height: 24px; color: {os}; font-weight: 500; font-size: 12px; }}
+button.pill.active {{ background: {ac}; color: {oac}; }}
+button.tile {{ background: {sv}; border: none; box-shadow: none; border-radius: 22px; padding: 6px 14px; min-height: 48px; color: {os}; }}
+button.tile:hover {{ background: shade({sv}, 0.96); }}
+button.tile:checked {{ background: {ac}; color: {oac}; }}
+button.tile:checked .sub {{ color: {oac}; }}
+.tile .title {{ font-weight: 500; font-size: 13px; }}
+.tile .sub {{ font-size: 11px; color: {osv}; }}
+button.tile.mini {{ min-height: 40px; min-width: 40px; padding: 0; border-radius: 20px; }}
+scale {{ padding: 0 18px; background: linear-gradient(to right, {ac} 18px, {sv} 18px); border-radius: 18px; }}
+scale trough {{ min-height: 36px; margin: 0; padding: 0; border-radius: 0 18px 18px 0; background: transparent; border: none; outline: none; box-shadow: none; }}
+scale highlight {{ min-height: 36px; margin: 0; border-radius: 0 18px 18px 0; background: {ac}; border: none; }}
+scale slider {{ min-width: 36px; min-height: 36px; margin: 0; border-radius: 18px; background: {a}; border: none; box-shadow: none; }}
+.knobicon {{ color: {oac}; }}
+button.round {{ background: {sv}; border: none; box-shadow: none; border-radius: 20px; min-width: 36px; min-height: 36px; padding: 0; color: {os}; }}
+.avatar {{ background: {a}; color: {oa}; border-radius: 18px; min-width: 36px; min-height: 36px; font-weight: 500; }}
+.battery {{ color: {os}; font-size: 13px; }}
+#histcard {{ background-color: {s}; border-radius: 24px; padding: 16px; color: {os}; }}
+.histtitle {{ font-weight: 500; font-size: 14px; }}
+.card {{ background: {s}; border-radius: 20px; padding: 12px 14px; color: {os}; border: 1px solid {ol}; }}
+.card.inner {{ background: {sv}; border: none; border-radius: 16px; }}
+.app {{ font-size: 11px; color: {osv}; }}
+.ntitle {{ font-weight: 500; font-size: 13px; }}
+.nbody {{ font-size: 12px; color: {osv}; }}
+button.x {{ background: transparent; border: none; box-shadow: none; padding: 0; min-width: 24px; min-height: 24px; border-radius: 12px; color: {osv}; }}
+button.x:hover {{ background: {sv}; }}
+button.act {{ background: {ac}; color: {oac}; border: none; box-shadow: none; border-radius: 16px; padding: 4px 14px; min-height: 28px; font-weight: 500; }}
+.appicon {{ background: {ac}; border-radius: 16px; min-width: 32px; min-height: 32px; color: {oac}; }}
+#media {{ background: {sv}; border-radius: 18px; padding: 10px 12px; }}
+.mart {{ background: {ac}; color: {oac}; border-radius: 12px; min-width: 48px; min-height: 48px; }}
+.mtitle {{ font-weight: 500; font-size: 14px; color: {os}; }}
+.msub {{ font-size: 12px; color: {osv}; }}
+button.mbtn {{ background: transparent; border: none; box-shadow: none; border-radius: 18px; min-width: 36px; min-height: 36px; padding: 0; color: {os}; }}
+button.mbtn:hover {{ background: {ol}; }}
+button.mbtn.pp {{ background: {a}; color: {oa}; }}
+#pwcard {{ background: {s}; border-radius: 24px; padding: 20px; color: {os}; border: 1px solid {ol}; }}
+.pwtitle {{ font-weight: 500; font-size: 16px; }}
+"#, s = g("SURFACE"), sv = g("SURFACE_VARIANT"), os = g("ON_SURFACE"), osv = g("ON_SURFACE_VARIANT"), a = g("ACCENT"),
+        ac = g("ACCENT_CONTAINER"), oac = g("ON_ACCENT_CONTAINER"), oa = g("ON_ACCENT"), ol = g("OUTLINE"))
+}
