@@ -87,6 +87,14 @@ files.
 
 ## Production publishing
 
+Desktop updates also install automatic Store catalog setup. The desktop package
+enables Debian app-icon indexes and a metadata-only systemd refresh timer for
+Debian and the native-architecture Flathub catalog. Fresh ISO builds preload the
+same data. When a catalog is still missing or the network is offline, the Store
+keeps cached apps usable, shows setup/retry status, and reloads the catalog after
+the background refresh finishes. Users do not need to run setup commands.
+
+
 The `Polder packages` GitHub Actions workflow validates a disposable-key
 archive on ARM64 for pull requests and pushes to `main`. It has a separate
 manual publishing path, restricted to `main` and an explicit `publish: true`

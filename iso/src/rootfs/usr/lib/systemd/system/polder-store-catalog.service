@@ -1,0 +1,16 @@
+[Unit]
+Description=Refresh Polder Store catalogs and icons
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/polder-store-catalog-refresh
+RuntimeDirectory=polder-store-catalog
+RuntimeDirectoryMode=0755
+TimeoutStartSec=7min
+Restart=on-failure
+RestartSec=5min
+Nice=10
+IOSchedulingClass=idle

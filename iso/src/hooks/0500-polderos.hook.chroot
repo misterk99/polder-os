@@ -19,6 +19,7 @@ sed -i 's/^# *\(nl_NL.UTF-8\)/\1/; s/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen; l
 rm -f /usr/share/xsessions/xfce.desktop /usr/share/xsessions/lightdm-xsession.desktop
 systemctl enable lightdm NetworkManager bluetooth 2>/dev/null || true
 systemctl enable polder-flatpak-update.timer apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true   # Revision 26: automatic updates
+systemctl enable polder-store-catalog.timer 2>/dev/null || true
 # precompile python of our code; make greeter readable
 python3 -m compileall -q /usr/share/polderos/config >/dev/null 2>&1 || true
 chmod -R a+rX /usr/share/polderos
@@ -34,5 +35,8 @@ if [ -d $B ]; then
 fi
 # installed system: GRUB menu says Polder OS
 sed -i 's/^GRUB_DISTRIBUTOR=.*/GRUB_DISTRIBUTOR="Polder OS"/' /etc/default/grub 2>/dev/null || true
-# Revision 22: Polder Store backends - Flathub system remote (appstream is fetched on first store refresh / apt update)
-flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
+# Preload the Store for immediate use; the runtime timer retries if the build
+# has no network. The same helper is shipped in the desktop update package.
+if ! /usr/libexec/polder-store-catalog-refresh; then
+  echo 'Store catalog preload unavailable; automatic setup will retry after boot.' >&2
+fi

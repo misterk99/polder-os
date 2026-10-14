@@ -3,9 +3,11 @@
 Metadata: AppStream (Debian DEP-11 + Flathub appstream) -> only real desktop apps with icons.
 Backends: Debian packages via PackageKit (PackageKitGlib over the system bus, polkit-authorised like any distro),
 Flathub via the flatpak CLI (system installation). Dutch UI, unified Polder OS palette (light/dark)."""
-import os, sys, re, html, json, subprocess, threading, urllib.request, hashlib, concurrent.futures as CF
+import os, sys, re, html, json, subprocess, threading, time, urllib.request, hashlib, concurrent.futures as CF
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 sys.path.insert(0, os.path.join(C, 'notify')); sys.path.insert(0, os.path.join(C, 'osb'))
+sys.path.insert(0, HERE)
+import store_catalog as Catalog
 import gi
 for n, v in (('Gtk', '3.0'), ('AppStream', '1.0'), ('PackageKitGlib', '1.0')): gi.require_version(n, v)
 from gi.repository import Gtk, Gdk, GLib, GdkPixbuf, Gio, Pango, AppStream as AS, PackageKitGlib as PK
@@ -13,9 +15,6 @@ import osbnotify as N
 def OSBS_FILE(): return os.environ.get('OSB_SETTINGS') or os.path.expanduser('~/.config/osb/settings.json')
 CACHE = os.path.expanduser('~/.cache/polder-store'); os.makedirs(CACHE, exist_ok=True)
 POOL = CF.ThreadPoolExecutor(4)
-import glob
-ICON_DIRS = [d for base in ('/var/lib/swcatalog/icons', '/var/lib/app-info/icons', '/usr/share/swcatalog/icons')
-             for d in sorted(glob.glob(base + '/*/64x64')) + sorted(glob.glob(base + '/*/128x128'))]
 FEATURED = ['org.gimp.GIMP', 'org.libreoffice.LibreOffice', 'org.videolan.VLC', 'org.inkscape.Inkscape',
             'com.github.xournalpp.xournalpp', 'org.gnome.Mines', 'org.kde.krita', 'com.obsproject.Studio']
 CATS = [('Alles', None), ('Kantoor', 'Office'), ('Grafisch', 'Graphics'), ('Audio en video', 'AudioVideo'), ('Spellen', 'Game'),
@@ -27,27 +26,18 @@ def run(cmd, t=60):
 
 class App:
     """One AppStream component (Debian package or Flathub app)."""
-    def __init__(self, c):
+    def __init__(self, c, icon_dirs=None):
         self.c = c; self.id = c.get_id(); self.name = c.get_name() or self.id; self.summary = c.get_summary() or ''
         b = c.get_bundle(AS.BundleKind.FLATPAK)
-        self.flatpak = b.get_id() if b else None          # app/<id>/x86_64/stable
+        self.flatpak = b.get_id() if b else None          # Native-architecture Flatpak reference.
         self.pkg = None if self.flatpak else c.get_pkgname()
         self.source = 'Flathub' if self.flatpak else 'Debian'
         self.cats = list(c.get_categories() or [])
-        self.icon_file = self.icon_url = self.stock = None
-        for i in c.get_icons():
-            k = i.get_kind()
-            if k in (AS.IconKind.CACHED, AS.IconKind.LOCAL) and i.get_filename() and os.path.exists(i.get_filename()):
-                if not self.icon_file or i.get_width() == 128: self.icon_file = i.get_filename()
-            elif k == AS.IconKind.REMOTE and i.get_name() and not self.icon_file:
-                # Debian DEP-11: apt downloads icons-64x64.tar into the swcatalog cache; remote media URLs are often stale
-                for d in ICON_DIRS:
-                    f = os.path.join(d, i.get_name())
-                    if os.path.exists(f): self.icon_file = f; break
-            elif k == AS.IconKind.STOCK: self.stock = i.get_name()
+        self.icon_file, self.icon_url, self.stock = Catalog.resolve_icons(
+            c.get_icons(), AS.IconKind, Catalog.icon_directories() if icon_dirs is None else icon_dirs)
     @property
     def key(self): return f'{self.source}:{self.id}'
-    def has_icon(self): return bool(self.icon_file or self.icon_url)
+    def has_icon(self): return bool(self.icon_file or self.icon_url or self.stock)
     def flatpak_app(self): return self.flatpak.split('/')[1] if self.flatpak else None
 
 def fetch(url):
@@ -78,6 +68,7 @@ def desc_text(c):
 class Backend:
     def __init__(self):
         self.pk = PK.Client()
+        self.debs, self.flats = set(), set()
     def refresh_installed(self):
         self.debs = {l.split()[0] for l in run(['dpkg-query', '-W', '-f', '${Package} ${db:Status-Status}\n']).splitlines() if l.endswith(' installed')}
         self.flats = set(run(['flatpak', 'list', '--app', '--columns=application']).split())
@@ -175,6 +166,10 @@ class Store(Gtk.Window):
         self.prov = Gtk.CssProvider(); self.prov.load_from_data(css().encode())
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), self.prov, 900)
         self.be = Backend(); self.apps = []; self.byid = {}; self.busy = {}
+        self.pool = None; self.closed = False; self.catalog_loading = False; self.catalog_reload_pending = False
+        self.catalog_status = Catalog.read_status(); self.catalog_seen = Catalog.catalog_signature()
+        self.catalog_last_request = 0; self.catalog_request_pending = False
+        self.catalog_error = None; self.catalog_last_load = 0; self.category = None
         v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL); self.add(v)
         top = Gtk.Box(spacing=8); top.set_name('top'); v.pack_start(top, False, False, 0)
         self.back = Gtk.Button.new_from_icon_name('go-previous-symbolic', Gtk.IconSize.BUTTON); self.back.get_style_context().add_class('flat')
@@ -188,34 +183,132 @@ class Store(Gtk.Window):
             b.connect('toggled', self.on_tab, key); self.tabs[key] = b; top.pack_start(b, False, False, 2 if key != 'home' else 12)
         self.search = Gtk.SearchEntry(placeholder_text='Apps zoeken'); self.search.set_name('search')
         self.search.connect('search-changed', self.on_search); top.pack_end(self.search, False, False, 0)
+        self.catalog_bar = Gtk.Box(spacing=12); self.catalog_bar.set_border_width(12)
+        self.catalog_bar.set_no_show_all(True)
+        self.catalog_label = Gtk.Label(xalign=0); self.catalog_label.set_line_wrap(True)
+        self.catalog_bar.pack_start(self.catalog_label, True, True, 0)
+        self.catalog_retry = Gtk.Button(label='Opnieuw proberen')
+        self.catalog_retry.connect('clicked', lambda *args: self.request_catalog_refresh(True))
+        self.catalog_bar.pack_end(self.catalog_retry, False, False, 0); v.pack_start(self.catalog_bar, False, False, 0)
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE, transition_duration=120); v.pack_start(self.stack, True, True, 0)
         sp = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER, spacing=12)
-        s = Gtk.Spinner(); s.start(); s.set_size_request(32, 32); sp.pack_start(s, False, False, 0)
-        sp.pack_start(Gtk.Label(label='Catalogus laden…'), False, False, 0); self.stack.add_named(sp, 'loading')
-        self.history = []; self.connect('destroy', Gtk.main_quit); self.show_all(); self.back.hide()
-        threading.Thread(target=self.load, daemon=True).start()
+        self.catalog_spinner = Gtk.Spinner(); self.catalog_spinner.set_size_request(32, 32)
+        sp.pack_start(self.catalog_spinner, False, False, 0)
+        self.catalog_empty_label = Gtk.Label(label='Apps laden…')
+        sp.pack_start(self.catalog_empty_label, False, False, 0); self.stack.add_named(sp, 'loading')
+        self.history = []; self.connect('destroy', self.on_destroy); self.show_all(); self.back.hide()
+        self.load(); self.update_catalog_status()
+        GLib.timeout_add_seconds(3, self.watch_catalog)
 
     # ---------- data ----------
     def load(self):
-        pool = AS.Pool(); pool.load()
-        seen = {}
-        for c in pool.get_components().as_array():
-            if c.get_kind() != AS.ComponentKind.DESKTOP_APP: continue
-            a = App(c)
-            if not a.has_icon() or not (a.pkg or a.flatpak): continue    # libraries / icon-less entries out
-            seen.setdefault(a.key, a)
-        self.apps = sorted(seen.values(), key=lambda a: a.name.lower()); self.byid = {}
+        if self.closed: return
+        if self.catalog_loading:
+            self.catalog_reload_pending = True
+            return
+        self.catalog_loading = True; self.catalog_last_load = time.time()
+        def work():
+            try:
+                pool = AS.Pool(); pool.load()
+                directories = Catalog.icon_directories()
+                apps = Catalog.collect_apps(pool.get_components().as_array(), AS.ComponentKind.DESKTOP_APP,
+                                            lambda component: App(component, directories))
+                self.be.refresh_installed()
+                GLib.idle_add(self.catalog_loaded, pool, apps, None)
+            except Exception as error:
+                print('Store catalog load failed:', error, flush=True)
+                GLib.idle_add(self.catalog_loaded, None, None, error)
+        threading.Thread(target=work, daemon=True).start()
+
+    def catalog_loaded(self, pool, apps, error):
+        if self.closed: return False
+        if not error and self.apps and not apps:
+            error = RuntimeError('The refreshed catalog contains no desktop applications')
+        self.catalog_loading = False; self.catalog_error = error
+        if error:
+            self.update_catalog_status()
+            if self.catalog_reload_pending:
+                self.catalog_reload_pending = False; self.load()
+            return False  # A refresh failure must not erase the usable cached catalog.
+        self.apps = apps; self.pool = pool; self.byid = {}
         for a in self.apps: self.byid.setdefault(a.id, []).append(a)
-        self.pool = pool; self.be.refresh_installed()
-        GLib.idle_add(self.show_home)
+        visible = self.stack.get_visible_child_name()
+        if visible in ('loading', 'home', 'search'):
+            if self.search.get_text().strip(): self.on_search(self.search)
+            else: self.show_home(self.category)
+        self.update_catalog_status()
+        if Catalog.should_refresh(self.catalog_status, len(self.apps), self.catalog_last_request):
+            self.request_catalog_refresh()
+        if self.catalog_reload_pending:
+            self.catalog_reload_pending = False; self.load()
+        return False
+
+    def watch_catalog(self):
+        if self.closed: return False
+        previous = self.catalog_status
+        self.catalog_status = Catalog.read_status()
+        signature = Catalog.catalog_signature()
+        finished = self.catalog_status.get('phase') in ('ready', 'retry') and (
+            self.catalog_status.get('updated_at'), self.catalog_status.get('phase')) != (
+            previous.get('updated_at'), previous.get('phase'))
+        if signature != self.catalog_seen or finished or (self.catalog_error and time.time() - self.catalog_last_load >= 60):
+            self.catalog_seen = signature; self.load()
+        self.update_catalog_status()
+        if Catalog.should_refresh(self.catalog_status, len(self.apps), self.catalog_last_request):
+            self.request_catalog_refresh()
+        return True
+
+    def request_catalog_refresh(self, force=False):
+        if self.closed or self.catalog_request_pending: return
+        if not force and not Catalog.should_refresh(self.catalog_status, len(self.apps), self.catalog_last_request): return
+        self.catalog_last_request = time.time(); self.catalog_request_pending = True
+        self.update_catalog_status()
+        def work():
+            try:
+                result = subprocess.run(['systemctl', 'start', '--no-block', Catalog.REFRESH_UNIT],
+                                        stdin=subprocess.DEVNULL, capture_output=True, timeout=10)
+                success = result.returncode == 0
+            except (OSError, subprocess.TimeoutExpired):
+                success = False
+            GLib.idle_add(self.catalog_refresh_requested, success)
+        threading.Thread(target=work, daemon=True).start()
+
+    def catalog_refresh_requested(self, success):
+        if self.closed: return False
+        self.catalog_request_pending = False
+        if success:
+            self.catalog_status = dict(self.catalog_status, phase='refreshing')
+        else:
+            self.catalog_status = dict(self.catalog_status, phase='retry', reason='offline')
+        self.update_catalog_status()
+        return False
+
+    def update_catalog_status(self):
+        message = Catalog.status_message(self.catalog_status, len(self.apps))
+        if self.catalog_error:
+            message = 'De appcatalogus kon niet worden gelezen. We proberen het automatisch opnieuw.'
+            if self.apps: message += ' Je opgeslagen apps blijven beschikbaar.'
+        self.catalog_label.set_text(message); self.catalog_bar.set_visible(bool(message))
+        self.catalog_label.show(); self.catalog_retry.show()
+        refreshing = self.catalog_status.get('phase') == 'refreshing'
+        self.catalog_retry.set_sensitive(not refreshing and not self.catalog_request_pending)
+        if not self.apps:
+            self.catalog_empty_label.set_text('Apps laden…' if self.catalog_loading or refreshing else 'Nog geen appcatalogus beschikbaar')
+            if self.catalog_loading or refreshing: self.catalog_spinner.start()
+            else: self.catalog_spinner.stop()
+
+    def on_destroy(self, *args):
+        self.closed = True
+        Gtk.main_quit()
 
     def set_icon(self, img, a, size):
         def done(path):
             try: img.set_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_scale(path, size, size, True))
             except Exception: img.set_from_icon_name('application-x-executable', Gtk.IconSize.DIALOG)
         if a.icon_file: done(a.icon_file); return
-        img.set_from_icon_name('application-x-executable', Gtk.IconSize.DIALOG); img.set_pixel_size(size)
-        POOL.submit(lambda: (lambda p: p and GLib.idle_add(done, p))(fetch(a.icon_url)))
+        img.set_from_icon_name(a.stock or 'application-x-executable', Gtk.IconSize.DIALOG); img.set_pixel_size(size)
+        if a.icon_url:
+            POOL.submit(lambda: (lambda p: p and GLib.idle_add(done, p))(fetch(a.icon_url)))
 
     # ---------- widgets ----------
     def card(self, a, feat=False):
@@ -250,6 +343,11 @@ class Store(Gtk.Window):
 
     # ---------- pages ----------
     def show_home(self, cat=None):
+        self.category = cat
+        if not self.apps:
+            self.stack.set_visible_child_name('loading'); self.back.hide()
+            self.update_catalog_status()
+            return False
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.h2(box, 'Uitgelicht')
         fr = Gtk.Box(spacing=10, homogeneous=True); n = 0

@@ -4,3 +4,11 @@ polkit.addRule(function(action, subject) {
   if ((action.id.indexOf("org.freedesktop.packagekit.") == 0 || action.id.indexOf("org.freedesktop.Flatpak.") == 0) && subject.isInGroup("sudo"))
     return polkit.Result.AUTH_ADMIN_KEEP;
 });
+
+// Only the fixed metadata service may start unattended from an active local session.
+polkit.addRule(function(action, subject) {
+  if (action.id == "org.freedesktop.systemd1.manage-units" &&
+      action.lookup("unit") == "polder-store-catalog.service" &&
+      action.lookup("verb") == "start" && subject.local && subject.active)
+    return polkit.Result.YES;
+});
