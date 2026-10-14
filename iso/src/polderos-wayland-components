@@ -80,7 +80,11 @@ if [ "$(impl_of launcher)" = rust ] && command -v polder-launcher >/dev/null; th
 else
   supervise launcher python3 "$C/launcher/launcher.py"
 fi
-supervise clipboard python3 "$C/clip/clipd.py"
+if [ "$(impl_of clip)" = rust ] && command -v polder-clipd >/dev/null; then
+  supervise clipboard polder-clipd
+else
+  supervise clipboard python3 "$C/clip/clipd.py"
+fi
 supervise settings python3 "$C/osb/osb-settingsd.py"
 supervise polkit lxpolkit
 if [ -n "${DISPLAY:-}" ]; then

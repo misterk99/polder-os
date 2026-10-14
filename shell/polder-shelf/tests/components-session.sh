@@ -18,5 +18,6 @@ export WAYLAND_DISPLAY=$W
 if [ "$POLDER_NOTIFY_IMPL" = rust ]; then polder-notifyd > $S/notifyd.log 2>&1 & else python3 $S/config/notify/osb-notifyd.py > $S/notifyd.log 2>&1 & fi
 python3 $S/config/osb/osb-settingsd.py > $S/settingsd.log 2>&1 &
 polder-shelf > $S/shelf.log 2>&1 &
+if [ "$POLDER_CLIP_IMPL" = rust ]; then polder-clipd > $S/clipd.log 2>&1 & else python3 $S/config/clip/clipd.py > $S/clipd.log 2>&1 & fi
 sleep 3
 export -p | grep -E "HOME|XDG_|OSB_|POLDER_|WAYLAND|DBUS|PATH=|GSK|NO_AT|GTK" > $S/env

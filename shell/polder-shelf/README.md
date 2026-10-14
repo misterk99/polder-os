@@ -79,3 +79,10 @@ History/unread/DND are written to `$OSB_NOTIFY_DIR/state.json` (default /tmp/osb
 format, so QS (Rust and Python), the shelf badge and the phone hub read it unchanged. Honors Instellingen › Meldingen
 (notifications, notif_history, popup_secs) per notification; toasts restyle live on palette changes (no restart).
 Opt in: `POLDER_NOTIFY_IMPL=rust` or `~/.config/osb/notify-impl` = `rust`.
+
+## polder-clipd (Rust port of config/clip/clipd.py, Wayland path)
+Resident clipboard history (Super+V): `wl-paste --watch` (wlr-data-control), text + images, max 10, password-manager
+hint skipped, `~/.cache/osb/clipboard/history.json` in clipd.py's format, same PID file and SIGUSR1 (toggle) / SIGUSR2
+(clear) as clipd.py, so `clip/clip-toggle.sh` and Instellingen › "Geschiedenis wissen" drive either. Popup: 1–9 picks,
+arrows + Delete, Escape, "Alles wissen"; choosing does wl-copy + Ctrl+V (Ctrl+Shift+V in terminals) into the previous window.
+Opt in: `POLDER_CLIP_IMPL=rust` or `~/.config/osb/clip-impl` = `rust` (X11 sessions keep clipd.py).
