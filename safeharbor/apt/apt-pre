@@ -1,0 +1,34 @@
+#!/bin/bash
+# DPkg::Pre-Install-Pkgs (VERSION 3 on stdin): count the packages apt is about to change and create a snapper pre snapshot.
+# Never fails the apt run: a missing snapshot must not block a (security) update.
+[ -r /etc/default/polder-safeharbor ] && . /etc/default/polder-safeharbor
+[ "${SAFEHARBOR_AUTO:-yes}" = no ] && { cat >/dev/null; exit 0; }
+command -v snapper >/dev/null && [ -e /etc/snapper/configs/root ] || { cat >/dev/null; exit 0; }
+grep -q 'subvol=/\?@snapshots/' /proc/cmdline && { cat >/dev/null; exit 0; }   # booted into a read-only snapshot
+inst=0; upg=0; rem=0; polder=0; declare -A seen
+body=0
+while IFS= read -r line; do
+  if [ $body = 0 ]; then [ -z "$line" ] && body=1; continue; fi
+  set -- $line; pkg=$1; dir=$5; act=$9
+  [ -n "$pkg" ] && [ -z "${seen[$pkg]}" ] || continue; seen[$pkg]=1
+  case "$pkg" in polder*|polderos*) polder=1;; esac
+  if [ "$act" = "**REMOVE**" ]; then rem=$((rem+1))
+  elif [ "$act" = "**CONFIGURE**" ]; then :
+  elif [ "$2" = "-" ]; then inst=$((inst+1))
+  else upg=$((upg+1)); fi
+done
+total=$((inst+upg+rem)); [ $total = 0 ] && exit 0
+n() { [ "$1" = 1 ] && echo "1 pakket" || echo "$1 pakketten"; }
+if [ $upg -gt 0 ]; then desc="Voor update: $(n $total)"
+elif [ $inst -gt 0 ] && [ $rem = 0 ]; then desc="Voor installatie: $(n $total)"
+elif [ $rem -gt 0 ] && [ $inst = 0 ]; then desc="Voor verwijderen: $(n $total)"
+else desc="Voor wijziging: $(n $total)"; fi
+trigger=apt; p=$PPID
+for _ in 1 2 3 4 5 6; do c=$(cat /proc/$p/comm 2>/dev/null); case "$c" in unattended-upgr*) trigger=unattended-upgrades;; esac; p=$(awk '{print $4}' /proc/$p/stat 2>/dev/null); [ -z "$p" ] || [ "$p" -le 1 ] && break; done
+[ $polder = 1 ] && desc="${desc/Voor update/Voor Polder-update}"
+[ $trigger = unattended-upgrades ] && desc="${desc/Voor /Voor automatische }"
+ud="polder=apt,trigger=$trigger,packages=$total,installed=$inst,upgraded=$upg,removed=$rem"
+[ $polder = 1 ] && ud="$ud,important=yes"
+mkdir -p /run/polder-safeharbor
+snapper -c root create -t pre -c number -p -d "$desc" -u "$ud" > /run/polder-safeharbor/apt-pre 2>/run/polder-safeharbor/apt-pre.err || rm -f /run/polder-safeharbor/apt-pre
+exit 0

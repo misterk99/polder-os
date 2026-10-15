@@ -1,0 +1,153 @@
+#!/usr/bin/python3
+"""Polder SafeHarbor privileged helper (run as root via pkexec, polkit actions org.polderos.safeharbor.*).
+
+  status                 JSON: availability, booted snapshot, failed boot, last rollback, retention, snapshots
+  create <description>   manual snapshot (snapper single, cleanup=number)
+  rollback <N>           make snapshot N the system: writable copy -> @, old @ kept as @rollback-<time> (needs reboot)
+  delete <N>             remove snapshot N
+  set-retention <n>      keep the last n numbered snapshots (snapper NUMBER_LIMIT)
+  set-auto on|off        snapshots before apt/unattended-upgrades on or off
+  ack-failed-boot        dismiss the "previous boot failed" notice
+  reboot                 systemctl reboot
+
+Layout (docs/safeharbor.md): btrfs, flat subvolumes @ (/), @home, @snapshots (/.snapshots), @var_log, @cache.
+Rollback swaps the @ subvolume instead of `snapper rollback`, because stock Debian GRUB boots `rootflags=subvol=@`
+(not the btrfs default subvolume); the swap works with the unpatched Debian grub and with grub-btrfs."""
+import json, os, re, subprocess, sys, time, shutil
+
+STATE = '/var/lib/polder-safeharbor'          # inside @: travels with the system version
+LOGSTATE = '/var/log/polder-safeharbor'       # @var_log: survives rollbacks (boot history)
+CONF = '/etc/snapper/configs/root'
+DEFAULTS = '/etc/default/polder-safeharbor'
+TOP = '/run/polder-safeharbor/top'
+KEEP_BACKUPS = 2
+
+def sh(*a, check=True, **kw):
+    return subprocess.run(a, check=check, capture_output=True, text=True, **kw)
+
+def findmnt(target, field):
+    r = sh('findmnt', '-n', '-o', field, target, check=False); return r.stdout.strip()
+
+def cmdline():
+    try: return open('/proc/cmdline').read()
+    except OSError: return ''
+
+def booted_snapshot():
+    """Number of the snapshot we booted from (grub-btrfs entry: rootflags=subvol=@snapshots/N/snapshot)."""
+    m = re.search(r'rootflags=\S*subvol=/?@snapshots/(\d+)/snapshot', cmdline())
+    return int(m.group(1)) if m else None
+
+def availability():
+    fs = findmnt('/', 'FSTYPE'); snap = booted_snapshot()
+    if snap is not None: fs = 'btrfs'   # overlay (tmpfs upper) on top of a read-only btrfs snapshot
+    if fs != 'btrfs': return False, f'Het systeem draait niet vanaf btrfs ({fs or "onbekend"}), bijvoorbeeld de live-versie.', fs
+    if not shutil.which('snapper'): return False, 'snapper is niet geïnstalleerd.', fs
+    if not os.path.exists(CONF): return False, 'Er is nog geen snapper-configuratie voor het systeem (root).', fs
+    if snap is None and findmnt('/', 'FSROOT') not in ('/@', '@'):
+        return False, 'Het systeem staat niet in subvolume @ (zie docs/safeharbor.md).', fs
+    return True, '', fs
+
+def conf_get(k, d=''):
+    try:
+        for l in open(CONF):
+            m = re.match(rf'^{k}="?([^"\n]*)"?', l)
+            if m: return m.group(1)
+    except OSError: pass
+    return d
+
+def conf_set(k, v):
+    lines = open(CONF).read().splitlines(); out, done = [], False
+    for l in lines:
+        if l.startswith(k + '='): out.append(f'{k}="{v}"'); done = True
+        else: out.append(l)
+    if not done: out.append(f'{k}="{v}"')
+    open(CONF + '.tmp', 'w').write('\n'.join(out) + '\n'); os.replace(CONF + '.tmp', CONF)
+
+def auto_on():
+    try: return 'SAFEHARBOR_AUTO=no' not in open(DEFAULTS).read()
+    except OSError: return True
+
+def jread(p):
+    try: return json.load(open(p))
+    except Exception: return None
+
+def snapshots():
+    r = sh('snapper', '--jsonout', '-c', 'root', 'list', '--disable-used-space', check=False)
+    if r.returncode != 0:   # older snapper without --disable-used-space
+        r = sh('snapper', '--jsonout', '-c', 'root', 'list', check=False)
+    try: rows = json.loads(r.stdout).get('root', [])
+    except ValueError: rows = []
+    out = []
+    for s in rows:
+        if s.get('number') == 0: continue
+        out.append({'number': s['number'], 'type': s.get('type'), 'pre': s.get('pre-number'), 'date': s.get('date', ''),
+                    'description': s.get('description', ''), 'cleanup': s.get('cleanup', ''), 'userdata': s.get('userdata') or {}})
+    return out
+
+def status():
+    ok, why, fs = availability()
+    st = {'available': ok, 'reason': why, 'fstype': fs, 'booted_snapshot': booted_snapshot(), 'auto': auto_on(),
+          'retention': int(conf_get('NUMBER_LIMIT', '10').split('-')[-1] or 10) if ok else 10,
+          'failed_boot': None, 'rolled_back': jread(os.path.join(STATE, 'rolled-back.json')), 'snapshots': []}
+    fb = jread(os.path.join(LOGSTATE, 'failed-boot.json'))
+    if fb and not fb.get('acknowledged'): st['failed_boot'] = fb
+    if ok: st['snapshots'] = snapshots()
+    return st
+
+def mount_top():
+    os.makedirs(TOP, exist_ok=True)
+    if not os.path.ismount(TOP):
+        src = findmnt('/.snapshots', 'SOURCE') or findmnt('/home', 'SOURCE')
+        dev = re.sub(r'\[.*\]$', '', src)
+        sh('mount', '-o', 'subvolid=5', dev, TOP)
+    return TOP
+
+def rollback(n):
+    n = int(n); top = mount_top()
+    src = os.path.join(top, '@snapshots', str(n), 'snapshot')
+    if not os.path.isdir(src): sys.exit(f'herstelpunt {n} bestaat niet')
+    info = next((s for s in snapshots() if s['number'] == n), {'description': '', 'date': ''})
+    ts = time.strftime('%Y%m%d-%H%M%S')
+    new = os.path.join(top, f'@new-{ts}')
+    sh('btrfs', 'subvolume', 'snapshot', src, new)          # writable copy of the read-only snapshot
+    os.makedirs(os.path.join(new, STATE.lstrip('/')), exist_ok=True)
+    json.dump({'number': n, 'description': info['description'], 'snapshot_date': info['date'], 'time': time.time(),
+               'previous': f'@rollback-{ts}'}, open(os.path.join(new, STATE.lstrip('/'), 'rolled-back.json'), 'w'))
+    open(os.path.join(new, STATE.lstrip('/'), 'update-grub'), 'w').close()   # refresh the snapshot list on the next boot
+    os.rename(os.path.join(top, '@'), os.path.join(top, f'@rollback-{ts}'))   # running system keeps working until reboot
+    os.rename(new, os.path.join(top, '@'))
+    backups = sorted(d for d in os.listdir(top) if d.startswith('@rollback-'))
+    for old in backups[:-KEEP_BACKUPS]: sh('btrfs', 'subvolume', 'delete', os.path.join(top, old), check=False)
+    fb = os.path.join(LOGSTATE, 'failed-boot.json')
+    if os.path.exists(fb):
+        d = jread(fb) or {}; d['acknowledged'] = True; json.dump(d, open(fb, 'w'))
+    print(json.dumps({'ok': True, 'number': n, 'backup': f'@rollback-{ts}', 'reboot_required': True}))
+
+def main():
+    a = sys.argv[1:]
+    if not a: sys.exit(__doc__)
+    c = a[0]
+    if c == 'status': print(json.dumps(status())); return
+    ok, why, _ = availability()
+    if c not in ('ack-failed-boot', 'reboot') and not ok: sys.exit(why)
+    if c == 'create':
+        r = sh('snapper', '-c', 'root', 'create', '-t', 'single', '-c', 'number', '-p', '-d', ' '.join(a[1:]) or 'Handmatig herstelpunt', '-u', 'polder=manual')
+        print(json.dumps({'ok': True, 'number': int(r.stdout.strip())}))
+    elif c == 'rollback': rollback(a[1])
+    elif c == 'delete': sh('snapper', '-c', 'root', 'delete', str(int(a[1]))); print('{"ok": true}')
+    elif c == 'set-retention':
+        n = max(2, min(50, int(a[1]))); conf_set('NUMBER_LIMIT', str(n)); conf_set('NUMBER_LIMIT_IMPORTANT', str(max(2, n // 2)))
+        sh('snapper', '-c', 'root', 'cleanup', 'number', check=False); print(json.dumps({'ok': True, 'retention': n}))
+    elif c == 'set-auto':
+        on = a[1] == 'on'; open(DEFAULTS, 'w').write(f'# Polder SafeHarbor: snapshots before apt / unattended-upgrades\nSAFEHARBOR_AUTO={"yes" if on else "no"}\n')
+        print(json.dumps({'ok': True, 'auto': on}))
+    elif c == 'ack-failed-boot':
+        p = os.path.join(LOGSTATE, 'failed-boot.json'); d = jread(p)
+        if d: d['acknowledged'] = True; json.dump(d, open(p, 'w'))
+        print('{"ok": true}')
+    elif c == 'reboot': subprocess.Popen(['systemctl', 'reboot']); print('{"ok": true}')
+    else: sys.exit(f'onbekend commando: {c}')
+
+if __name__ == '__main__':
+    try: main()
+    except subprocess.CalledProcessError as e: sys.exit((e.stderr or e.stdout or str(e)).strip())

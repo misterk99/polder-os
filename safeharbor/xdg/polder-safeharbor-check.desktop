@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Polder SafeHarbor controle
+Comment=Meldt een mislukte start of een opstart vanaf een eerdere versie
+Exec=polder-safeharbor --check
+NoDisplay=true
+X-GNOME-Autostart-Phase=Application

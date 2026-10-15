@@ -1,0 +1,6 @@
+// Polder SafeHarbor: a snapper "pre" snapshot before dpkg changes anything, a "post" snapshot afterwards.
+// Replaces snapper's own 80snapper hook (disabled via DISABLE_APT_SNAPSHOT=yes in /etc/default/snapper) because that one
+// cannot describe the change; ours says e.g. "Voor update: 12 pakketten". Also runs for unattended-upgrades.
+DPkg::Pre-Install-Pkgs { "/usr/lib/polder-safeharbor/apt-pre"; };
+DPkg::Tools::Options::/usr/lib/polder-safeharbor/apt-pre::Version "3";
+DPkg::Post-Invoke { "[ -x /usr/lib/polder-safeharbor/apt-post ] && /usr/lib/polder-safeharbor/apt-post || true"; };

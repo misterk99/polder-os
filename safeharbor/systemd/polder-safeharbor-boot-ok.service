@@ -1,0 +1,11 @@
+[Unit]
+Description=Polder SafeHarbor: mark this boot as successful
+After=multi-user.target graphical.target
+Wants=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/polder-safeharbor/boot-check ok
+
+[Install]
+WantedBy=multi-user.target

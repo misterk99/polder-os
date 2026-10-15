@@ -1,0 +1,19 @@
+#!/bin/bash
+# Boot counting without GRUB env writes (GRUB cannot write grubenv on btrfs): a "pending" marker on @var_log is set early
+# in every boot and cleared once multi-user.target is reached. Still present at the next boot = that boot never finished.
+D=/var/log/polder-safeharbor; mkdir -p $D
+snap=$(grep -o 'subvol=/\?@snapshots/[0-9]*/snapshot' /proc/cmdline | grep -o '[0-9]\+' | head -1)
+case "$1" in
+start)
+  if [ -e $D/boot-pending ]; then
+    prev=$(cat $D/boot-pending)
+    printf '{"time": %s, "previous_boot": %s, "acknowledged": false}\n' "$(date +%s)" "${prev:-null}" > $D/failed-boot.json
+    echo "$(date -Is) previous boot did not complete ($prev)" >> $D/boot.log
+  fi
+  printf '{"started": %s, "snapshot": %s}\n' "$(date +%s)" "${snap:-null}" > $D/boot-pending ;;
+ok)
+  rm -f $D/boot-pending; echo "$(date -Is) boot ok${snap:+ (snapshot $snap)}" >> $D/boot.log
+  if [ -z "$snap" ] && [ -e /var/lib/polder-safeharbor/update-grub ]; then   # first boot after a rollback
+    rm -f /var/lib/polder-safeharbor/update-grub; update-grub >/dev/null 2>&1 || true
+  fi ;;
+esac

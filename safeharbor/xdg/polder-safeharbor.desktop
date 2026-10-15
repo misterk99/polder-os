@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=SafeHarbor
+GenericName=Systeemherstel
+Comment=Herstel je systeem naar een eerdere versie
+Exec=polder-safeharbor
+Icon=document-revert
+Categories=System;Settings;
+Keywords=herstel;herstelpunt;snapshot;terugzetten;rollback;update;safeharbor;

@@ -1,0 +1,9 @@
+#!/bin/bash
+# DPkg::Post-Invoke: pair the pending pre snapshot with a post snapshot, then apply the retention policy.
+f=/run/polder-safeharbor/apt-pre
+[ -s $f ] || exit 0
+pre=$(cat $f); rm -f $f
+desc=$(snapper -c root --jsonout list 2>/dev/null | python3 -c "import json,sys; print(next((s['description'] for s in json.load(sys.stdin)['root'] if s['number']==$pre), ''))" 2>/dev/null)
+snapper -c root create -t post --pre-number "$pre" -c number -d "Na ${desc#Voor }" -u "polder=apt" >/dev/null 2>&1 || true
+snapper -c root cleanup number >/dev/null 2>&1 || true
+exit 0
