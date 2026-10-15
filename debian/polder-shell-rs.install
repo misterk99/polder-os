@@ -1,0 +1,12 @@
+usr/bin/polder-shelf
+usr/bin/polder-quicksettings
+usr/bin/polder-phonehub
+usr/bin/polder-dynamic-color
+usr/bin/polder-launcher
+usr/bin/polder-notifyd
+usr/bin/polder-clipd
+usr/bin/polder-safeharbor
+usr/bin/polder-sluis
+usr/bin/polder-sluisd
+usr/share/applications/polder-sluis.desktop
+etc/xdg/autostart/polder-sluisd.desktop

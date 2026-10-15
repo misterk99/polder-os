@@ -21,7 +21,9 @@ fn info(m: &Meta) -> serde_json::Value {
     let ch = changes(&m.id).unwrap_or_default();
     let real: Vec<&Change> = ch.iter().filter(|c| c.home != c.branch).collect();
     json!({"meta": m, "status": status_of(&ch, m), "changes": real.len(), "conflicts": ch.iter().filter(|c| c.conflict).count(),
-           "usage": disk_usage(&pdir(&m.id)), "pending_merge": pending_merge(&m.id), "upper": pdir(&m.id).join("upper")})
+           "usage": polder_usage(&m.id), "pending_merge": pending_merge(&m.id), "upper": polder_dir(&m.id).map(|d| d.join("upper")).ok(),
+           "pending_phase": pending_state(&m.id).map(|x| x.1),
+           "rollback_failures": pending_state(&m.id).filter(|x| x.1 == Phase::RollbackPartial).and_then(|(mid, _)| polder_dir(&m.id).ok().and_then(|d| rollback_report(&d.join("journal"), &mid))).map(|r| r.failed)})
 }
 fn paths(args: &[String]) -> (Vec<String>, Vec<String>) {
     let (mut sel, mut force) = (vec![], vec![]); let mut i = 0;
@@ -47,7 +49,7 @@ fn run(id: &str, args: &[String]) -> ! {
               else { vec!["bash".into()] };
     }
     m.runs.push(format!("{} {}", now(), cmd.join(" "))); let _ = save_meta(&m);
-    let a = runner_argv(&m, net, &cmd);
+    let a = runner_argv(&m, net, &cmd).unwrap_or_else(|x| fail(x));
     use std::os::unix::process::CommandExt;
     let err = std::process::Command::new(&a[0]).args(&a[1..]).exec();
     fail(format!("bubblewrap starten mislukt: {err}"))
@@ -55,13 +57,17 @@ fn run(id: &str, args: &[String]) -> ! {
 fn which(b: &str) -> bool { std::env::var("PATH").unwrap_or_default().split(':').any(|d| Path::new(d).join(b).exists()) }
 
 fn daemon() -> ! {
+    // single instance: started by the Wayland session supervisor and/or XDG autostart
+    let rt = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| std::env::temp_dir().to_string_lossy().into());
+    let lock = std::fs::OpenOptions::new().create(true).write(true).open(Path::new(&rt).join("polder-sluisd.lock"));
+    if let Ok(f) = &lock { use std::os::fd::AsRawFd; if unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 { std::process::exit(0); } }
     let mut warned = std::collections::BTreeSet::new();
     loop {
         for m in list() {
             if let Some(p) = pending_merge(&m.id) {
                 if warned.insert(format!("p{}{p}", m.id)) { notify(tr("Merge interrupted"), &tf!("Test polder ‘{}’: open Sluis to finish or roll back.", m.name), "dialog-warning-symbolic"); }
             }
-            let u = disk_usage(&pdir(&m.id));
+            let u = polder_usage(&m.id);
             if u > 2 << 30 && warned.insert(format!("u{}", m.id)) {
                 notify(tr("Test polder takes up a lot of space"), &tf!("‘{}’ uses {:.1} GB. Discard or archive?", m.name, u as f64 / (1u64 << 30) as f64), "drive-harddisk-symbolic");
             }
@@ -74,10 +80,13 @@ fn daemon() -> ! {
     }
 }
 
+fn usage() -> String { include_str!("polder-sluisd.rs").lines().skip(1).take(6).map(|l| l.trim_start_matches("//!")).collect::<Vec<_>>().join("\n") }
+
 fn main() {
     let a: Vec<String> = std::env::args().skip(1).collect();
     let c = a.first().map(|s| s.as_str()).unwrap_or("");
     let id = a.get(1).cloned().unwrap_or_default();
+    if !matches!(c, "list" | "create" | "du" | "daemon" | "--help" | "-h" | "help" | "") && !valid_id(&id) { fail(tf!("invalid test polder id: {}", id.escape_debug())) }
     match c {
         "list" => out(json!(list().iter().map(info).collect::<Vec<_>>())),
         "create" => {
@@ -88,7 +97,7 @@ fn main() {
         "info" => out(info(&meta(&id).unwrap_or_else(|x| fail(x)))),
         "changes" => { let m = meta(&id).unwrap_or_else(|x| fail(x));
             let ch = changes(&id).unwrap_or_else(|x| fail(x));
-            out(json!({"origin": m.origin, "upper": pdir(&id).join("upper"), "status": status_of(&ch, &m), "changes": ch})) }
+            out(json!({"origin": m.origin, "upper": polder_dir(&id).map(|d| d.join("upper")).ok(), "status": status_of(&ch, &m), "changes": ch})) }
         "plan" => { let (s, f) = paths(&a[2..]); out(json!(plan(&id, &s, &f).unwrap_or_else(|x| fail(x)))) }
         "merge" => {
             let (s, f) = paths(&a[2..]);
@@ -111,10 +120,11 @@ fn main() {
         "discard" => { discard(&id).unwrap_or_else(|x| fail(x)); out(json!({"ok": true})) }
         "archive" | "unarchive" => out(info(&archive(&id, c == "archive").unwrap_or_else(|x| fail(x)))),
         "network" => { let mut m = meta(&id).unwrap_or_else(|x| fail(x)); m.network = a.get(2).map(|s| s == "on").unwrap_or(false); save_meta(&m).unwrap_or_else(|x| fail(x)); out(info(&m)) }
-        "du" => out(json!({"total": disk_usage(&data_dir()), "polders": list().iter().map(|m| json!({"id": m.id, "usage": disk_usage(&pdir(&m.id))})).collect::<Vec<_>>()})),
+        "du" => out(json!({"total": disk_usage(&data_dir()), "polders": list().iter().map(|m| json!({"id": m.id, "usage": polder_usage(&m.id)})).collect::<Vec<_>>()})),
         "run" => run(&id, &a[2..]),
+        "--help" | "-h" | "help" => { println!("{}", usage()); }
         "daemon" => daemon(),
-        _ => { eprintln!("{}", include_str!("polder-sluisd.rs").lines().skip(1).take(6).map(|l| l.trim_start_matches("//!")).collect::<Vec<_>>().join("\n")); std::process::exit(2) }
+        _ => { eprintln!("{}", usage()); std::process::exit(2) }
     }
 }
 

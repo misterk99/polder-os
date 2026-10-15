@@ -53,3 +53,18 @@ Components: `polder-sluisd` (CLI + small notification daemon) and `polder-sluis`
 `polder-sluisd list | create <dir> [name] [description] | info|changes|plan <id> [paths] | merge <id> <paths…> [--force P] |
 pending|resume|rollback <id> | discard|archive|unarchive <id> | network <id> on|off | du | run <id> [--net] [--terminal] [-- cmd] | daemon`
 (JSON output). `merge` without paths refuses.
+
+## Safety and recovery guarantees (review fixes)
+
+* **Ids**: a polder id is a strict slug (`[a-z0-9][a-z0-9-]{0,63}`) and must be a real (non-symlink) directory listed
+  in the inventory directly under the canonical `polders` dir; the canonical path is re-checked before every read,
+  write and delete. `rm_rf` is fd-relative and never follows symlinks (inode checked on every directory it enters).
+* **Merge state machine** (`journal/<merge-id>/state`): `applying` → `applied` → `reconciled` → `committed`.
+  `baseline.before.json` is saved before the first mainland change; reconciliation rebuilds `baseline.json` from it,
+  so every step can be re-run after a crash (`resume`). Rollback: `rolling-back` → `rolled-back` only when every op and
+  the baseline were restored; otherwise `rollback-partial` (still pending, details in `rollback.json`, shown in the app,
+  retry with *Roll back*).
+* **Preconditions/races**: every op re-checks the exact pre-state (type, content and mode; a chmod is refused when the
+  mainland mode changed) on an `O_NOFOLLOW` directory fd walked component by component from the project root;
+  writes go to a temp file in that directory and are re-validated right before `renameat`; chmod uses an
+  `O_PATH|O_NOFOLLOW` fd, so a directory swapped for a symlink is refused. Journal paths are validated on resume.

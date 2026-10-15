@@ -213,8 +213,13 @@ fn render(a: &A, id: &str) {
         let b = gtk::Box::new(gtk::Orientation::Horizontal, 10); b.add_css_class("banner"); b.add_css_class("bad");
         let v = gtk::Box::new(gtk::Orientation::Vertical, 2); v.set_hexpand(true);
         v.append(&lbl(tr("Merge was interrupted"), "h2")); v.append(&lbl(tr("An earlier merge was not finished (for example because of a crash or power failure). Finish it or roll everything back; until then you cannot merge anything else."), ""));
+        if let Some(fl) = p["rollback_failures"].as_array() {
+            v.append(&lbl(tr("Rolling back was only partly possible. Fix the files below and roll back again:"), "h2"));
+            for x in fl.iter().take(8) { v.append(&lbl(&format!("{} — {}", x[0].as_str().unwrap_or(""), x[1].as_str().unwrap_or("")), "sub")); }
+        }
         b.append(&v);
-        let f = btn(tr("Finish"), "pill"); let r = btn(tr("Roll back"), "flat2");
+        let partial = p["pending_phase"].as_str() == Some("rollback-partial");
+        let f = btn(tr("Finish"), "pill"); f.set_sensitive(!partial); let r = btn(tr("Roll back"), "flat2");
         for (w, cmd) in [(&f, "resume"), (&r, "rollback")] {
             let a2 = a.clone(); let i2 = id.to_string(); let c = cmd.to_string(); let _ = pm;
             w.connect_clicked(move |_| { let i3 = i2.clone(); let c2 = c.clone(); bg(&a2, vec![c.clone(), i2.clone()], move |a, v| {
@@ -412,10 +417,10 @@ fn dry_run(a: &A, id: &str) {
             let mut args = vec!["merge".into(), i2.clone()]; args.extend(sel_args(&a2));
             let i3 = i2.clone();
             bg(&a2, args, move |a, v| {
-                if let Some(e) = err_of(&v) { toast(a, &format!("Overnemen mislukt: {e}")); reload(a, Some(i3)); return; }
+                if let Some(e) = err_of(&v) { toast(a, &tf!("Merge failed: {e}" ; e)); reload(a, Some(i3)); return; }
                 let r = &v["report"]; let nf = r["failed"].as_array().map(|x| x.len()).unwrap_or(0);
                 let msg = if nf == 0 { tf!("{} change(s) merged to the mainland", r["done"].as_array().map(|x| x.len()).unwrap_or(0)) }
-                          else { format!("{} overgenomen, {nf} niet: {}", r["done"].as_array().map(|x| x.len()).unwrap_or(0), r["failed"][0][1].as_str().unwrap_or("")) };
+                          else { tf!("{} merged, {nf} not: {}", r["done"].as_array().map(|x| x.len()).unwrap_or(0), r["failed"][0][1].as_str().unwrap_or("") ; nf) };
                 toast(a, &msg);
                 { let mut x = a.borrow_mut(); x.selected.clear(); x.force.clear(); }
                 reload(a, Some(i3));
