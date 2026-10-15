@@ -529,9 +529,11 @@ checksum = "Could not get crate checksum"
 name = "polder-shelf"
 version = "0.1.0"
 dependencies = [
+ "glib",
  "gtk4",
  "gtk4-layer-shell",
  "libc",
+ "serde",
  "serde_json",
 ]
 

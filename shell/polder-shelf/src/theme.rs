@@ -84,6 +84,7 @@ button.pmitem:disabled label {{ color: {osv}; }}
 button.pmitem image {{ color: {osv}; }}
 .pmtitle {{ color: {osv}; font-size: 12px; font-weight: 500; padding: 4px 16px 6px 16px; }}
 .pmsep {{ background: {sv}; min-height: 1px; margin: 4px 0; }}
+.sluisbadge {{ background: #137333; color: white; font-size: 8px; font-weight: 700; border-radius: 6px; padding: 0 4px; margin-bottom: -2px; }}
 "#, s = g("SURFACE"), sv = g("SURFACE_VARIANT"), ac = g("ACCENT_CONTAINER"), osv = g("ON_SURFACE_VARIANT"), a = g("ACCENT"),
         os = g("ON_SURFACE"), oac = g("ON_ACCENT_CONTAINER"))
 }

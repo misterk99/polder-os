@@ -85,6 +85,8 @@ if [ "$(impl_of clip)" = rust ] && command -v polder-clipd >/dev/null; then
 else
   supervise clipboard python3 "$C/clip/clipd.py"
 fi
+# Polder Sluis: interrupted-merge and storage notifications for proefpolders
+command -v polder-sluisd >/dev/null && supervise sluis polder-sluisd daemon
 supervise settings python3 "$C/osb/osb-settingsd.py"
 supervise polkit lxpolkit
 if [ -n "${DISPLAY:-}" ]; then

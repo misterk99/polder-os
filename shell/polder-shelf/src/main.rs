@@ -276,6 +276,8 @@ fn render(s: &S, mut force: bool) {
     me.wins = tl.iter().filter_map(|(i, t)| {
         let aid = if t.app_id.is_empty() { t.title.clone() } else { t.app_id.clone() };
         if aid.is_empty() || SKIPCLS.contains(&aid.to_lowercase().as_str()) { return None; }
+        // Polder Sluis: windows started in a proefpolder get their own shelf button with a polder badge
+        if let Some(id) = aid.strip_prefix("nl.polderos.sluis.") { return Some((*i, format!("sluis:{id}"), t.minimized)); }
         Some((*i, me.db.resolve(&aid), t.minimized))
     }).collect();
     me.active_app = me.wins.iter().find(|w| w.0 == act).map(|w| w.1.clone());
@@ -296,9 +298,17 @@ fn button(me: &Shelf, s: &S, app: &str, running: bool) -> gtk::Box {
     if me.active_app.as_deref() == Some(app) { b.add_css_class("active"); }
     let ai = me.db.apps.get(app);
     let gi: gio::Icon = ai.and_then(|a| a.icon()).unwrap_or_else(|| gio::ThemedIcon::from_names(&[&app.trim_start_matches("cls:").to_lowercase(), "application-x-executable"]).upcast());
-    let im = gtk::Image::from_gicon(&gi); im.set_pixel_size(34); b.append(&im);
+    let im = gtk::Image::from_gicon(&gi); im.set_pixel_size(34);
+    if let Some(pid) = app.strip_prefix("sluis:") {
+        // branch indicator: terminal icon + "polder" badge, tooltip names the proefpolder
+        im.set_icon_name(Some("utilities-terminal")); b.add_css_class("sluis");
+        let ov = gtk::Overlay::new(); ov.set_child(Some(&im));
+        let badge = gtk::Label::new(Some("polder")); badge.add_css_class("sluisbadge"); badge.set_halign(gtk::Align::Center); badge.set_valign(gtk::Align::End);
+        ov.add_overlay(&badge); b.append(&ov);
+        b.set_tooltip_text(Some(&format!("Terminal in proefpolder ‘{pid}’ (Polder Sluis)")));
+    } else { b.append(&im); }
     let d = gtk::Box::new(gtk::Orientation::Horizontal, 0); d.set_halign(gtk::Align::Center); d.add_css_class(if running { "dot" } else { "nodot" }); b.append(&d);
-    b.set_tooltip_text(Some(&ai.map(|a| a.display_name().to_string()).unwrap_or_else(|| app.trim_start_matches("cls:").to_string())));
+    if !app.starts_with("sluis:") { b.set_tooltip_text(Some(&ai.map(|a| a.display_name().to_string()).unwrap_or_else(|| app.trim_start_matches("cls:").to_string()))); }
     let g = gtk::GestureClick::new(); g.set_button(0);
     let (w, app) = (Rc::downgrade(s), app.to_string());
     g.connect_pressed(move |g, n, _, _| {

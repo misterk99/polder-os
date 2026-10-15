@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Sluis
+GenericName=Proefpolders
+Comment=Experimenteer in een kopie van een map en neem alleen over wat je wilt houden
+Keywords=proefpolder;experiment;branch;kopie;vergelijken;samenvoegen;sluis;
+Exec=polder-sluis
+Icon=view-dual-symbolic
+Categories=Utility;Development;
+StartupWMClass=nl.polderos.Sluis

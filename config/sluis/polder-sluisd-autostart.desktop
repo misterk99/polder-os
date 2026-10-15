@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Polder Sluis service
+Comment=Meldt onderbroken overnames en ruimtegebruik van proefpolders
+Exec=polder-sluisd daemon
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
