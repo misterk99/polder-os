@@ -71,7 +71,24 @@ def jread(p):
     try: return json.load(open(p))
     except Exception: return None
 
+def snapshots_from_disk():
+    """snapper refuses to work when / is the tmpfs overlay of a booted snapshot: read /.snapshots/N/info.xml directly."""
+    import xml.etree.ElementTree as ET, calendar
+    out = []
+    for d in os.listdir('/.snapshots') if os.path.isdir('/.snapshots') else []:
+        try: x = ET.parse(f'/.snapshots/{d}/info.xml').getroot()
+        except (OSError, ET.ParseError): continue
+        g = lambda k: (x.findtext(k) or '')
+        date = g('date')   # UTC in info.xml; snapper list shows local time
+        try: date = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(calendar.timegm(time.strptime(date, '%Y-%m-%d %H:%M:%S'))))
+        except ValueError: pass
+        out.append({'number': int(g('num') or 0), 'type': g('type'), 'pre': int(g('pre_num')) if g('pre_num') else None, 'date': date,
+                    'description': g('description'), 'cleanup': g('cleanup'),
+                    'userdata': {u.findtext('key'): u.findtext('value') for u in x.findall('userdata')}})
+    return sorted(out, key=lambda s: s['number'])
+
 def snapshots():
+    if booted_snapshot() is not None: return snapshots_from_disk()
     r = sh('snapper', '--jsonout', '-c', 'root', 'list', '--disable-used-space', check=False)
     if r.returncode != 0:   # older snapper without --disable-used-space
         r = sh('snapper', '--jsonout', '-c', 'root', 'list', check=False)
@@ -136,7 +153,10 @@ def main():
     elif c == 'rollback': rollback(a[1])
     elif c == 'delete': sh('snapper', '-c', 'root', 'delete', str(int(a[1]))); print('{"ok": true}')
     elif c == 'set-retention':
-        n = max(2, min(50, int(a[1]))); conf_set('NUMBER_LIMIT', str(n)); conf_set('NUMBER_LIMIT_IMPORTANT', str(max(2, n // 2)))
+        n = max(2, min(50, int(a[1])))
+        # via snapper (snapperd caches the config; editing the file alone is not picked up until snapperd restarts)
+        r = sh('snapper', '-c', 'root', 'set-config', f'NUMBER_LIMIT={n}', f'NUMBER_LIMIT_IMPORTANT={max(2, n // 2)}', check=False)
+        if r.returncode != 0: conf_set('NUMBER_LIMIT', str(n)); conf_set('NUMBER_LIMIT_IMPORTANT', str(max(2, n // 2)))
         sh('snapper', '-c', 'root', 'cleanup', 'number', check=False); print(json.dumps({'ok': True, 'retention': n}))
     elif c == 'set-auto':
         on = a[1] == 'on'; open(DEFAULTS, 'w').write(f'# Polder SafeHarbor: snapshots before apt / unattended-upgrades\nSAFEHARBOR_AUTO={"yes" if on else "no"}\n')

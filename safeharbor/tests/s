@@ -1,0 +1,2 @@
+#!/bin/bash
+exec ssh -q -i /workspace/sh-test/key -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 root@127.0.0.1 "$@"

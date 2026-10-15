@@ -1,0 +1,3 @@
+#!/bin/bash
+# Test transport: run the real helper as root inside the qemu VM (stands in for pkexec on the desktop)
+exec /workspace/sh-test/s /usr/libexec/polder-safeharbor-helper "$(printf '%q ' "$@")"

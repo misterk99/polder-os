@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Polder OS 'Instellingen' (ChromeOS Settings style, GTK3). Writes ~/.config/osb/settings.json;
 osb-settingsd.py applies changes live. usage: instellingen.py [personalisatie|meldingen|agenda|toetsenbord|datum|over]"""
-import os, sys, time, threading, uuid, subprocess, platform, datetime, signal, shutil
+import os, sys, json, time, threading, uuid, subprocess, platform, datetime, signal, shutil
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in ('osb', 'notify', 'calendar'): sys.path.insert(0, os.path.join(C, d))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
@@ -31,6 +31,7 @@ SECTIONS = [('personalisatie', 'preferences-desktop-wallpaper-symbolic', 'Person
             ('telefoon', 'phone-symbolic', 'Telefoon'),
             ('assistent', 'starred-symbolic', 'Assistent'),
             ('sync', 'emblem-synchronizing-symbolic', 'Sync'),
+            ('safeharbor', 'document-revert-symbolic', 'SafeHarbor'),
             ('over', 'help-about-symbolic', 'Over Polder OS')]
 FEED_COLORS = [('Blauw', '#0b57d0'), ('Groen', '#188038'), ('Rood', '#d93025'), ('Oranje', '#e8710a'), ('Paars', '#9334e6'), ('Grijs', '#5f6368')]
 
@@ -615,6 +616,45 @@ class App(Gtk.Window):
         k5 = self.card(o, 'Back-ups')
         ob = Gtk.Button(label='Map openen'); ob.get_style_context().add_class('btn'); ob.connect('clicked', lambda *a: subprocess.Popen(['xdg-open', Y.BACKUPS]))
         self.row(k5, f'{nb2} back-up(s)', 'Voor elke synchronisatie die iets overschrijft, wordt je oude toestand bewaard (laatste 10). Per instelling wint de nieuwste wijziging.', ob if nb2 else None, last=True)
+
+    def page_safeharbor(self, o):   # Polder SafeHarbor: herstelpunten (btrfs + snapper), see docs/safeharbor.md
+        st = getattr(self, 'sh_status', None)
+        if st is None:
+            c = self.card(o, 'SafeHarbor'); self.row(c, 'Status ophalen…', None, last=True)
+            def work():
+                st = self.sh_call('status') or {'available': False, 'reason': 'SafeHarbor is op dit systeem niet geïnstalleerd.'}
+                GLib.idle_add(lambda: (setattr(self, 'sh_status', st), self.cur == 'safeharbor' and self.show('safeharbor')))
+            threading.Thread(target=work, daemon=True).start(); return
+        self.sh_status = None   # refresh on the next visit
+        c = self.card(o, 'SafeHarbor')
+        ob = Gtk.Button(label='Openen'); ob.get_style_context().add_class('btn')
+        ob.connect('clicked', lambda *a: subprocess.Popen(['polder-safeharbor'], start_new_session=True))
+        if not st.get('available'):
+            self.row(c, 'Niet beschikbaar', st.get('reason') or '', None)
+            self.row(c, 'Wat is SafeHarbor?', 'Polder OS maakt vóór elke update automatisch een herstelpunt, zodat je met één klik terug kunt. Daarvoor moet Polder OS op een btrfs-schijf met de SafeHarbor-indeling staan.', last=True)
+            return
+        snaps = st.get('snapshots') or []
+        last = snaps[-1] if snaps else None
+        if st.get('failed_boot'): self.row(c, 'Het vorige opstarten is niet gelukt', 'Open SafeHarbor om een eerdere versie te herstellen.', err=True)
+        if st.get('booted_snapshot') is not None:
+            self.row(c, f"Je gebruikt een eerdere versie (herstelpunt {st['booted_snapshot']})", 'Alleen-lezen. Open SafeHarbor om er je vaste versie van te maken.', err=True)
+        self.row(c, 'Herstelpunten', (f"{len(snaps)} bewaard · laatste: {last['description']} ({last['date'][:16]})" if last else 'Nog geen herstelpunten.'), ob)
+        def auto(v):
+            threading.Thread(target=lambda: (self.sh_call('set-auto', 'on' if v else 'off'), GLib.idle_add(lambda: self.show('safeharbor'))), daemon=True).start()
+        self.row(c, 'Herstelpunt vóór elke update', 'Ook bij automatische updates en Polder-updates.', self.switch(bool(st.get('auto', True)), auto))
+        ret = int(st.get('retention') or 10)
+        opts = sorted({3, 5, 10, 20, 30, ret})
+        def retention(v):
+            threading.Thread(target=lambda: (self.sh_call('set-retention', v), GLib.idle_add(lambda: self.show('safeharbor'))), daemon=True).start()
+        self.row(c, 'Aantal herstelpunten bewaren', 'Oudere punten worden automatisch opgeruimd.', self.combo([(n, f'{n} herstelpunten') for n in opts], ret, retention), last=True)
+
+    def sh_call(self, *args):
+        cmd = (os.environ.get('POLDER_SAFEHARBOR_HELPER') or 'pkexec /usr/libexec/polder-safeharbor-helper').split()
+        if not os.environ.get('POLDER_SAFEHARBOR_HELPER') and not os.path.exists('/usr/libexec/polder-safeharbor-helper'): return None
+        try:
+            r = subprocess.run(cmd + [str(a) for a in args], capture_output=True, text=True, timeout=60)
+            return json.loads(r.stdout) if r.returncode == 0 else None
+        except Exception: return None
 
     def page_over(self, o):
         c = self.card(o, 'Over Polder OS')

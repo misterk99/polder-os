@@ -1,19 +1,21 @@
 #!/bin/sh
 # /etc/initramfs-tools/scripts/local-bottom/polder-safeharbor
-# Booted a read-only snapper snapshot from the GRUB "snapshots" submenu (rootflags=subvol=@snapshots/N/snapshot):
+# Booted a read-only snapper snapshot from the GRUB "eerdere versies" submenu (rootflags=...subvol=@snapshots/N/snapshot):
 # put a tmpfs overlay on top so the system can start normally. Changes are lost at reboot (the GUI says so and offers
-# "Maak dit de vaste versie").
+# "Maak dit de vaste versie"). Written for klibc too (no grep/touch): minbase systems have no busybox in the initramfs.
 PREREQ=""; prereqs() { echo "$PREREQ"; }
 case $1 in prereqs) prereqs; exit 0;; esac
-grep -q 'subvol=/\?@snapshots/[0-9]*/snapshot' /proc/cmdline || exit 0
-touch "${rootmnt}/.polder-rw-test" 2>/dev/null && { rm -f "${rootmnt}/.polder-rw-test"; exit 0; }   # writable: nothing to do
+read -r cmdline < /proc/cmdline
+case " $cmdline " in *subvol=@snapshots/*/snapshot*|*subvol=/@snapshots/*/snapshot*) ;; *) exit 0;; esac
+# snapper snapshots are always read-only subvolumes (and klibc has no rm/touch for a write test)
 modprobe overlay 2>/dev/null
-mkdir -p /polder-cow && mount -t tmpfs -o mode=0755,size=50% polder-cow /polder-cow || exit 0
+mkdir -p /polder-cow
+mount -t tmpfs -o mode=0755,size=50% polder-cow /polder-cow || exit 0
 mkdir -p /polder-cow/lower /polder-cow/upper /polder-cow/work
-mount --move "${rootmnt}" /polder-cow/lower
-if mount -t overlay overlay -o lowerdir=/polder-cow/lower,upperdir=/polder-cow/upper,workdir=/polder-cow/work "${rootmnt}"; then
+mount -n -o move "${rootmnt}" /polder-cow/lower
+if mount -t overlay -o lowerdir=/polder-cow/lower,upperdir=/polder-cow/upper,workdir=/polder-cow/work polder-snapshot "${rootmnt}"; then
   echo "polder-safeharbor: read-only snapshot, tmpfs overlay active" > /dev/kmsg
 else
-  mount --move /polder-cow/lower "${rootmnt}"
+  mount -n -o move /polder-cow/lower "${rootmnt}"
 fi
 exit 0

@@ -7,10 +7,12 @@ case "$1" in
 start)
   if [ -e $D/boot-pending ]; then
     prev=$(cat $D/boot-pending)
-    printf '{"time": %s, "previous_boot": %s, "acknowledged": false}\n' "$(date +%s)" "${prev:-null}" > $D/failed-boot.json
+    printf '{"time": %s, "previous_boot": %s, "acknowledged": false}\n' "$(date +%s)" "${prev:-null}" > $D/failed-boot.json; sync -f $D/failed-boot.json
     echo "$(date -Is) previous boot did not complete ($prev)" >> $D/boot.log
   fi
-  printf '{"started": %s, "snapshot": %s}\n' "$(date +%s)" "${snap:-null}" > $D/boot-pending ;;
+  printf '{"started": %s, "snapshot": %s}\n' "$(date +%s)" "${snap:-null}" > $D/boot-pending
+  sync $D 2>/dev/null; sync -f $D/boot-pending 2>/dev/null  # must survive a hard reset or power loss
+  ;;
 ok)
   rm -f $D/boot-pending; echo "$(date -Is) boot ok${snap:+ (snapshot $snap)}" >> $D/boot.log
   if [ -z "$snap" ] && [ -e /var/lib/polder-safeharbor/update-grub ]; then   # first boot after a rollback

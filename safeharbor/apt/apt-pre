@@ -30,5 +30,7 @@ for _ in 1 2 3 4 5 6; do c=$(cat /proc/$p/comm 2>/dev/null); case "$c" in unatte
 ud="polder=apt,trigger=$trigger,packages=$total,installed=$inst,upgraded=$upg,removed=$rem"
 [ $polder = 1 ] && ud="$ud,important=yes"
 mkdir -p /run/polder-safeharbor
+# unattended-upgrades installs in several dpkg steps (Pre-Install-Pkgs per step, Post-Invoke per step): one pre per pair
+[ -s /run/polder-safeharbor/apt-pre ] && exit 0
 snapper -c root create -t pre -c number -p -d "$desc" -u "$ud" > /run/polder-safeharbor/apt-pre 2>/run/polder-safeharbor/apt-pre.err || rm -f /run/polder-safeharbor/apt-pre
 exit 0

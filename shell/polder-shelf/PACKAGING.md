@@ -21,6 +21,10 @@ Runtime deps: libgtk-4-1, libgtk4-layer-shell0, polder-toplevels (polder-composi
 helpers it launches (launcher, calendar, quick settings, weather, capture).
 
 Planned packaging (NOT yet in debian/control, so the current CI is unchanged): a new binary package
-`polder-shelf` with `Build-Depends: dh-cargo` plus the list above, installing `target/release/polder-shelf` and `target/release/polder-quicksettings` (plus polder-phonehub, polder-dynamic-color, polder-launcher, polder-notifyd, polder-clipd) to
+`polder-shelf` with `Build-Depends: dh-cargo` plus the list above, installing `target/release/polder-shelf` and `target/release/polder-quicksettings` (plus polder-phonehub, polder-dynamic-color, polder-launcher, polder-notifyd, polder-clipd, polder-safeharbor) to
 `/usr/bin/`. Once that exists, the session picks it up when `POLDER_SHELF=rust` is set.
 Tested: Rust 1.85 / gtk4-rs 0.9.6 / gtk4-layer-shell 0.4.0 on x86_64; arm64 not yet built.
+
+`polder-safeharbor` (SafeHarbor GUI) is a regular GTK window, not a layer surface, and needs the system part from
+`safeharbor/` (`safeharbor/install.sh`, see `docs/safeharbor.md`). It suits a separate package, `polder-safeharbor`, with
+Depends: snapper, btrfs-progs, inotify-tools, python3, polkitd, pkexec, grub-pc | grub-efi-arm64 | grub-efi-amd64, initramfs-tools.

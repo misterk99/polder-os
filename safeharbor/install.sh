@@ -15,10 +15,13 @@ inst 644 $H/systemd/polder-safeharbor-boot-ok.service /usr/lib/systemd/system/po
 mkdir -p $D/etc/systemd/system/sysinit.target.wants $D/etc/systemd/system/multi-user.target.wants
 ln -sf /usr/lib/systemd/system/polder-safeharbor-boot.service $D/etc/systemd/system/sysinit.target.wants/
 ln -sf /usr/lib/systemd/system/polder-safeharbor-boot-ok.service $D/etc/systemd/system/multi-user.target.wants/
+inst 644 $H/systemd/remount-fs-snapshot.conf /usr/lib/systemd/system/systemd-remount-fs.service.d/polder-safeharbor.conf
 inst 755 $H/initramfs/hook /etc/initramfs-tools/hooks/polder-safeharbor
 inst 755 $H/initramfs/local-bottom /etc/initramfs-tools/scripts/local-bottom/polder-safeharbor
 inst 644 $H/polkit/org.polderos.safeharbor.policy /usr/share/polkit-1/actions/org.polderos.safeharbor.policy
 inst 644 $H/polkit/50-polder-safeharbor.rules /usr/share/polkit-1/rules.d/50-polder-safeharbor.rules
+# snapper-boot.timer would add an unlabelled "boot" snapshot every start; SafeHarbor uses apt + manual points only
+rm -f $D/etc/systemd/system/timers.target.wants/snapper-boot.timer
 [ -e $D/etc/snapper/configs/root ] || inst 640 $H/snapper/root /etc/snapper/configs/root
 mkdir -p $D/etc/default
 cat > $D/etc/default/snapper <<'S'
