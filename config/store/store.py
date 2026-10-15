@@ -3,6 +3,7 @@
 Metadata: AppStream (Debian DEP-11 + Flathub appstream) -> only real desktop apps with icons.
 Backends: Debian packages via PackageKit (PackageKitGlib over the system bus, polkit-authorised like any distro),
 Flathub via the flatpak CLI (system installation). Dutch UI, unified Polder OS palette (light/dark)."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, re, html, json, subprocess, threading, time, urllib.request, hashlib, concurrent.futures as CF
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 sys.path.insert(0, os.path.join(C, 'notify')); sys.path.insert(0, os.path.join(C, 'osb'))
@@ -17,8 +18,8 @@ CACHE = os.path.expanduser('~/.cache/polder-store'); os.makedirs(CACHE, exist_ok
 POOL = CF.ThreadPoolExecutor(4)
 FEATURED = ['org.gimp.GIMP', 'org.libreoffice.LibreOffice', 'org.videolan.VLC', 'org.inkscape.Inkscape',
             'com.github.xournalpp.xournalpp', 'org.gnome.Mines', 'org.kde.krita', 'com.obsproject.Studio']
-CATS = [('Alles', None), ('Kantoor', 'Office'), ('Grafisch', 'Graphics'), ('Audio en video', 'AudioVideo'), ('Spellen', 'Game'),
-        ('Internet', 'Network'), ('Ontwikkeling', 'Development'), ('Onderwijs', 'Education'), ('Hulpmiddelen', 'Utility')]
+CATS = [(_('All'), None), (_('Office'), 'Office'), (_('Graphics'), 'Graphics'), (_('Audio and video'), 'AudioVideo'), (_('Games'), 'Game'),
+        (_('Internet'), 'Network'), (_('Development'), 'Development'), (_('Education'), 'Education'), (_('Utilities'), 'Utility')]
 
 def run(cmd, t=60):
     try: return subprocess.run(cmd, capture_output=True, text=True, timeout=t).stdout
@@ -92,7 +93,7 @@ class Backend:
     def _install(self, a, progress):
         if a.flatpak: return self._flatpak(['install', '--system', '-y', '--noninteractive', 'flathub', a.flatpak_app()], progress)
         ids = [p.get_id() for p in self.pk.resolve(PK.FilterEnum.NOT_INSTALLED, [a.pkg], None, lambda *x: None, None).get_package_array()]
-        if not ids: raise RuntimeError(f'pakket {a.pkg} niet gevonden')
+        if not ids: raise RuntimeError(_('package {pkg} not found').format(pkg=a.pkg))
         self.pk.install_packages(1 << PK.TransactionFlagEnum.ONLY_TRUSTED, ids[:1], None, self._pkprog(progress), None)
     def _remove(self, a, progress):
         if a.flatpak: return self._flatpak(['uninstall', '--system', '-y', '--noninteractive', a.flatpak_app()], progress)
@@ -112,7 +113,7 @@ class Backend:
     def _pkprog(self, progress):
         def cb(p, t, *a):
             pct = p.get_property('percentage')
-            if 0 <= pct <= 100: progress(pct, 'Bezig…')
+            if 0 <= pct <= 100: progress(pct, _('Working…'))
         return cb
     def _flatpak(self, args, progress):
         p = subprocess.Popen(['flatpak'] + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
@@ -123,9 +124,9 @@ class Backend:
             buf += ch
             if ch in '\r\n':
                 m = re.findall(r'(\d{1,3})%', buf)
-                if m: progress(int(m[-1]), 'Downloaden…')
+                if m: progress(int(m[-1]), _('Downloading…'))
                 buf = ''
-        if p.wait(timeout=1800): raise RuntimeError('flatpak ' + args[0] + ' mislukt')
+        if p.wait(timeout=1800): raise RuntimeError('flatpak ' + args[0] + _(' failed'))
 
 def css():
     P = N.palette()
@@ -161,7 +162,7 @@ progressbar progress {{ background: {P['ACCENT']}; border-radius: 4px; min-heigh
 
 class Store(Gtk.Window):
     def __init__(self):
-        super().__init__(title='Polder Store'); self.set_default_size(1000, 640); self.set_wmclass('polder-store', 'Polder Store')
+        super().__init__(title=_('Polder Store')); self.set_default_size(1000, 640); self.set_wmclass('polder-store', _('Polder Store'))
         self.set_icon_name('system-software-install')
         self.prov = Gtk.CssProvider(); self.prov.load_from_data(css().encode())
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), self.prov, 900)
@@ -176,25 +177,25 @@ class Store(Gtk.Window):
         self.back.connect('clicked', lambda *a: self.go_back()); top.pack_start(self.back, False, False, 0)
         logo = GdkPixbuf.Pixbuf.new_from_file_at_scale(os.path.join(C, 'brand', 'polderos-logo-64.png'), 28, 28, True)
         top.pack_start(Gtk.Image.new_from_pixbuf(logo), False, False, 4)
-        l = Gtk.Label(label='Polder Store'); l.get_style_context().add_class('brand'); top.pack_start(l, False, False, 0)
+        l = Gtk.Label(label=_('Polder Store')); l.get_style_context().add_class('brand'); top.pack_start(l, False, False, 0)
         self.tabs = {}; g = None
-        for key, lab in (('home', 'Ontdekken'), ('installed', 'Geïnstalleerd'), ('updates', 'Updates')):
+        for key, lab in (('home', _('Discover')), ('installed', _('Installed')), ('updates', _('Updates'))):
             b = Gtk.RadioButton.new_with_label_from_widget(g, lab); g = g or b; b.set_mode(False); b.get_style_context().add_class('tab')
             b.connect('toggled', self.on_tab, key); self.tabs[key] = b; top.pack_start(b, False, False, 2 if key != 'home' else 12)
-        self.search = Gtk.SearchEntry(placeholder_text='Apps zoeken'); self.search.set_name('search')
+        self.search = Gtk.SearchEntry(placeholder_text=_('Search apps')); self.search.set_name('search')
         self.search.connect('search-changed', self.on_search); top.pack_end(self.search, False, False, 0)
         self.catalog_bar = Gtk.Box(spacing=12); self.catalog_bar.set_border_width(12)
         self.catalog_bar.set_no_show_all(True)
         self.catalog_label = Gtk.Label(xalign=0); self.catalog_label.set_line_wrap(True)
         self.catalog_bar.pack_start(self.catalog_label, True, True, 0)
-        self.catalog_retry = Gtk.Button(label='Opnieuw proberen')
+        self.catalog_retry = Gtk.Button(label=_('Try again'))
         self.catalog_retry.connect('clicked', lambda *args: self.request_catalog_refresh(True))
         self.catalog_bar.pack_end(self.catalog_retry, False, False, 0); v.pack_start(self.catalog_bar, False, False, 0)
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE, transition_duration=120); v.pack_start(self.stack, True, True, 0)
         sp = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER, spacing=12)
         self.catalog_spinner = Gtk.Spinner(); self.catalog_spinner.set_size_request(32, 32)
         sp.pack_start(self.catalog_spinner, False, False, 0)
-        self.catalog_empty_label = Gtk.Label(label='Apps laden…')
+        self.catalog_empty_label = Gtk.Label(label=_('Loading apps…'))
         sp.pack_start(self.catalog_empty_label, False, False, 0); self.stack.add_named(sp, 'loading')
         self.history = []; self.connect('destroy', self.on_destroy); self.show_all(); self.back.hide()
         self.load(); self.update_catalog_status()
@@ -286,14 +287,14 @@ class Store(Gtk.Window):
     def update_catalog_status(self):
         message = Catalog.status_message(self.catalog_status, len(self.apps))
         if self.catalog_error:
-            message = 'De appcatalogus kon niet worden gelezen. We proberen het automatisch opnieuw.'
-            if self.apps: message += ' Je opgeslagen apps blijven beschikbaar.'
+            message = _('The app catalog could not be read. We will try again automatically.')
+            if self.apps: message += _(' Your saved apps remain available.')
         self.catalog_label.set_text(message); self.catalog_bar.set_visible(bool(message))
         self.catalog_label.show(); self.catalog_retry.show()
         refreshing = self.catalog_status.get('phase') == 'refreshing'
         self.catalog_retry.set_sensitive(not refreshing and not self.catalog_request_pending)
         if not self.apps:
-            self.catalog_empty_label.set_text('Apps laden…' if self.catalog_loading or refreshing else 'Nog geen appcatalogus beschikbaar')
+            self.catalog_empty_label.set_text(_('Loading apps…') if self.catalog_loading or refreshing else _('No app catalog available yet'))
             if self.catalog_loading or refreshing: self.catalog_spinner.start()
             else: self.catalog_spinner.stop()
 
@@ -320,7 +321,7 @@ class Store(Gtk.Window):
         s.get_style_context().add_class('csum'); t.pack_start(s, False, False, 0)
         bd = Gtk.Box(spacing=6); x = Gtk.Label(label=a.source); x.get_style_context().add_class('badge'); bd.pack_start(x, False, False, 0)
         if self.be.installed(a):
-            y = Gtk.Label(label='Geïnstalleerd'); y.get_style_context().add_class('badge'); bd.pack_start(y, False, False, 0)
+            y = Gtk.Label(label=_('Installed')); y.get_style_context().add_class('badge'); bd.pack_start(y, False, False, 0)
         t.pack_start(bd, False, False, 2)
         eb.connect('button-release-event', lambda *e: self.show_detail(a)); eb.set_size_request(300 if not feat else 230, -1)
         return eb
@@ -349,7 +350,7 @@ class Store(Gtk.Window):
             self.update_catalog_status()
             return False
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        self.h2(box, 'Uitgelicht')
+        self.h2(box, _('Featured'))
         fr = Gtk.Box(spacing=10, homogeneous=True); n = 0
         for fid in FEATURED:
             for a in self.byid.get(fid, []) + self.byid.get(fid + '.desktop', []):
@@ -357,7 +358,7 @@ class Store(Gtk.Window):
                     fr.pack_start(self.card(a, True), True, True, 0); n += 1; break
             if n == 4: break
         box.pack_start(fr, False, False, 0)
-        self.h2(box, 'Categorieën')
+        self.h2(box, _('Categories'))
         cb = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=12, column_spacing=6, row_spacing=6); g = None
         for lab, key in CATS:
             b = Gtk.RadioButton.new_with_label_from_widget(g, lab); g = g or b; b.set_mode(False); b.get_style_context().add_class('chip')
@@ -365,7 +366,7 @@ class Store(Gtk.Window):
         box.pack_start(cb, False, False, 0)
         sel = [a for a in self.apps if cat is None or cat in a.cats]
         sel.sort(key=lambda a: (a.source != 'Debian', a.name.lower()))
-        self.h2(box, f'{dict((k, l) for l, k in CATS)[cat] if cat else "Alle apps"} · {len(sel)} apps')
+        self.h2(box, _('{p0} · {p1} apps').format(p0=dict((k, l) for l, k in CATS)[cat] if cat else _('All apps'), p1=len(sel)))
         box.pack_start(self.grid(sel[:60]), False, False, 0)
         self.page('home', box); self.back.hide(); self.history = []
         return False
@@ -384,18 +385,18 @@ class Store(Gtk.Window):
             for a in self.byid.get(c.get_id(), []):
                 if a not in hits: hits.append(a)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.h2(box, f'Resultaten voor “{q}” · {len(hits)}' if hits else f'Geen apps gevonden voor “{q}”')
+        self.h2(box, _('Results for “{q}” · {p0}').format(q=q, p0=len(hits)) if hits else _('No apps found for “{q}”').format(q=q))
         box.pack_start(self.grid(hits[:45]), False, False, 0); self.page('search', box); self.back.hide()
 
     def show_installed(self):
         self.be.refresh_installed()
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL); inst = [a for a in self.apps if self.be.installed(a)]
-        self.h2(box, f'Geïnstalleerde apps · {len(inst)}'); box.pack_start(self.grid(inst), False, False, 0)
+        self.h2(box, _('Installed apps · {p0}').format(p0=len(inst))); box.pack_start(self.grid(inst), False, False, 0)
         self.page('installed', box); self.back.hide()
 
     def show_updates(self):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        hb = Gtk.Box(); self.h2(hb, 'Updates zoeken…'); box.pack_start(hb, False, False, 0); self.page('updates', box)
+        hb = Gtk.Box(); self.h2(hb, _('Looking for updates…')); box.pack_start(hb, False, False, 0); self.page('updates', box)
         def work():
             try: ups = self.be.updates(); err = None
             except Exception as e: ups, err = [], str(e)
@@ -405,9 +406,9 @@ class Store(Gtk.Window):
     def fill_updates(self, ups, err):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         hb = Gtk.Box(spacing=12)
-        self.h2(hb, f'Fout: {err}' if err else (f'{len(ups)} updates beschikbaar' if ups else 'Alles is up-to-date'))
+        self.h2(hb, _('Error: {err}').format(err=err) if err else (_('{p0} updates available').format(p0=len(ups)) if ups else _('Everything is up to date')))
         if ups:
-            b = Gtk.Button(label='Alles bijwerken'); b.get_style_context().add_class('primary'); b.set_valign(Gtk.Align.CENTER)
+            b = Gtk.Button(label=_('Update all')); b.get_style_context().add_class('primary'); b.set_valign(Gtk.Align.CENTER)
             pb = Gtk.ProgressBar(valign=Gtk.Align.CENTER); pb.set_size_request(200, -1); pb.set_no_show_all(True)
             b.connect('clicked', lambda *a: self.job(self.be.update_all, None, b, pb, lambda: self.show_updates()))
             hb.pack_end(b, False, False, 0); hb.pack_end(pb, False, False, 0)
@@ -429,7 +430,7 @@ class Store(Gtk.Window):
         dev = a.c.get_developer().get_name() if a.c.get_developer() else ''
         s = Gtk.Label(label=a.summary + (f' · {dev}' if dev else ''), xalign=0, wrap=True); s.get_style_context().add_class('sub'); t.pack_start(s, False, False, 0)
         meta = Gtk.Box(spacing=8); bd = Gtk.Label(label=a.source); bd.get_style_context().add_class('badge'); meta.pack_start(bd, False, False, 0)
-        self.size_l = Gtk.Label(label='Grootte: …'); self.size_l.get_style_context().add_class('sub'); meta.pack_start(self.size_l, False, False, 0)
+        self.size_l = Gtk.Label(label=_('Size: …')); self.size_l.get_style_context().add_class('sub'); meta.pack_start(self.size_l, False, False, 0)
         lic = a.c.get_project_license()
         if lic: q = Gtk.Label(label=lic); q.get_style_context().add_class('sub'); meta.pack_start(q, False, False, 0)
         t.pack_start(meta, False, False, 2)
@@ -447,7 +448,7 @@ class Store(Gtk.Window):
                 best = best or im.get_url()
             if best: urls.append(best)
         if urls:
-            hl = Gtk.Label(label='Schermafbeeldingen', xalign=0); hl.get_style_context().add_class('h2'); box.pack_start(hl, False, False, 0)
+            hl = Gtk.Label(label=_('Screenshots'), xalign=0); hl.get_style_context().add_class('h2'); box.pack_start(hl, False, False, 0)
             sw.set_min_content_height(250); box.pack_start(sw, False, False, 0)
             for w in (hl, sw): w.set_no_show_all(True)   # only shown once a screenshot really downloaded (stale URLs exist)
             for u in urls:
@@ -458,7 +459,7 @@ class Store(Gtk.Window):
                         for w in (hl, sw): w.set_no_show_all(False); w.show_all()
                     except Exception: pass
                 POOL.submit(lambda u=u, setp=setp: (lambda p: p and GLib.idle_add(setp, p))(fetch(u)))
-        self.h2(box, 'Over deze app')
+        self.h2(box, _('About this app'))
         d = Gtk.Label(label=desc_text(a.c) or a.summary, xalign=0, wrap=True, max_width_chars=110, selectable=True); box.pack_start(d, False, False, 0)
         self.page('detail', box); self.back.show()
         threading.Thread(target=self.load_size, args=(a,), daemon=True).start()
@@ -469,24 +470,24 @@ class Store(Gtk.Window):
             out = run(['flatpak', 'remote-info', '--system', 'flathub', a.flatpak_app()], 30)
             m = re.search(r'Download:\s*(.+)', out) or re.search(r'Download size:\s*(.+)', out)
             i = re.search(r'Installed:\s*(.+)', out) or re.search(r'Installed size:\s*(.+)', out)
-            txt = ' · '.join(x for x in (m and 'download ' + m.group(1).strip(), i and 'geïnstalleerd ' + i.group(1).strip()) if x)
+            txt = ' · '.join(x for x in (m and _('download ') + m.group(1).strip(), i and _('installed ') + i.group(1).strip()) if x)
         elif a.pkg:
             out = run(['apt-cache', 'show', '--no-all-versions', a.pkg], 20)
             m = re.search(r'^Installed-Size:\s*(\d+)', out, re.M); s = re.search(r'^Size:\s*(\d+)', out, re.M)
-            if m: txt = f'{int(m.group(1))/1024:.1f} MB geïnstalleerd' + (f' · download {int(s.group(1))/1048576:.1f} MB' if s else '')
-        GLib.idle_add(lambda: self.cur is a and self.size_l.set_text('Grootte: ' + (txt or 'onbekend')))
+            if m: txt = _('{p0:.1f} MB installed').format(p0=int(m.group(1))/1024) + (_(' · download {p0:.1f} MB').format(p0=int(s.group(1))/1048576) if s else '')
+        GLib.idle_add(lambda: self.cur is a and self.size_l.set_text(_('Size: ') + (txt or _('unknown'))))
 
     def fill_buttons(self, a):
         for w in self.bb.get_children(): w.destroy()
         if a.key in self.busy: return
         if self.be.installed(a):
-            o = Gtk.Button(label='Openen'); o.get_style_context().add_class('primary'); o.connect('clicked', lambda *x: self.open_app(a))
-            r = Gtk.Button(label='Verwijderen'); r.get_style_context().add_class('secondary')
-            r.connect('clicked', lambda *x: self.job(self.be.remove, a, r, self.pb, lambda: self.after(a, 'verwijderd')))
+            o = Gtk.Button(label=_('Open')); o.get_style_context().add_class('primary'); o.connect('clicked', lambda *x: self.open_app(a))
+            r = Gtk.Button(label=_('Remove')); r.get_style_context().add_class('secondary')
+            r.connect('clicked', lambda *x: self.job(self.be.remove, a, r, self.pb, lambda: self.after(a, 'removed')))
             self.bb.pack_start(r, False, False, 0); self.bb.pack_start(o, False, False, 0)
         else:
-            i = Gtk.Button(label='Installeren'); i.get_style_context().add_class('primary')
-            i.connect('clicked', lambda *x: self.job(self.be.install, a, i, self.pb, lambda: self.after(a, 'geïnstalleerd')))
+            i = Gtk.Button(label=_('Install')); i.get_style_context().add_class('primary')
+            i.connect('clicked', lambda *x: self.job(self.be.install, a, i, self.pb, lambda: self.after(a, 'installed')))
             self.bb.pack_start(i, False, False, 0)
         self.bb.show_all()
 
@@ -494,7 +495,7 @@ class Store(Gtk.Window):
         for w in (self.bb.get_children() if a else [btn]): w.set_sensitive(False)
         if a: self.busy[a.key] = True
         pb.show(); pb.set_fraction(0); pb.set_text(None)
-        if a: self.stat.set_text('Wachten op autorisatie…')
+        if a: self.stat.set_text(_('Waiting for authorization…'))
         def prog(p, t): GLib.idle_add(lambda: (pb.set_fraction(p / 100), a and self.cur is a and self.stat.set_text(f'{t} {p}%')) and False)
         def work():
             err = None
@@ -505,8 +506,8 @@ class Store(Gtk.Window):
             if a: self.busy.pop(a.key, None)
             pb.hide()
             if err:
-                if a and self.cur is a: self.stat.set_text('Mislukt: ' + err[:80])
-                subprocess.Popen(['notify-send', '-a', 'Polder Store', 'Mislukt', err[:200]])
+                if a and self.cur is a: self.stat.set_text(_('Failed: ') + err[:80])
+                subprocess.Popen(['notify-send', '-a', _('Polder Store'), _('Failed'), err[:200]])
                 if a: self.fill_buttons(a)
                 else: btn.set_sensitive(True)
             else: done()
@@ -514,8 +515,10 @@ class Store(Gtk.Window):
 
     def after(self, a, what):
         self.be.refresh_installed()
-        if self.cur is a: self.stat.set_text(f'{a.name} is {what}'); self.fill_buttons(a)
-        subprocess.Popen(['notify-send', '-a', 'Polder Store', '-i', 'system-software-install', f'{a.name} {what}', f'Bron: {a.source}'])
+        st = _('{name} is installed') if what == 'installed' else _('{name} is removed')
+        ti = _('{name} installed') if what == 'installed' else _('{name} removed')
+        if self.cur is a: self.stat.set_text(st.format(name=a.name)); self.fill_buttons(a)
+        subprocess.Popen(['notify-send', '-a', _('Polder Store'), '-i', 'system-software-install', ti.format(name=a.name), _('Source: {source}').format(source=a.source)])
 
     def open_app(self, a):
         if a.flatpak: subprocess.Popen(['flatpak', 'run', a.flatpak_app()], start_new_session=True); return
@@ -525,7 +528,7 @@ class Store(Gtk.Window):
                 ai = Gio.DesktopAppInfo.new(i if i.endswith('.desktop') else i + '.desktop')
                 if ai: ai.launch([], None); return
             except Exception: pass
-        self.stat.set_text('Geen starter gevonden')
+        self.stat.set_text(_('No launcher found'))
 
     def go_back(self):
         prev = self.history.pop() if self.history else 'home'

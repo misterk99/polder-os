@@ -2,6 +2,8 @@
 //! (its Wayland path): launcher button, pinned + running apps (foreign-toplevel), running dot / active highlight,
 //! right-click menus, recording + media pills, keyboard / weather / date / quick-settings pills, live theme, and the
 //! wallpaper desktop surface with its right-click menu. The Python shelf stays as fallback.
+#[macro_use] mod i18n;
+#[allow(unused_imports)] use i18n::tr;
 mod apps; mod menu; mod status; mod theme; mod toplevels;
 use gtk::{gdk, gio, glib, prelude::*};
 use gtk4_layer_shell::{Edge, Layer, LayerShell};
@@ -11,7 +13,7 @@ use std::{cell::RefCell, path::PathBuf, process::{Command, Stdio}, rc::Rc, sync:
 const H: i32 = 52;
 const SKIPCLS: [&str; 12] = ["tint2", "polder-shell.py", "qs.py", "osb-notifyd.py", "launcher.py", "shelf.py", "cal.py", "overview.py",
                              "clipd.py", "xfdesktop", "lock.py", "polder-shelf"];
-const MONTHS: [&str; 12] = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
+fn month(m: u32) -> &'static str { tr("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec").split(' ').nth(m as usize - 1).unwrap_or("") }
 
 fn run(argv: &[&str]) {
     let mut c = Command::new(argv[0]); c.args(&argv[1..]).stdout(Stdio::null()).stderr(Stdio::null());
@@ -86,7 +88,7 @@ fn right_of(s: &Shelf, b: &gtk::Button) -> String {
 fn build(app: &gtk::Application) -> S {
     let screen = screen_size();
     let win = gtk::ApplicationWindow::new(app).upcast::<gtk::Window>();
-    win.set_title(Some("Polder Plank")); win.set_widget_name("shelf"); win.set_decorated(false);
+    win.set_title(Some(tr("Polder Shelf"))); win.set_widget_name("shelf"); win.set_decorated(false);
     win.init_layer_shell(); win.set_namespace("polder-shelf"); win.set_layer(Layer::Top);
     for e in [Edge::Left, Edge::Right, Edge::Bottom] { win.set_anchor(e, true); }
     win.set_exclusive_zone(H);
@@ -97,7 +99,7 @@ fn build(app: &gtk::Application) -> S {
     let launcher = gtk::Button::new(); launcher.add_css_class("lbtn"); launcher.set_valign(gtk::Align::Center); launcher.set_margin_start(6);
     let lic = theme::config_dir().join("launcher-icon.png");
     let lim = if lic.exists() { let p = gtk::Image::from_file(&lic); p.set_pixel_size(32); p } else { let p = gtk::Image::from_icon_name("view-app-grid-symbolic"); p.set_pixel_size(24); p };
-    launcher.set_child(Some(&lim)); launcher.set_tooltip_text(Some("Launcher"));
+    launcher.set_child(Some(&lim)); launcher.set_tooltip_text(Some(tr("Launcher")));
     launcher.connect_clicked(|_| run(&[&cpath("launcher/launcher-toggle.sh")]));
     bar.set_start_widget(Some(&launcher));
 
@@ -108,7 +110,7 @@ fn build(app: &gtk::Application) -> S {
     let extra = gtk::Box::new(gtk::Orientation::Horizontal, 6); extra.set_valign(gtk::Align::Center); outer.append(&extra);
     let rec = gtk::Button::new(); rec.add_css_class("recpill"); let rb = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     rb.append(&gtk::Image::from_icon_name("media-playback-stop-symbolic")); let reclabel = gtk::Label::new(Some("0:00")); rb.append(&reclabel);
-    rec.set_child(Some(&rb)); rec.set_tooltip_text(Some("Schermopname stoppen")); rec.set_visible(false);
+    rec.set_child(Some(&rb)); rec.set_tooltip_text(Some(tr("Stop screen recording"))); rec.set_visible(false);
     rec.connect_clicked(|_| status::stop_recording());
     let media = gtk::Button::new(); media.add_css_class("mediapill"); let mb = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     mb.append(&gtk::Image::from_icon_name("media-playback-pause-symbolic"));
@@ -118,13 +120,13 @@ fn build(app: &gtk::Application) -> S {
     bar.set_center_widget(Some(&outer));
 
     let right = gtk::Box::new(gtk::Orientation::Horizontal, 6); right.set_valign(gtk::Align::Center); right.set_margin_end(8);
-    let (kb, wx, date, tray) = (pill("Toetsenbordindeling"), pill("Weer"), pill("Agenda"), pill("Snelle instellingen"));
+    let (kb, wx, date, tray) = (pill(tr("Keyboard layout")), pill(tr("Weather")), pill(tr("Calendar")), pill(tr("Quick Settings")));
     for p in [&kb, &wx, &date, &tray] { right.append(p); }
     wx.set_visible(false);
     bar.set_end_widget(Some(&right));
 
     // desktop surface: wallpaper on the background layer, so right-clicks on the empty desktop reach us
-    let dwin = gtk::Window::builder().title("Polder Bureaublad").decorated(false).build(); dwin.set_widget_name("desk");
+    let dwin = gtk::Window::builder().title(tr("Polder Desktop")).decorated(false).build(); dwin.set_widget_name("desk");
     dwin.set_application(Some(app));
     dwin.init_layer_shell(); dwin.set_namespace("polder-desktop"); dwin.set_layer(Layer::Background);
     for e in [Edge::Left, Edge::Right, Edge::Top, Edge::Bottom] { dwin.set_anchor(e, true); }
@@ -148,8 +150,8 @@ fn build(app: &gtk::Application) -> S {
         let x = b.translate_coordinates(&s.borrow().win, 0.0, 0.0).map(|p| p.0).unwrap_or(0.0) as i32;
         let v = std::env::var("XKB_DEFAULT_VARIANT").unwrap_or_default();
         let items = vec![Item::Entry("input-keyboard-symbolic", format!("Indeling: {}{}", kb_layout(), if v.is_empty() { String::new() } else { format!(" ({v})") }), Some(Box::new(|| {}))),
-                         Item::Entry("input-keyboard-symbolic", "Sneltoetsen".into(), Some(Box::new(|| run(&["python3", &cpath("shortcuts/sneltoetsen.py")]))))];
-        open_menu(&s, items, x, None, Some("Toetsenbord"));
+                         Item::Entry("input-keyboard-symbolic", tr("Keyboard shortcuts").into(), Some(Box::new(|| run(&["python3", &cpath("shortcuts/sneltoetsen.py")]))))];
+        open_menu(&s, items, x, None, Some(tr("Keyboard")));
     });
     let w = Rc::downgrade(&s);
     wx.connect_clicked(move |b| if let Some(s) = w.upgrade() { let r = right_of(&s.borrow(), b); run(&["python3", &cpath("calendar/cal.py"), "--weather", &r]); });
@@ -162,11 +164,11 @@ fn build(app: &gtk::Application) -> S {
     g.connect_pressed(move |_, _, x, y| if let Some(s) = w.upgrade() {
         let settings = cpath("settings/instellingen.py");
         let (s1, s2) = (settings.clone(), settings);
-        let items = vec![Item::Entry("preferences-desktop-wallpaper-symbolic", "Achtergrond en stijl".into(), Some(Box::new(move || run(&["python3", &s1, "personalisatie"])))),
-                         Item::Entry("system-file-manager-symbolic", "Bestanden openen".into(), Some(Box::new(|| run(&[&cpath("files/run-files.sh")])))),
+        let items = vec![Item::Entry("preferences-desktop-wallpaper-symbolic", tr("Wallpaper and style").into(), Some(Box::new(move || run(&["python3", &s1, "personalisatie"])))),
+                         Item::Entry("system-file-manager-symbolic", tr("Open files").into(), Some(Box::new(|| run(&[&cpath("files/run-files.sh")])))),
                          Item::Sep,
-                         Item::Entry("emblem-system-symbolic", "Instellingen".into(), Some(Box::new(move || run(&["python3", &s2])))),
-                         Item::Entry("input-keyboard-symbolic", "Sneltoetsen".into(), Some(Box::new(|| run(&["python3", &cpath("shortcuts/sneltoetsen.py")]))))];
+                         Item::Entry("emblem-system-symbolic", tr("Settings").into(), Some(Box::new(move || run(&["python3", &s2])))),
+                         Item::Entry("input-keyboard-symbolic", tr("Keyboard shortcuts").into(), Some(Box::new(|| run(&["python3", &cpath("shortcuts/sneltoetsen.py")]))))];
         open_menu(&s, items, x as i32, Some(y as i32), None);
     });
     dwin.add_controller(g);
@@ -225,7 +227,7 @@ fn update_status(s: &S) {
     me.key = key;
     fill(&me.kb, vec![label(&kb_layout().to_uppercase())]);
     me.date.set_visible(show_date);
-    fill(&me.date, vec![label(&format!("{} {}", now.day_of_month(), MONTHS[(now.month() - 1) as usize]))]);
+    fill(&me.date, vec![label(&{ let (day, month) = (now.day_of_month(), month(now.month() as u32)); tf!("{month} {day}" ; month, day) })]);
     let mut parts = vec![label(&clock)];
     if dnd { parts.push(icon("notifications-disabled")); }
     else if unread > 0 { let b = gtk::Label::new(Some(&unread.to_string())); b.add_css_class("badge"); parts.push(b.upcast()); }
@@ -305,7 +307,7 @@ fn button(me: &Shelf, s: &S, app: &str, running: bool) -> gtk::Box {
         let ov = gtk::Overlay::new(); ov.set_child(Some(&im));
         let badge = gtk::Label::new(Some("polder")); badge.add_css_class("sluisbadge"); badge.set_halign(gtk::Align::Center); badge.set_valign(gtk::Align::End);
         ov.add_overlay(&badge); b.append(&ov);
-        b.set_tooltip_text(Some(&format!("Terminal in proefpolder ‘{pid}’ (Polder Sluis)")));
+        b.set_tooltip_text(Some(&tf!("Terminal in test polder ‘{pid}’ (Polder Sluis)" ; pid)));
     } else { b.append(&im); }
     let d = gtk::Box::new(gtk::Orientation::Horizontal, 0); d.set_halign(gtk::Align::Center); d.add_css_class(if running { "dot" } else { "nodot" }); b.append(&d);
     if !app.starts_with("sluis:") { b.set_tooltip_text(Some(&ai.map(|a| a.display_name().to_string()).unwrap_or_else(|| app.trim_start_matches("cls:").to_string()))); }
@@ -355,13 +357,13 @@ fn context(s: &S, wdg: &gtk::Widget, app: &str) {
     let mut items = vec![];
     if has_ai {
         let a = app.to_string();
-        items.push(Item::Entry("view-pin-symbolic", if pinned { "Losmaken" } else { "Vastzetten" }.into(), Some(Box::new(move || set_pin(&a, !pinned)))));
+        items.push(Item::Entry("view-pin-symbolic", if pinned { tr("Unpin") } else { tr("Pin") }.into(), Some(Box::new(move || set_pin(&a, !pinned)))));
         let (a, w) = (app.to_string(), Rc::downgrade(s));
-        items.push(Item::Entry("window-new-symbolic", "Nieuw venster".into(), Some(Box::new(move || if let Some(s) = w.upgrade() { launch(&s, &a) }))));
+        items.push(Item::Entry("window-new-symbolic", tr("New window").into(), Some(Box::new(move || if let Some(s) = w.upgrade() { launch(&s, &a) }))));
     }
     if !ws.is_empty() {
         items.push(Item::Sep);
-        let lbl = if ws.len() == 1 { "Sluiten".to_string() } else { format!("Sluiten ({} vensters)", ws.len()) };
+        let lbl = if ws.len() == 1 { tr("Close").to_string() } else { tf!("Close ({} windows)", ws.len()) };
         items.push(Item::Entry("window-close-symbolic", lbl, Some(Box::new(move || if let Some(t) = &tasks { for id in &ws { t.borrow_mut().send("close", *id); } }))));
     }
     open_menu(s, items, x, None, Some(&title));

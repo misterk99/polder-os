@@ -1,4 +1,5 @@
 //! Rounded ChromeOS-style context menu as an overlay layer surface (Rust port of osb/popmenu.py, Wayland path).
+#[allow(unused_imports)] use crate::i18n::tr;
 use gtk::{glib, prelude::*};
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use std::{cell::Cell, rc::Rc};
@@ -14,7 +15,7 @@ fn close(w: &gtk::Window, c: &Cell<bool>) { if !c.replace(true) { w.destroy(); }
 
 /// anchor_above: y is the bottom edge of the menu (it grows upwards), else its top edge.
 pub fn show(items: Vec<Item>, x: i32, y: i32, anchor_above: bool, title: Option<&str>, screen: (i32, i32)) -> PopMenu {
-    let win = gtk::Window::builder().title("Polder menu").decorated(false).resizable(false).build();
+    let win = gtk::Window::builder().title(tr("Polder menu")).decorated(false).resizable(false).build();
     win.set_widget_name("pmwin");
     let closed = Rc::new(Cell::new(false));
     let card = gtk::Box::new(gtk::Orientation::Vertical, 0);

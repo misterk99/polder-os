@@ -1,5 +1,6 @@
 //! KDE Connect (kdeconnectd) over the session D-Bus: the real org.kde.kdeconnect API (KDE Connect 24.x,
 //! core/daemon.h, core/device.h, plugins/*). Nothing is invented: every value comes from the daemon.
+#[allow(unused_imports)] use crate::i18n::tr;
 use gtk::{gio, glib, prelude::*};
 
 pub const BUS: &str = "org.kde.kdeconnect";
@@ -103,7 +104,7 @@ pub fn plugin_call(id: &str, plugin: &str, iface: &str, method: &str, args: Opti
 pub fn sftp_dirs(id: &str) -> Result<(String, Vec<(String, String)>), String> {
     let ok = plugin_call(id, "sftp", "sftp", "mountAndWait", None)?.child_value(0).get::<bool>().unwrap_or(false);
     if !ok { let e = plugin_call(id, "sftp", "sftp", "getMountError", None).ok().and_then(|v| v.child_value(0).get::<String>()).unwrap_or_default();
-             return Err(if e.is_empty() { "Koppelen van de bestanden is mislukt".into() } else { e }); }
+             return Err(if e.is_empty() { tr("Linking the files failed").into() } else { e }); }
     let mp = plugin_call(id, "sftp", "sftp", "mountPoint", None)?.child_value(0).get::<String>().unwrap_or_default();
     let d = plugin_call(id, "sftp", "sftp", "getDirectories", None)?.child_value(0);
     let dict = glib::VariantDict::new(Some(&d));

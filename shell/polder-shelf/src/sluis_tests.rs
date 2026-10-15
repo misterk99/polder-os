@@ -59,7 +59,7 @@ fn isolation_and_selective_merge() {
     let c2 = ch(&t); let a = get(&c2, "a.txt"); assert_eq!(a.home, a.branch);
     // dry run warnings for deletion and permission change
     let p = plan_for(&t.home, &t.upper, &c2, &["b.txt".into(), "c.txt".into()], &[]);
-    assert!(p.warnings.iter().any(|w| w.contains("verwijdert")) && p.warnings.iter().any(|w| w.contains("rechten")));
+    assert!(p.warnings.iter().any(|w| w.contains(crate::i18n::tr("deletes a file on the mainland"))) && p.warnings.iter().any(|w| w.contains(crate::i18n::tr("changes permissions"))));
     let r = merge_sel(&t, &["b.txt", "c.txt", "d.txt"], &[]);
     assert_eq!(r.failed.len(), 0);
     assert!(!t.home.join("b.txt").exists()); assert_eq!(rd(t.home.join("d.txt")), "nieuw\n");
@@ -72,8 +72,8 @@ fn symlinks() {
     inpolder(&t, "ln -sfn b link; ln -s /etc/passwd buiten; ln -s ../x omhoog; rm keep; echo c > keep");
     let c = ch(&t);
     assert_eq!(get(&c, "link").kind, "gewijzigd");
-    assert!(get(&c, "buiten").warnings.iter().any(|w| w.contains("buiten de map")));
-    assert!(get(&c, "omhoog").warnings.iter().any(|w| w.contains("buiten de map")));
+    assert!(get(&c, "buiten").warnings.iter().any(|w| w.starts_with(crate::i18n::tr("symlink points outside the folder: {target}").split('{').next().unwrap())));
+    assert!(get(&c, "omhoog").warnings.iter().any(|w| w.starts_with(crate::i18n::tr("symlink points outside the folder: {target}").split('{').next().unwrap())));
     assert_eq!(get(&c, "keep").kind, "type");
     merge_sel(&t, &["link", "buiten", "keep"], &[]);
     assert_eq!(fs::read_link(t.home.join("link")).unwrap(), PathBuf::from("b"));

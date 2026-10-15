@@ -39,6 +39,9 @@ jobs:
       - name: Verify Store catalog initialization and recovery
         run: python3 -m unittest discover -s config/store -p 'test_*.py'
 
+      - name: Check translations (po/ complete, .mo/.desktop in sync, no hard-coded Dutch UI strings)
+        run: python3 -m unittest discover -s tools/i18n -p 'test_*.py'
+
       - name: Build packages as an unprivileged user
         run: |
           install -d -o nobody -g nogroup /tmp/polder-packages /tmp/polder-home

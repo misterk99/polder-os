@@ -1,5 +1,6 @@
 """Polder OS shared settings: one JSON file (~/.config/osb/settings.json) that every component reads.
 Writers save atomically; osb-settingsd.py watches the file and applies changes live."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, json, copy, datetime
 CFG = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 FILE = os.environ.get('OSB_SETTINGS') or os.path.expanduser('~/.config/osb/settings.json')
@@ -39,8 +40,8 @@ BASES = {
     'dark':  dict(SURFACE='#1f2023', SURFACE_VARIANT='#2e3135', OUTLINE='#44474b', ON_SURFACE='#e3e3e3', ON_SURFACE_VARIANT='#c4c7c5'),
 }
 WALLPAPERS = ['polderheuvel', 'blauw', 'avond', 'groen', 'roze', 'grafiet']
-LAYOUTS = [('us', '', 'Engels (VS)'), ('us', 'intl', 'Engels (VS, internationaal)'), ('nl', '', 'Nederlands'),
-           ('be', '', 'Belgisch'), ('de', '', 'Duits'), ('gb', '', 'Engels (VK)'), ('fr', '', 'Frans')]
+LAYOUTS = [('us', '', _('English (US)')), ('us', 'intl', _('English (US, international)')), ('nl', '', _('Dutch')),
+           ('be', '', _('Belgian')), ('de', '', _('German')), ('gb', '', _('English (UK)')), ('fr', '', _('French'))]
 
 def wallpaper_thumb(name, w=176, h=99):
     """Cached thumbnail path for a wallpaper (shared by Instellingen and Welkom); None if the wallpaper is missing."""

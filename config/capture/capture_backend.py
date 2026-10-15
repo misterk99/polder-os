@@ -2,6 +2,7 @@
 
 No GTK import: stopping a recording must also work during session shutdown.
 """
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import fcntl
 import json
 import os
@@ -99,7 +100,7 @@ def recording_command(path, rect, wayland, pointer=False, origin=(0, 0)):
     width -= width % 2
     height -= height % 2
     if width < 2 or height < 2:
-        raise ValueError('Selecteer een groter gedeelte om op te nemen.')
+        raise ValueError(_('Select a larger region to record.'))
     x += origin[0]
     y += origin[1]
     if wayland:

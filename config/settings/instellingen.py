@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Polder OS 'Instellingen' (ChromeOS Settings style, GTK3). Writes ~/.config/osb/settings.json;
-osb-settingsd.py applies changes live. usage: instellingen.py [personalisatie|meldingen|agenda|toetsenbord|datum|over]"""
+osb-settingsd.py applies changes live. usage: instellingen.py [personalisatie|meldingen|agenda|toetsenbord|taal|datum|over]"""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, json, time, threading, uuid, subprocess, platform, datetime, signal, shutil
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in ('osb', 'notify', 'calendar'): sys.path.insert(0, os.path.join(C, d))
@@ -15,25 +16,26 @@ if os.path.exists(PID):   # single instance: raise the existing window (and swit
     try:
         os.kill(int(open(PID).read()), 0)
         open(SECTION, 'w').write(sys.argv[1] if len(sys.argv) > 1 else '')
-        if not os.environ.get('POLDER_COMP'): subprocess.run(['wmctrl', '-a', 'Instellingen'], timeout=5)
+        if not os.environ.get('POLDER_COMP'): subprocess.run(['wmctrl', '-a', _('Settings')], timeout=5)
         sys.exit(0)
     except (ProcessLookupError, ValueError): pass
 open(PID, 'w').write(str(os.getpid()))
 
-SECTIONS = [('personalisatie', 'preferences-desktop-wallpaper-symbolic', 'Personalisatie'),
-            ('beeldscherm', 'video-display-symbolic', 'Beeldschermen'),
-            ('meldingen', 'preferences-system-notifications-symbolic', 'Meldingen'),
-            ('agenda', 'x-office-calendar-symbolic', 'Agenda'),
-            ('toetsenbord', 'input-keyboard-symbolic', 'Toetsenbord en taal'),
-            ('datum', 'preferences-system-time-symbolic', 'Datum en tijd'),
-            ('weer', 'weather-few-clouds-symbolic', 'Weer'),
-            ('webapps', 'web-browser-symbolic', 'Webapps'),
-            ('telefoon', 'phone-symbolic', 'Telefoon'),
-            ('assistent', 'starred-symbolic', 'Assistent'),
-            ('sync', 'emblem-synchronizing-symbolic', 'Sync'),
-            ('safeharbor', 'document-revert-symbolic', 'SafeHarbor'),
-            ('over', 'help-about-symbolic', 'Over Polder OS')]
-FEED_COLORS = [('Blauw', '#0b57d0'), ('Groen', '#188038'), ('Rood', '#d93025'), ('Oranje', '#e8710a'), ('Paars', '#9334e6'), ('Grijs', '#5f6368')]
+SECTIONS = [('personalisatie', 'preferences-desktop-wallpaper-symbolic', _('Personalization')),
+            ('beeldscherm', 'video-display-symbolic', _('Displays')),
+            ('meldingen', 'preferences-system-notifications-symbolic', _('Notifications')),
+            ('agenda', 'x-office-calendar-symbolic', _('Calendar')),
+            ('toetsenbord', 'input-keyboard-symbolic', _('Keyboard')),
+            ('taal', 'preferences-desktop-locale-symbolic', _('Language and region')),
+            ('datum', 'preferences-system-time-symbolic', _('Date and time')),
+            ('weer', 'weather-few-clouds-symbolic', _('Weather')),
+            ('webapps', 'web-browser-symbolic', _('Web apps')),
+            ('telefoon', 'phone-symbolic', _('Phone')),
+            ('assistent', 'starred-symbolic', _('Assistant')),
+            ('sync', 'emblem-synchronizing-symbolic', _('Sync')),
+            ('safeharbor', 'document-revert-symbolic', _('SafeHarbor')),
+            ('over', 'help-about-symbolic', _('About Polder OS'))]
+FEED_COLORS = [(_('Blue'), '#0b57d0'), (_('Green'), '#188038'), (_('Red'), '#d93025'), (_('Orange'), '#e8710a'), (_('Purple'), '#9334e6'), (_('Gray'), '#5f6368')]
 
 def css():
     P = N.palette()
@@ -72,18 +74,18 @@ combobox button {{ border-radius: 12px; background: {P['SURFACE_VARIANT']}; bord
 
 def ago(ts):
     if not ts: return 'nooit'
-    d = datetime.datetime.fromtimestamp(ts); return d.strftime('vandaag %H:%M' if d.date() == datetime.date.today() else '%d-%m-%Y %H:%M')
+    d = datetime.datetime.fromtimestamp(ts); return d.strftime(_('today %H:%M') if d.date() == datetime.date.today() else '%d-%m-%Y %H:%M')
 
 class App(Gtk.Window):
     def __init__(self, section):
-        super().__init__(title='Instellingen'); self.set_wmclass('instellingen', 'Instellingen')
+        super().__init__(title=_('Settings')); self.set_wmclass('instellingen', _('Settings'))
         self.set_default_size(1000, 640); self.set_icon_name('preferences-system'); self.set_name('root')
         self.prov = Gtk.CssProvider(); Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), self.prov, 800)
         self.palm = 0; self.reload_css(); GLib.timeout_add(1000, self.tick)
         self.connect('destroy', self.quit)
         hb = Gtk.Box(); self.add(hb)
         left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL); left.set_size_request(260, -1)
-        t = Gtk.Label(label='Instellingen', xalign=0); t.get_style_context().add_class('apptitle'); left.pack_start(t, False, False, 0)
+        t = Gtk.Label(label=_('Settings'), xalign=0); t.get_style_context().add_class('apptitle'); left.pack_start(t, False, False, 0)
         self.nav = Gtk.ListBox(); self.nav.set_name('nav')
         nav_scroll = Gtk.ScrolledWindow(); nav_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         nav_scroll.add(self.nav); left.pack_start(nav_scroll, True, True, 0)
@@ -123,7 +125,7 @@ class App(Gtk.Window):
             import wayland_control
             state = wayland_control.keyboard_state()
             name = next((label for l, v, label in S.LAYOUTS if (l, v) == (state.get('layout'), state.get('variant'))), state.get('layout', ''))
-            self.keyboard_status.set_text('Indeling kon niet worden toegepast.' if state.get('error') else 'Actief: ' + name)
+            self.keyboard_status.set_text(_('The layout could not be applied.') if state.get('error') else _('Active: ') + name)
         return True
 
     def show(self, key):
@@ -159,31 +161,31 @@ class App(Gtk.Window):
     # ---------- pages ----------
     def page_beeldscherm(self, o):
         if not os.environ.get('POLDER_COMP'):
-            c = self.card(o, 'Beeldschermen')
-            b = Gtk.Button(label='Beeldschermen instellen')
+            c = self.card(o, _('Displays'))
+            b = Gtk.Button(label=_('Set up displays'))
             b.connect('clicked', lambda *a: subprocess.Popen(['xfce4-display-settings']))
-            self.row(c, 'Resolutie en schaal', 'Open de beeldscherminstellingen.', b, last=True)
+            self.row(c, _('Resolution and scale'), _('Open the display settings.'), b, last=True)
             return
         import wayland_display as D
         try:
             monitors = D.outputs()
         except Exception:
-            self.row(self.card(o, 'Beeldschermen'), 'Beeldschermen niet beschikbaar', 'Probeer het opnieuw nadat het scherm is aangesloten.', last=True)
+            self.row(self.card(o, _('Displays')), _('Displays not available'), _('Try again after the display is connected.'), last=True)
             return
         forms = []
         for monitor in monitors:
             p = D.profile(monitor); forms.append(p)
             c = self.card(o, monitor.get('description') or monitor['name'])
-            self.row(c, 'Beeldscherm gebruiken', monitor['name'], self.switch(p['enabled'], lambda v, p=p: p.update(enabled=v)))
+            self.row(c, _('Use display'), monitor['name'], self.switch(p['enabled'], lambda v, p=p: p.update(enabled=v)))
             modes = monitor.get('modes', [])
             cur = next((str(i) for i, m in enumerate(modes) if m.get('current')), '0')
             items = [(str(i), f"{m['width']} × {m['height']}" + (f" · {m['refresh']:g} Hz" if m['refresh'] else '')) for i, m in enumerate(modes)]
-            self.row(c, 'Resolutie', None, self.combo(items, cur, lambda v, p=p, modes=modes: p.update(mode=modes[int(v)])))
+            self.row(c, _('Resolution'), None, self.combo(items, cur, lambda v, p=p, modes=modes: p.update(mode=modes[int(v)])))
             scales = sorted(set([1, 1.25, 1.5, 1.75, 2, 2.5, 3, p['scale']]))
-            self.row(c, 'Schaal', 'Grootte van tekst en bedieningselementen.', self.combo([(v, f'{v * 100:g}%') for v in scales], p['scale'], lambda v, p=p: p.update(scale=float(v))))
-            transforms = [('normal', 'Liggend'), ('90', 'Staand links'), ('180', 'Liggend omgekeerd'), ('270', 'Staand rechts')]
-            if p['transform'] not in dict(transforms): transforms.append((p['transform'], 'Gespiegeld'))
-            self.row(c, 'Oriëntatie', None, self.combo(transforms, p['transform'], lambda v, p=p: p.update(transform=v)), last=len(monitors) == 1)
+            self.row(c, _('Scale'), _('Size of text and controls.'), self.combo([(v, f'{v * 100:g}%') for v in scales], p['scale'], lambda v, p=p: p.update(scale=float(v))))
+            transforms = [('normal', _('Landscape')), ('90', _('Portrait left')), ('180', _('Landscape flipped')), ('270', _('Portrait right'))]
+            if p['transform'] not in dict(transforms): transforms.append((p['transform'], _('Mirrored')))
+            self.row(c, _('Orientation'), None, self.combo(transforms, p['transform'], lambda v, p=p: p.update(transform=v)), last=len(monitors) == 1)
             if len(monitors) > 1:
                 position = Gtk.Box(spacing=6)
                 for axis in ('x', 'y'):
@@ -192,9 +194,9 @@ class App(Gtk.Window):
                     spin.set_value(p['position'][axis]); spin.set_width_chars(6)
                     spin.connect('value-changed', lambda w, p=p, axis=axis: p['position'].update({axis: w.get_value_as_int()}))
                     position.pack_start(spin, False, False, 0)
-                self.row(c, 'Plaatsing', 'Positie ten opzichte van de andere beeldschermen.', position, last=True)
+                self.row(c, _('Placement'), _('Position relative to the other displays.'), position, last=True)
         buttons = Gtk.Box(spacing=8)
-        apply_button = Gtk.Button(label='Toepassen'); apply_button.get_style_context().add_class('btn')
+        apply_button = Gtk.Button(label=_('Apply')); apply_button.get_style_context().add_class('btn')
         def begin(*a):
             apply_button.set_sensitive(False)
             def worker():
@@ -203,20 +205,20 @@ class App(Gtk.Window):
                 GLib.idle_add(self.display_preview, token, error)
             threading.Thread(target=worker, daemon=True).start()
         apply_button.connect('clicked', begin); buttons.pack_start(apply_button, False, False, 0)
-        refresh = Gtk.Button(label='Vernieuwen'); refresh.connect('clicked', lambda *a: self.show('beeldscherm'))
+        refresh = Gtk.Button(label=_('Refresh')); refresh.connect('clicked', lambda *a: self.show('beeldscherm'))
         buttons.pack_start(refresh, False, False, 0); o.pack_start(buttons, False, False, 0)
-        hint = Gtk.Label(label='Bevestig binnen 15 seconden. Zonder bevestiging worden de vorige instellingen hersteld.', xalign=0)
+        hint = Gtk.Label(label=_('Confirm within 15 seconds. Without confirmation the previous settings are restored.'), xalign=0)
         hint.set_line_wrap(True); o.pack_start(hint, False, False, 0)
 
     def display_preview(self, token, error):
         import wayland_display as D
         if error:
             dialog = Gtk.MessageDialog(transient_for=self, modal=True, message_type=Gtk.MessageType.ERROR,
-                                       buttons=Gtk.ButtonsType.CLOSE, text='Beeldschermwijziging niet toegepast')
+                                       buttons=Gtk.ButtonsType.CLOSE, text=_('Display change not applied'))
             dialog.format_secondary_text(error); dialog.connect('response', lambda d, r: (d.destroy(), self.show('beeldscherm')))
             dialog.show(); return False
-        dialog = Gtk.MessageDialog(transient_for=self, modal=True, text='Deze beeldscherminstellingen behouden?')
-        dialog.add_button('Herstellen', Gtk.ResponseType.REJECT); dialog.add_button('Behouden', Gtk.ResponseType.ACCEPT)
+        dialog = Gtk.MessageDialog(transient_for=self, modal=True, text=_('Keep these display settings?'))
+        dialog.add_button(_('Restore'), Gtk.ResponseType.REJECT); dialog.add_button(_('Keep'), Gtk.ResponseType.ACCEPT)
         closed = [False]
         def response(d, result):
             if closed[0]: return
@@ -228,7 +230,7 @@ class App(Gtk.Window):
             if closed[0]: return False
             state = D.read_state()
             left = max(0, int(state['deadline'] - time.monotonic()) + 1)
-            dialog.format_secondary_text(f'De vorige instellingen worden over {left} seconden hersteld.')
+            dialog.format_secondary_text(_('The previous settings will be restored in {left} seconds.').format(left=left))
             if state['token'] != token or state['status'] not in ('starting', 'preview'):
                 closed[0] = True; dialog.destroy(); self.show('beeldscherm'); return False
             return True
@@ -237,22 +239,22 @@ class App(Gtk.Window):
 
     def page_personalisatie(self, o):
         s = S.load()
-        c = self.card(o, 'Personalisatie')
+        c = self.card(o, _('Personalization'))
         seg = Gtk.Box(spacing=6); group = []
-        for k, label in (('light', 'Licht'), ('dark', 'Donker'), ('auto', 'Automatisch')):
+        for k, label in (('light', _('Light')), ('dark', _('Dark')), ('auto', _('Automatic'))):
             b = Gtk.ToggleButton(label=label); b.get_style_context().add_class('seg'); b.set_active(s['theme'] == k)
             b.connect('toggled', self.set_theme, k, group); group.append(b); seg.pack_start(b, False, False, 0)
         eff = 'licht' if S.effective_theme(s) == 'light' else 'donker'
-        self.row(c, 'Thema', f'Automatisch: licht van 07:00 tot 19:00, daarna donker. Nu actief: {eff}.', seg)
+        self.row(c, _('Theme'), _('Automatic: light from 07:00 to 19:00, dark after that. Now active: {eff}.').format(eff=eff), seg)
         dyn = s.get('color_source') == 'wallpaper'
         seg2 = Gtk.Box(spacing=6); g2 = []
-        for k, label in (('accent', 'Accentkleur'), ('wallpaper', 'Kleuren uit achtergrond')):
+        for k, label in (('accent', _('Accent color')), ('wallpaper', _('Colors from wallpaper'))):
             b = Gtk.ToggleButton(label=label); b.get_style_context().add_class('seg'); b.set_active((k == 'wallpaper') == dyn)
             b.connect('toggled', self.set_source, k, g2); g2.append(b); seg2.pack_start(b, False, False, 0)
-        self.row(c, 'Kleuren', 'Kleuren uit achtergrond: het systeem kiest kleuren die passen bij je achtergrond (licht en donker).', seg2)
+        self.row(c, _('Colors'), _('Colors from wallpaper: the system picks colors that match your wallpaper (light and dark).'), seg2)
         sw = Gtk.Box(spacing=8); sg = []
         seeds = S.dynamic_seeds(s['wallpaper']) if dyn else []
-        items = [(str(i), h, f'Kleur {i + 1} uit achtergrond') for i, h in enumerate(seeds)] if dyn else [(n, S.ACCENTS[n][0], n.capitalize()) for n in S.ACCENTS]
+        items = [(str(i), h, _('Color {p0} from wallpaper').format(p0=i + 1)) for i, h in enumerate(seeds)] if dyn else [(n, S.ACCENTS[n][0], n.capitalize()) for n in S.ACCENTS]
         cur = str(min(int(s.get('dynamic_seed', 0)), max(len(seeds) - 1, 0))) if dyn else s['accent']
         for key, colour, tip in items:
             b = Gtk.ToggleButton(); b.set_tooltip_text(tip); b.get_style_context().add_class('swatch')
@@ -260,26 +262,26 @@ class App(Gtk.Window):
             b.get_style_context().add_provider(cp, 900); b.set_active(key == cur)
             b.connect('toggled', self.set_seed if dyn else self.set_accent, key, sg); sg.append(b); sw.pack_start(b, False, False, 0)
         if dyn and not seeds:
-            self.row(c, 'Kleur uit achtergrond', 'Niet beschikbaar (polder-dynamic-color ontbreekt); de accentkleur wordt gebruikt.')
+            self.row(c, _('Color from wallpaper'), _('Not available (polder-dynamic-color is missing); the accent color is used.'))
         elif dyn:
-            self.row(c, 'Kleur uit achtergrond', f'{len(seeds)} kleur{"en" if len(seeds) != 1 else ""} gevonden in {s["wallpaper"].capitalize()}', sw)
+            self.row(c, _('Color from wallpaper'), f'{len(seeds)} kleur{"en" if len(seeds) != 1 else ""} gevonden in {s["wallpaper"].capitalize()}', sw)
         else:
-            self.row(c, 'Accentkleur', s['accent'].capitalize(), sw)
-        self.row(c, 'Minder beweging', 'Verminder animaties bij het openen van vensters en in apps.',
+            self.row(c, _('Accent color'), s['accent'].capitalize(), sw)
+        self.row(c, _('Reduce motion'), _('Reduce animations when opening windows and in apps.'),
                  self.switch(s.get('reduced_motion', False), lambda v: S.update(reduced_motion=v)), last=True)
-        c2 = self.card(o, 'Achtergrond')
+        c2 = self.card(o, _('Wallpaper'))
         fb = Gtk.FlowBox(); fb.set_selection_mode(Gtk.SelectionMode.NONE); fb.set_max_children_per_line(3); fb.set_border_width(12); wg = []
         tdir = os.path.join(S.CACHE, 'thumbs'); os.makedirs(tdir, exist_ok=True)
         for name in S.WALLPAPERS:
             th = S.wallpaper_thumb(name)
             if not th: continue
             b = Gtk.ToggleButton(); b.get_style_context().add_class('wall'); v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-            v.pack_start(Gtk.Image.new_from_file(th), False, False, 0); v.pack_start(Gtk.Label(label=name.capitalize() + (' (donker: avond)' if os.path.exists(os.path.join(C, 'wallpapers', name + '-avond.png')) else '')), False, False, 0)
+            v.pack_start(Gtk.Image.new_from_file(th), False, False, 0); v.pack_start(Gtk.Label(label=name.capitalize() + (_(' (dark: evening)') if os.path.exists(os.path.join(C, 'wallpapers', name + '-avond.png')) else '')), False, False, 0)
             b.add(v); b.set_active(s['wallpaper'] == name); b.connect('toggled', self.set_wall, name, wg); wg.append(b); fb.add(b)
         c2.pack_start(fb, False, False, 0)
-        c = self.card(o, 'Schermvergrendeling')
-        self.row(c, 'Automatisch vergrendelen', 'Na deze tijd zonder toetsenbord/muis. Handmatig: Super+L of Vergrendelen in Snelle instellingen.',
-                 self.combo([(n, f'Na {n} minuten' if n else 'Nooit') for n in (5, 10, 15, 0)], S.load().get('lock_idle_min', 10), lambda v: S.update(lock_idle_min=int(v))), last=True)
+        c = self.card(o, _('Screen lock'))
+        self.row(c, _('Lock automatically'), _('After this much time without keyboard/mouse input. Manually: Super+L or Lock in Quick Settings.'),
+                 self.combo([(n, _('After {n} minutes').format(n=n) if n else _('Never')) for n in (5, 10, 15, 0)], S.load().get('lock_idle_min', 10), lambda v: S.update(lock_idle_min=int(v))), last=True)
 
     def exclusive(self, b, group):
         if getattr(self, '_busy', False): return False
@@ -303,50 +305,50 @@ class App(Gtk.Window):
     def set_seed(self, b, k, g):
         if self.exclusive(b, g): S.update(dynamic_seed=int(k))
     def page_meldingen(self, o):
-        s = S.load(); c = self.card(o, 'Meldingen')
-        self.row(c, 'Pop-ups weergeven', 'Uit: er verschijnen geen pop-ups meer.', self.switch(s['notifications'], lambda v: S.update(notifications=v)))
-        self.row(c, 'Geschiedenis bewaren als pop-ups uit staan', 'Meldingen blijven zichtbaar in Snelle instellingen.', self.switch(s['notif_history'], lambda v: S.update(notif_history=v)))
+        s = S.load(); c = self.card(o, _('Notifications'))
+        self.row(c, _('Show pop-ups'), _('Off: no more pop-ups appear.'), self.switch(s['notifications'], lambda v: S.update(notifications=v)))
+        self.row(c, _('Keep history when pop-ups are off'), _('Notifications stay visible in Quick Settings.'), self.switch(s['notif_history'], lambda v: S.update(notif_history=v)))
         def dnd(v):
             try: N.call('SetDnd', GLib.Variant('(b)', (v,)))
             except Exception as e: print('dnd', e)
-        self.row(c, 'Niet storen', 'Zelfde schakelaar als in Snelle instellingen: pop-ups onderdrukt, geschiedenis blijft.', self.switch(N.load().get('dnd', False), dnd))
-        self.row(c, 'Duur van pop-ups', 'Geldt voor meldingen die zelf geen duur opgeven.',
-                 self.combo([(n, f'{n} seconden') for n in (3, 6, 10, 15)], s['popup_secs'], lambda v: S.update(popup_secs=int(v))), last=True)
-        tb = Gtk.Button(label='Testmelding sturen'); tb.get_style_context().add_class('btn'); tb.set_halign(Gtk.Align.START)
-        tb.connect('clicked', lambda *a: subprocess.Popen(['notify-send', '-a', 'Instellingen', 'Testmelding', 'Zo zien meldingen eruit.']))
+        self.row(c, _('Do not disturb'), _('Same switch as in Quick Settings: pop-ups are suppressed, history is kept.'), self.switch(N.load().get('dnd', False), dnd))
+        self.row(c, _('Pop-up duration'), _('Applies to notifications that do not set their own duration.'),
+                 self.combo([(n, _('{n} seconds').format(n=n)) for n in (3, 6, 10, 15)], s['popup_secs'], lambda v: S.update(popup_secs=int(v))), last=True)
+        tb = Gtk.Button(label=_('Send test notification')); tb.get_style_context().add_class('btn'); tb.set_halign(Gtk.Align.START)
+        tb.connect('clicked', lambda *a: subprocess.Popen(['notify-send', '-a', _('Settings'), _('Test notification'), _('This is what notifications look like.')]))
         o.pack_start(tb, False, False, 0)
 
     def page_agenda(self, o):
         s = S.load(); st = feeds.status()
-        c = self.card(o, 'Agenda-abonnementen (iCal / ICS)')
-        if not s['feeds']: self.row(c, 'Nog geen agenda\'s', 'Voeg hieronder een openbare iCal-link toe (http, https of webcal).', last=True)
+        c = self.card(o, _('Calendar subscriptions (iCal / ICS)'))
+        if not s['feeds']: self.row(c, _('No calendars yet'), _('Add a public iCal link below (http, https or webcal).'), last=True)
         for i, f in enumerate(s['feeds']):
             fs = st.get(f['id'], {})
-            if fs.get('ok'): sub = f"Gesynchroniseerd {ago(fs.get('last_sync'))} · {fs.get('events', 0)} items in feed"; err = False
-            elif fs.get('error'): sub = f"Fout bij laatste poging ({ago(fs.get('last_try'))}): {fs['error']}" + (f" · laatste geslaagde sync {ago(fs.get('last_sync'))}" if fs.get('last_sync') else ''); err = True
-            else: sub = 'Nog niet gesynchroniseerd'; err = False
-            rm = Gtk.Button.new_from_icon_name('user-trash-symbolic', Gtk.IconSize.MENU); rm.get_style_context().add_class('btn'); rm.set_tooltip_text('Verwijderen')
+            if fs.get('ok'): sub = _('Synced {p0} · {p1} items in feed').format(p0=ago(fs.get('last_sync')), p1=fs.get('events', 0)); err = False
+            elif fs.get('error'): sub = _('Error on last attempt ({p0}): {p1}').format(p0=ago(fs.get('last_try')), p1=fs['error']) + (_(' · last successful sync {p0}').format(p0=ago(fs.get('last_sync'))) if fs.get('last_sync') else ''); err = True
+            else: sub = _('Not synced yet'); err = False
+            rm = Gtk.Button.new_from_icon_name('user-trash-symbolic', Gtk.IconSize.MENU); rm.get_style_context().add_class('btn'); rm.set_tooltip_text(_('Remove'))
             rm.connect('clicked', self.remove_feed, f['id'])
             r = self.row(c, f['name'], f"{f['url']}\n{sub}", rm, last=i == len(s['feeds']) - 1, err=err)
             dot = Gtk.Box(); dot.get_style_context().add_class('dotc'); dot.set_valign(Gtk.Align.CENTER)
             cp = Gtk.CssProvider(); cp.load_from_data(f".dotc {{ background: {f['color']}; }}".encode()); dot.get_style_context().add_provider(cp, 900)
             r.pack_start(dot, False, False, 0); r.reorder_child(dot, 0)
-        c2 = self.card(o, 'Agenda toevoegen')
+        c2 = self.card(o, _('Add calendar'))
         g = Gtk.Grid(column_spacing=8, row_spacing=8); g.set_border_width(16)
-        self.f_name = Gtk.Entry(placeholder_text='Naam, bijv. Feestdagen'); self.f_url = Gtk.Entry(placeholder_text='https://… of webcal://… .ics'); self.f_url.set_hexpand(True)
+        self.f_name = Gtk.Entry(placeholder_text=_('Name, e.g. Holidays')); self.f_url = Gtk.Entry(placeholder_text='https://… of webcal://… .ics'); self.f_url.set_hexpand(True)
         self.f_color = self.combo(FEED_COLORS and [(h, n) for n, h in FEED_COLORS], FEED_COLORS[0][1], lambda v: None)
-        add = Gtk.Button(label='Toevoegen'); add.get_style_context().add_class('btn'); add.get_style_context().add_class('primary'); add.connect('clicked', self.add_feed)
+        add = Gtk.Button(label=_('Add')); add.get_style_context().add_class('btn'); add.get_style_context().add_class('primary'); add.connect('clicked', self.add_feed)
         g.attach(self.f_name, 0, 0, 1, 1); g.attach(self.f_color, 1, 0, 1, 1); g.attach(self.f_url, 0, 1, 2, 1); g.attach(add, 2, 1, 1, 1)
         self.f_msg = Gtk.Label(xalign=0); self.f_msg.get_style_context().add_class('rsub'); g.attach(self.f_msg, 0, 2, 3, 1)
         c2.pack_start(g, False, False, 0)
-        c3 = self.card(o, 'Synchronisatie')
-        self.row(c3, 'Automatisch vernieuwen', None, self.combo([(m, f'Elke {m} minuten' if m < 60 else ('Elk uur' if m == 60 else f'Elke {m // 60} uur')) for m in (15, 30, 60, 180)],
+        c3 = self.card(o, _('Synchronization'))
+        self.row(c3, _('Refresh automatically'), None, self.combo([(m, _('Every {m} minutes').format(m=m) if m < 60 else (_('Every hour') if m == 60 else _('Every {p0} hours').format(p0=m // 60))) for m in (15, 30, 60, 180)],
                  s['feed_refresh_min'], lambda v: S.update(feed_refresh_min=int(v))))
-        rb = Gtk.Button(label='Nu vernieuwen'); rb.get_style_context().add_class('btn'); rb.connect('clicked', self.refresh); rb.set_sensitive(bool(s['feeds']))
-        self.sync_lbl = 'Bezig met vernieuwen…' if getattr(self, 'syncing', False) else ''
-        self.row(c3, 'Nu vernieuwen', self.sync_lbl or 'Haalt alle agenda\'s direct opnieuw op.', rb, last=not os.path.exists(feeds.LOCAL))
+        rb = Gtk.Button(label=_('Refresh now')); rb.get_style_context().add_class('btn'); rb.connect('clicked', self.refresh); rb.set_sensitive(bool(s['feeds']))
+        self.sync_lbl = _('Refreshing…') if getattr(self, 'syncing', False) else ''
+        self.row(c3, _('Refresh now'), self.sync_lbl or _('Fetches all calendars again right away.'), rb, last=not os.path.exists(feeds.LOCAL))
         if os.path.exists(feeds.LOCAL):
-            self.row(c3, 'Lokale agenda', feeds.LOCAL, last=True)
+            self.row(c3, _('Local calendar'), feeds.LOCAL, last=True)
 
     def add_feed(self, *a):
         name, url = self.f_name.get_text().strip(), self.f_url.get_text().strip()
@@ -370,59 +372,94 @@ class App(Gtk.Window):
         threading.Thread(target=work, daemon=True).start()
 
     def page_toetsenbord(self, o):
-        s = S.load(); c = self.card(o, 'Toetsenbord en taal')
+        s = S.load(); c = self.card(o, _('Keyboard'))
         if os.environ.get('POLDER_COMP'):
-            cur = 'Wijzigingen gelden direct voor aangesloten toetsenborden.'
+            cur = _('Changes apply immediately to connected keyboards.')
         else:
             cur = subprocess.run(['setxkbmap', '-query'], capture_output=True, text=True, timeout=5).stdout
-            cur = 'Actief: ' + ' '.join(l.split(':', 1)[1].strip() for l in cur.splitlines() if l.startswith(('layout', 'variant')))
+            cur = _('Active: ') + ' '.join(l.split(':', 1)[1].strip() for l in cur.splitlines() if l.startswith(('layout', 'variant')))
         items = [(f'{l}:{v}', n) for l, v, n in S.LAYOUTS]
         def setl(k): l, v = k.split(':'); S.update(kbd_layout=l, kbd_variant=v)
-        self.row(c, 'Toetsenbordindeling', cur, self.combo(items, f"{s['kbd_layout']}:{s.get('kbd_variant', '')}", setl))
+        self.row(c, _('Keyboard layout'), cur, self.combo(items, f"{s['kbd_layout']}:{s.get('kbd_variant', '')}", setl))
         self.keyboard_status = Gtk.Label(xalign=0)
         if os.environ.get('POLDER_COMP'): c.pack_start(self.keyboard_status, False, False, 8)
-        e = Gtk.Entry(placeholder_text='Typ hier om de indeling te testen'); e.set_size_request(260, -1)
-        self.row(c, 'Testveld', None, e)
-        self.row(c, 'Taal van de interface', 'Nederlands (Polder OS-onderdelen). Andere talen zijn nog niet beschikbaar.', last=True)
+        e = Gtk.Entry(placeholder_text=_('Type here to test the layout')); e.set_size_request(260, -1)
+        self.row(c, _('Test field'), None, e, last=True)
 
-        c = self.card(o, 'Sneltoetsen')
-        kb = Gtk.Button(label='Sneltoetsen bekijken'); kb.get_style_context().add_class('btn')
+        c = self.card(o, _('Keyboard shortcuts'))
+        kb = Gtk.Button(label=_('View keyboard shortcuts')); kb.get_style_context().add_class('btn')
         kb.connect('clicked', lambda *a: subprocess.Popen([sys.executable, os.path.join(C, 'shortcuts', 'sneltoetsen.py')], start_new_session=True))
-        self.row(c, 'Overzicht van alle sneltoetsen', 'Ook met Ctrl+Alt+/.', kb, last=True)
-        c = self.card(o, 'Klembord')
-        self.row(c, 'Klembordgeschiedenis', 'Super+V toont de laatste 10 gekopieerde items (tekst en afbeeldingen). Wachtwoorden uit wachtwoordmanagers worden overgeslagen.',
+        self.row(c, _('Overview of all keyboard shortcuts'), _('Also with Ctrl+Alt+/.'), kb, last=True)
+        c = self.card(o, _('Clipboard'))
+        self.row(c, _('Clipboard history'), _('Super+V shows the last 10 copied items (text and images). Passwords from password managers are skipped.'),
                  self.switch(S.load().get('clipboard_history', True), lambda v: S.update(clipboard_history=v)))
-        cb = Gtk.Button(label='Geschiedenis wissen'); cb.get_style_context().add_class('btn')
+        cb = Gtk.Button(label=_('Clear history')); cb.get_style_context().add_class('btn')
         cb.connect('clicked', lambda *a: __import__('shellipc').send('clip-clear') or subprocess.run(['pkill', '-USR2', '-f', 'clip/clipd.py'], timeout=3) or subprocess.run(['pkill', '-USR2', '-x', 'polder-clipd'], timeout=3))
-        self.row(c, 'Klembordgeschiedenis wissen', 'Verwijdert alle opgeslagen items.', cb, last=True)
+        self.row(c, _('Clear clipboard history'), _('Removes all stored items.'), cb, last=True)
+
+    def page_taal(self, o):   # Polder OS i18n: Nederlands / English (gettext domain 'polder')
+        import polder_i18n as I
+        c = self.card(o, _('Language and region'))
+        sysname = dict((k, n) for k, n, _l in I.LANGUAGES)[I.system_language()]
+        items = [('system', _('Follow system language ({name})').format(name=sysname))] + [(k, n) for k, n, _l in I.LANGUAGES]
+        cur = I.chosen_language() or 'system'
+        def setlang(k):
+            if k == cur: return
+            I.set_language(None if k == 'system' else k)
+            done = I.restart_components()
+            st = os.path.join(os.environ.get('OSB_RUNDIR', '/tmp'), 'osb-settings.langnote')
+            open(st, 'w').write('live' if done else 'relogin')
+            try: os.remove(PID)
+            except OSError: pass
+            os.execv(sys.executable, [sys.executable, os.path.abspath(__file__), 'taal'])   # rebuild this window in the new language
+        self.row(c, _('Language of Polder OS'), _('Applies to all Polder OS components. By default Polder OS follows the system language.'),
+                 self.combo(items, cur, setlang))
+        note_f = os.path.join(os.environ.get('OSB_RUNDIR', '/tmp'), 'osb-settings.langnote')
+        note = open(note_f).read() if os.path.exists(note_f) else ''
+        if note:
+            os.remove(note_f)
+            if note == 'live':
+                self.row(c, _('Language changed'), _('Shelf, launcher and notifications have been restarted in the new language. Apps that are already open use it after you reopen them.'))
+            else:
+                lo = Gtk.Button(label=_('Sign out')); lo.get_style_context().add_class('btn')
+                lo.connect('clicked', lambda *a: subprocess.Popen(['sh', '-c', 'loginctl terminate-session "$XDG_SESSION_ID"']))
+                self.row(c, _('Sign in again'), _('Sign out and sign in again to use the new language everywhere.'), lo)
+        sb = Gtk.Button(label=_('Set for the whole system')); sb.get_style_context().add_class('btn')
+        self.sys_note = getattr(self, 'sys_note', None)
+        def sysset(*a):
+            ok, msg = I.set_system_locale(I.LANG)
+            self.sys_note = _('System language set; the login screen and boot menu use it from the next start.') if ok else _('Could not set the system language: ') + (msg or '?')
+            self.show('taal')
+        sb.connect('clicked', sysset)
+        self.row(c, _('Login screen and boot menu'), self.sys_note or _('Also use this language for the login screen, the boot menu (SafeHarbor) and new users. Asks for your password.'), sb, last=True)
 
     def page_datum(self, o):
-        s = S.load(); c = self.card(o, 'Datum en tijd')
+        s = S.load(); c = self.card(o, _('Date and time'))
         tz = os.environ.get('TZ') or (open('/etc/timezone').read().strip() if os.path.exists('/etc/timezone') else time.tzname[0])
-        self.row(c, 'Huidige tijd', f"{datetime.datetime.now().strftime('%d-%m-%Y %H:%M')} · tijdzone {tz} (systeemklok)")
-        self.row(c, '24-uursnotatie gebruiken', 'Plank en agenda.', self.switch(s['clock24'], lambda v: S.update(clock24=v)))
-        self.row(c, 'Datum op de plank tonen', 'Het datumvakje opent de agenda.', self.switch(s['show_date'], lambda v: S.update(show_date=v)), last=True)
+        self.row(c, _('Current time'), _('{p0} · time zone {tz} (system clock)').format(p0=datetime.datetime.now().strftime('%d-%m-%Y %H:%M'), tz=tz))
+        self.row(c, _('Use 24-hour format'), _('Shelf and calendar.'), self.switch(s['clock24'], lambda v: S.update(clock24=v)))
+        self.row(c, _('Show date on the shelf'), _('The date box opens the calendar.'), self.switch(s['show_date'], lambda v: S.update(show_date=v)), last=True)
 
     # Revision 25: Polder Weer location (Open-Meteo geocoding) -----------------------------------
     def page_weer(self, o):
         import weather as WX
-        loc = WX.location(); w = WX.load(); c = self.card(o, 'Weer')
-        cur = f"{loc['name']}" + (f", {loc['admin']}" if loc.get('admin') else '') + ('' if S.load().get('weather_loc') else ' (standaard)')
+        loc = WX.location(); w = WX.load(); c = self.card(o, _('Weather'))
+        cur = f"{loc['name']}" + (f", {loc['admin']}" if loc.get('admin') else '') + ('' if S.load().get('weather_loc') else _(' (default)'))
         if w:
-            d = w['data']['current']; st = f"{round(d['temperature_2m'])}° {WX.describe(d['weather_code'], d['is_day'])[0].lower()} · bijgewerkt {time.strftime('%H:%M', time.localtime(w['fetched']))}"
-        else: st = 'Geen actuele gegevens (offline of nog niet opgehaald); het weervakje op de plank is verborgen.'
-        self.row(c, 'Locatie', cur); self.row(c, 'Status', st + ' · bron: Open-Meteo (KNMI/ECMWF), elke 30 min')
-        e = Gtk.Entry(placeholder_text='Zoek een plaats, bijv. Utrecht'); e.set_hexpand(True); b = Gtk.Button(label='Zoeken')
+            d = w['data']['current']; st = _('{p0}° {p1} · updated {p2}').format(p0=round(d['temperature_2m']), p1=WX.describe(d['weather_code'], d['is_day'])[0].lower(), p2=time.strftime('%H:%M', time.localtime(w['fetched'])))
+        else: st = _('No current data (offline or not fetched yet); the weather box on the shelf is hidden.')
+        self.row(c, _('Location'), cur); self.row(c, _('Status'), st + _(' · source: Open-Meteo (KNMI/ECMWF), every 30 min'))
+        e = Gtk.Entry(placeholder_text=_('Search for a place, e.g. Utrecht')); e.set_hexpand(True); b = Gtk.Button(label=_('Search'))
         h = Gtk.Box(spacing=8); h.set_border_width(12); h.pack_start(e, True, True, 0); h.pack_start(b, False, False, 0); c.pack_start(h, False, False, 0)
         res = Gtk.Box(orientation=Gtk.Orientation.VERTICAL); c.pack_start(res, False, False, 0)
         def pick(_b, r): S.update(weather_loc=r); GLib.timeout_add(4000, lambda: self.cur == 'weer' and self.show('weer'))
         def search(*a):
             for ch in res.get_children(): ch.destroy()
             try: rs = WX.search(e.get_text().strip())
-            except Exception as ex: rs = None; self.row(res, 'Zoeken mislukt', str(ex), last=True, err=True)
-            if rs == []: self.row(res, 'Geen plaatsen gevonden', None, last=True)
+            except Exception as ex: rs = None; self.row(res, _('Search failed'), str(ex), last=True, err=True)
+            if rs == []: self.row(res, _('No places found'), None, last=True)
             for i, r in enumerate(rs or []):
-                pb = Gtk.Button(label='Kiezen'); pb.connect('clicked', pick, r)
+                pb = Gtk.Button(label=_('Choose')); pb.connect('clicked', pick, r)
                 self.row(res, r['name'], f"{r['admin']} · {r['lat']:.2f}, {r['lon']:.2f}", pb, last=i == len(rs) - 1)
             res.show_all()
         b.connect('clicked', search); e.connect('activate', search)
@@ -430,99 +467,99 @@ class App(Gtk.Window):
     # Revision 25: webapps -------------------------------------------------------------------------
     def page_webapps(self, o):
         import webapps as WA
-        c = self.card(o, 'Website als app installeren')
-        self.w_url = Gtk.Entry(placeholder_text='Webadres, bijv. music.youtube.com'); self.w_url.set_hexpand(True)
-        self.w_name = Gtk.Entry(placeholder_text='Naam (optioneel)'); ib = Gtk.Button(label='Installeren'); ib.get_style_context().add_class('suggested-action')
+        c = self.card(o, _('Install website as app'))
+        self.w_url = Gtk.Entry(placeholder_text=_('Web address, e.g. music.youtube.com')); self.w_url.set_hexpand(True)
+        self.w_name = Gtk.Entry(placeholder_text=_('Name (optional)')); ib = Gtk.Button(label=_('Install')); ib.get_style_context().add_class('suggested-action')
         h = Gtk.Box(spacing=8); h.set_border_width(12); h.pack_start(self.w_url, True, True, 0); h.pack_start(self.w_name, False, False, 0); h.pack_start(ib, False, False, 0)
         c.pack_start(h, False, False, 0)
-        self.w_msg = Gtk.Label(label=getattr(self, 'w_last', 'Opent in een eigen venster met eigen pictogram op de plank. Het pictogram komt van de website zelf.'), xalign=0, wrap=True)
+        self.w_msg = Gtk.Label(label=getattr(self, 'w_last', _('Opens in its own window with its own icon on the shelf. The icon comes from the website itself.')), xalign=0, wrap=True)
         self.w_msg.get_style_context().add_class('rsub'); self.w_msg.set_margin_start(14); self.w_msg.set_margin_bottom(12); c.pack_start(self.w_msg, False, False, 0)
         def install(*a):
-            url, name = self.w_url.get_text(), self.w_name.get_text().strip() or None; self.w_msg.set_text('Bezig met installeren…')
+            url, name = self.w_url.get_text(), self.w_name.get_text().strip() or None; self.w_msg.set_text(_('Installing…'))
             def work():
-                try: r = WA.install(url, name); msg = f"‘{r['name']}’ geïnstalleerd (pictogram: {r['icon_source'].split(':')[0]})."
-                except Exception as ex: msg = f'Installeren mislukt: {ex}'
+                try: r = WA.install(url, name); msg = _('‘{p0}’ installed (icon: {p1}).').format(p0=r['name'], p1=r['icon_source'].split(':')[0])
+                except Exception as ex: msg = _('Installation failed: {ex}').format(ex=ex)
                 def done(): self.w_last = msg; self.show('webapps')
                 GLib.idle_add(done)
             threading.Thread(target=work, daemon=True).start()
         ib.connect('clicked', install); self.w_url.connect('activate', install)
-        apps = WA.list_apps(); c2 = self.card(o, 'Geïnstalleerde webapps')
-        if not apps: self.row(c2, 'Nog geen webapps', None, last=True)
+        apps = WA.list_apps(); c2 = self.card(o, _('Installed web apps'))
+        if not apps: self.row(c2, _('No web apps yet'), None, last=True)
         for i, a in enumerate(apps):
             r = Gtk.Box(spacing=12); r.get_style_context().add_class('row')
             try: r.pack_start(Gtk.Image.new_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_scale(a['icon'], 32, 32, True)), False, False, 0)
             except Exception: pass
             v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL); l = Gtk.Label(label=a['name'], xalign=0); v.pack_start(l, False, False, 0)
             l2 = Gtk.Label(label=a['url'], xalign=0); l2.get_style_context().add_class('rsub'); v.pack_start(l2, False, False, 0); r.pack_start(v, True, True, 0)
-            ob = Gtk.Button(label='Openen'); ob.connect('clicked', lambda _b, a=a: Gio.DesktopAppInfo.new_from_filename(a['desktop']).launch([], None)); r.pack_start(ob, False, False, 0)
-            rb = Gtk.Button(label='Verwijderen'); rb.connect('clicked', lambda _b, a=a: (WA.remove(a['id']), setattr(self, 'w_last', f"‘{a['name']}’ verwijderd."), self.show('webapps'))); r.pack_start(rb, False, False, 0)
+            ob = Gtk.Button(label=_('Open')); ob.connect('clicked', lambda _b, a=a: Gio.DesktopAppInfo.new_from_filename(a['desktop']).launch([], None)); r.pack_start(ob, False, False, 0)
+            rb = Gtk.Button(label=_('Remove')); rb.connect('clicked', lambda _b, a=a: (WA.remove(a['id']), setattr(self, 'w_last', _('‘{p0}’ removed.').format(p0=a['name'])), self.show('webapps'))); r.pack_start(rb, False, False, 0)
             c2.pack_start(r, False, False, 0)
             if i < len(apps) - 1: c2.pack_start(Gtk.Separator(), False, False, 0)
 
     # Revision 28: Telefoon (KDE Connect) ----------------------------------------------------------
     def page_telefoon(self, o):
         import phone as PH
-        c = self.card(o, 'Telefoon')
+        c = self.card(o, _('Phone'))
         if not PH.available():
-            self.row(c, 'KDE Connect is niet geïnstalleerd', 'Installeer het pakket kdeconnect (zit in de Polder OS ISO).', last=True, err=True); return
+            self.row(c, _('KDE Connect is not installed'), _('Install the kdeconnect package (included in the Polder OS ISO).'), last=True, err=True); return
         if not PH.running(): PH.start()
-        rb = Gtk.Button(label='Vernieuwen'); rb.connect('clicked', lambda *a: (PH.refresh(), GLib.timeout_add(1500, lambda: self.cur == 'telefoon' and self.show('telefoon'))))
-        self.row(c, 'Telefoon koppelen', 'Installeer de app "KDE Connect" op je Android-telefoon of iPhone en zorg dat beide op hetzelfde wifi-netwerk zitten.', rb, last=True)
+        rb = Gtk.Button(label=_('Refresh')); rb.connect('clicked', lambda *a: (PH.refresh(), GLib.timeout_add(1500, lambda: self.cur == 'telefoon' and self.show('telefoon'))))
+        self.row(c, _('Pair phone'), _('Install the "KDE Connect" app on your Android phone or iPhone and make sure both are on the same Wi‑Fi network.'), rb, last=True)
         devs = PH.devices() if PH.running() else []
         paired = [d for d in devs if d['paired']]; others = [d for d in devs if not d['paired'] and d['reachable']]
         for d in paired:
             pc = self.card(o, d['name'])
-            st = ('Verbonden' if d['reachable'] else 'Niet bereikbaar') + (f" · batterij {d['battery']}%" + (' (laadt op)' if d['charging'] else '') if d['reachable'] and d['battery'] not in (None, -1) else '')
-            ub = Gtk.Button(label='Ontkoppelen'); ub.connect('clicked', lambda _b, i=d['id']: (PH.unpair(i), self.show('telefoon')))
-            self.row(pc, 'Status', st, ub)
+            st = (_('Connected') if d['reachable'] else _('Unreachable')) + (_(' · battery {p0}%').format(p0=d['battery']) + (_(' (charging)') if d['charging'] else '') if d['reachable'] and d['battery'] not in (None, -1) else '')
+            ub = Gtk.Button(label=_('Unpair')); ub.connect('clicked', lambda _b, i=d['id']: (PH.unpair(i), self.show('telefoon')))
+            self.row(pc, _('Status'), st, ub)
             for name, title, sub in PH.PLUGINS:
                 on = PH.plugin_enabled(d['id'], name)
                 if on is None: continue
                 self.row(pc, title, sub, self.switch(on, lambda v, i=d['id'], n=name: PH.set_plugin(i, n, v)))
-            fb = Gtk.Button(label='Laten overgaan'); fb.set_sensitive(d['reachable']); fb.connect('clicked', lambda _b, i=d['id']: PH.ring(i))
-            self.row(pc, 'Telefoon zoeken', 'Je telefoon gaat over, ook als hij op stil staat.', fb, last=True)
-        c2 = self.card(o, 'Beschikbare apparaten')
-        if not PH.running(): self.row(c2, 'KDE Connect-dienst draait niet', 'Kon kdeconnectd niet starten.', last=True, err=True)
-        elif not others: self.row(c2, 'Geen apparaten gevonden', 'Open KDE Connect op je telefoon. Firewall: poorten 1714–1764 (TCP/UDP) moeten open staan.', last=True)
+            fb = Gtk.Button(label=_('Ring')); fb.set_sensitive(d['reachable']); fb.connect('clicked', lambda _b, i=d['id']: PH.ring(i))
+            self.row(pc, _('Find phone'), _('Your phone rings, even when it is on silent.'), fb, last=True)
+        c2 = self.card(o, _('Available devices'))
+        if not PH.running(): self.row(c2, _('KDE Connect service is not running'), _('Could not start kdeconnectd.'), last=True, err=True)
+        elif not others: self.row(c2, _('No devices found'), _('Open KDE Connect on your phone. Firewall: ports 1714–1764 (TCP/UDP) must be open.'), last=True)
         for k, d in enumerate(others):
             if d['pair_requested']:
-                b = Gtk.Button(label='Accepteren'); b.connect('clicked', lambda _b, i=d['id']: (PH.accept(i), self.show('telefoon')))
-                sub = f"Koppelverzoek · controleer dat deze code ook op je telefoon staat: {d['verification']}" if d['verification'] else 'Koppelverzoek ontvangen'
+                b = Gtk.Button(label=_('Accept')); b.connect('clicked', lambda _b, i=d['id']: (PH.accept(i), self.show('telefoon')))
+                sub = _('Pairing request · check that this code is also shown on your phone: {p0}').format(p0=d['verification']) if d['verification'] else _('Pairing request received')
             else:
-                b = Gtk.Button(label='Koppelen'); b.connect('clicked', lambda _b, i=d['id']: (PH.pair(i), GLib.timeout_add(1500, lambda: self.show('telefoon'))))
-                sub = 'Klaar om te koppelen' + (f" · code {d['verification']}" if d['verification'] else '')
+                b = Gtk.Button(label=_('Pair')); b.connect('clicked', lambda _b, i=d['id']: (PH.pair(i), GLib.timeout_add(1500, lambda: self.show('telefoon'))))
+                sub = _('Ready to pair') + (_(' · code {p0}').format(p0=d['verification']) if d['verification'] else '')
             self.row(c2, d['name'], sub, b, last=k == len(others) - 1)
 
     def page_assistent(self, o):   # Revision 29: Polder Assistent (optional cloud LLM)
         sys.path.insert(0, os.path.join(C, 'assistant')); import llm as L
         s = S.load(); prov = s.get('assistant_provider', 'none'); models = dict(s.get('assistant_model') or {})
-        c = self.card(o, 'Polder Assistent')
-        self.row(c, 'Openen', 'Super+A. Lokale opdrachten (thema, volume, wifi, apps, weer, bestanden…) werken altijd, zonder sleutel en zonder internet.', last=True)
-        c2 = self.card(o, 'AI-dienst (optioneel)')
-        items = [('none', 'Geen (alleen lokaal)')] + [(k, v[0]) for k, v in L.PROVIDERS.items()]
+        c = self.card(o, _('Polder Assistant'))
+        self.row(c, _('Open'), _('Super+A. Local commands (theme, volume, Wi‑Fi, apps, weather, files…) always work, without a key and without internet.'), last=True)
+        c2 = self.card(o, _('AI service (optional)'))
+        items = [('none', _('None (local only)'))] + [(k, v[0]) for k, v in L.PROVIDERS.items()]
         def setp(v): S.update(assistant_provider=v); self.show('assistent')
-        self.row(c2, 'Dienst', 'Vrije vragen gaan naar deze dienst; de AI kan dezelfde systeemacties uitvoeren (vraagt eerst bij vergrendelen of wifi/bluetooth uit).', self.combo(items, prov, setp), last=prov == 'none')
+        self.row(c2, _('Service'), _('Free-form questions go to this service; the AI can perform the same system actions (it asks first before locking or turning Wi‑Fi/Bluetooth off).'), self.combo(items, prov, setp), last=prov == 'none')
         if prov == 'none':
-            self.row(c2, 'Lokaal model', 'Een lokaal model (bv. via Ollama) wordt nog niet ondersteund.', last=True); return
+            self.row(c2, _('Local model'), _('A local model (e.g. via Ollama) is not supported yet.'), last=True); return
         key = L.get_key(prov)
-        ke = Gtk.Entry(); ke.set_visibility(False); ke.set_width_chars(28); ke.set_placeholder_text('API-sleutel plakken'); ke.set_text(key)
-        where = 'GNOME-sleutelbos' if L._secret_ok() else '~/.config/osb/assistant-keys (alleen jij kunt het lezen)'
-        self.row(c2, 'API-sleutel', ('Ingesteld' if key else 'Nog niet ingesteld') + f' · opgeslagen in {where}', ke)
+        ke = Gtk.Entry(); ke.set_visibility(False); ke.set_width_chars(28); ke.set_placeholder_text(_('Paste API key')); ke.set_text(key)
+        where = _('GNOME keyring') if L._secret_ok() else _('~/.config/osb/assistant-keys (only you can read it)')
+        self.row(c2, _('API key'), (_('Set') if key else _('Not set yet')) + _(' · stored in {where}').format(where=where), ke)
         me = Gtk.Entry(); me.set_width_chars(24); me.set_text(models.get(prov) or L.PROVIDERS[prov][1])
-        self.row(c2, 'Model', f'Standaard: {L.PROVIDERS[prov][1]}', me)
-        bb = Gtk.Box(spacing=8); sb = Gtk.Button(label='Opslaan'); sb.get_style_context().add_class('btn'); sb.get_style_context().add_class('primary')
-        tb = Gtk.Button(label='Testen'); tb.get_style_context().add_class('btn'); bb.pack_start(sb, False, False, 0); bb.pack_start(tb, False, False, 0)
+        self.row(c2, _('Model'), _('Default: {p0}').format(p0=L.PROVIDERS[prov][1]), me)
+        bb = Gtk.Box(spacing=8); sb = Gtk.Button(label=_('Save')); sb.get_style_context().add_class('btn'); sb.get_style_context().add_class('primary')
+        tb = Gtk.Button(label=_('Test')); tb.get_style_context().add_class('btn'); bb.pack_start(sb, False, False, 0); bb.pack_start(tb, False, False, 0)
         self.a_status = getattr(self, 'a_status', ('', False))
-        self.row(c2, 'Verbinding', self.a_status[0] or 'Test doet één kleine echte API-aanroep.', bb, last=True, err=self.a_status[1])
+        self.row(c2, _('Connection'), self.a_status[0] or _('Test makes one small real API call.'), bb, last=True, err=self.a_status[1])
         def save(*a, rerender=True):
             k = ke.get_text().strip(); models[prov] = me.get_text().strip() or L.PROVIDERS[prov][1]
             S.update(assistant_model=models); w = L.set_key(prov, k)
-            self.a_status = (('Sleutel opgeslagen in ' + ('sleutelbos' if w == 'sleutelbos' else 'bestand')) if k else 'Sleutel verwijderd', False)
+            self.a_status = ((_('Key stored in ') + ('sleutelbos' if w == 'sleutelbos' else 'bestand')) if k else _('Key removed'), False)
             if rerender: self.show('assistent')
         def test(*a):
-            save(rerender=False); tb.set_sensitive(False); tb.set_label('Testen…')
+            save(rerender=False); tb.set_sensitive(False); tb.set_label(_('Testing…'))
             def work():
-                ok, msg = L.test(prov, models[prov], L.get_key(prov)) if L.get_key(prov) else (False, 'Geen sleutel ingevuld.')
+                ok, msg = L.test(prov, models[prov], L.get_key(prov)) if L.get_key(prov) else (False, _('No key entered.'))
                 def done(): self.a_status = (('✓ ' if ok else '✗ ') + msg, not ok); self.cur == 'assistent' and self.show('assistent')
                 GLib.idle_add(done)
             threading.Thread(target=work, daemon=True).start()
@@ -531,22 +568,22 @@ class App(Gtk.Window):
     def page_sync(self, o):   # Revision 30: Polder Sync
         sys.path.insert(0, os.path.join(C, 'sync')); import polder_sync as Y
         s = S.load(); c = Y.cfg(); st = Y.load_state()
-        k = self.card(o, 'Polder Sync')
-        self.row(k, 'Synchroniseren', 'Thema, accent, achtergrond, meldingen, vergrendelen, klok, toetsenbord, vastgezette apps, webapps, weer-locatie, agenda-links, assistent-dienst en Store-apps. Nooit: API-sleutels, wachtzin, klembord.',
+        k = self.card(o, _('Polder Sync'))
+        self.row(k, _('Synchronize'), _('Theme, accent, wallpaper, notifications, lock, clock, keyboard, pinned apps, web apps, weather location, calendar links, assistant service and Store apps. Never: API keys, passphrase, clipboard.'),
                  self.switch(c['enabled'], lambda v: (S.update(sync_enabled=v), self.show('sync'))))
-        if getattr(self, 'sync_busy', False): status = 'Bezig met synchroniseren…'; err = False
-        elif st.get('last_error'): status = 'Fout: ' + st['last_error']; err = True
-        else: status = (f"Laatst: {ago(st.get('last_sync'))} · {st.get('last_result', '')}" if st.get('last_sync') else 'Nog nooit gesynchroniseerd'); err = False
+        if getattr(self, 'sync_busy', False): status = _('Syncing…'); err = False
+        elif st.get('last_error'): status = _('Error: ') + st['last_error']; err = True
+        else: status = (_('Last: {p0} · {p1}').format(p0=ago(st.get('last_sync')), p1=st.get('last_result', '')) if st.get('last_sync') else _('Never synced')); err = False
         bb = Gtk.Box(spacing=8)
-        nb = Gtk.Button(label='Nu synchroniseren'); nb.get_style_context().add_class('btn'); nb.get_style_context().add_class('primary')
-        rb = Gtk.Button(label='Herstel van andere pc'); rb.get_style_context().add_class('btn')
+        nb = Gtk.Button(label=_('Sync now')); nb.get_style_context().add_class('btn'); nb.get_style_context().add_class('primary')
+        rb = Gtk.Button(label=_('Restore from another PC')); rb.get_style_context().add_class('btn')
         for b in (nb, rb): b.set_sensitive(not getattr(self, 'sync_busy', False)); bb.pack_start(b, False, False, 0)
-        self.row(k, 'Status', status, bb, last=True, err=err)
+        self.row(k, _('Status'), status, bb, last=True, err=err)
         def run(restore):
             if restore:
                 d = Gtk.MessageDialog(transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION, buttons=Gtk.ButtonsType.OK_CANCEL,
-                                      text='Instellingen van je andere pc overnemen?')
-                d.format_secondary_text('Alle gesynchroniseerde instellingen worden vervangen door de opgeslagen versie. Er wordt eerst een back-up gemaakt.')
+                                      text=_('Take over settings from your other PC?'))
+                d.format_secondary_text(_('All synced settings will be replaced by the stored version. A backup is made first.'))
                 r = d.run(); d.destroy()
                 if r != Gtk.ResponseType.OK: return
             self.sync_busy = True; self.show('sync')
@@ -557,96 +594,96 @@ class App(Gtk.Window):
             threading.Thread(target=work, daemon=True).start()
         nb.connect('clicked', lambda *a: run(False)); rb.connect('clicked', lambda *a: run(True))
 
-        k2 = self.card(o, 'Opslag')
-        self.row(k2, 'Waar', 'Een map (Nextcloud, Dropbox, rclone-koppeling, USB) of een privé git-repo (GitHub).',
-                 self.combo([('folder', 'Map'), ('git', 'Git / GitHub')], c['backend'], lambda v: (S.update(sync_backend=v), self.show('sync'))))
+        k2 = self.card(o, _('Storage'))
+        self.row(k2, _('Where'), _('A folder (Nextcloud, Dropbox, rclone mount, USB) or a private git repo (GitHub).'),
+                 self.combo([('folder', _('Folder')), ('git', _('Git / GitHub'))], c['backend'], lambda v: (S.update(sync_backend=v), self.show('sync'))))
         if c['backend'] == 'folder':
-            fb = Gtk.Button(label='Kiezen…'); fb.get_style_context().add_class('btn')
+            fb = Gtk.Button(label=_('Choose…')); fb.get_style_context().add_class('btn')
             def pick(*a):
-                d = Gtk.FileChooserDialog(title='Sync-map kiezen', transient_for=self, action=Gtk.FileChooserAction.SELECT_FOLDER)
-                d.add_buttons('Annuleren', Gtk.ResponseType.CANCEL, 'Kiezen', Gtk.ResponseType.OK)
+                d = Gtk.FileChooserDialog(title=_('Choose sync folder'), transient_for=self, action=Gtk.FileChooserAction.SELECT_FOLDER)
+                d.add_buttons(_('Cancel'), Gtk.ResponseType.CANCEL, _('Choose'), Gtk.ResponseType.OK)
                 if d.run() == Gtk.ResponseType.OK: S.update(sync_folder=d.get_filename())
                 d.destroy(); self.show('sync')
             fb.connect('clicked', pick)
-            self.row(k2, 'Map', (c['folder'] or 'Nog geen map gekozen') + ' · bestanden komen in de submap polder-sync/', fb, last=True)
+            self.row(k2, _('Folder'), (c['folder'] or _('No folder chosen yet')) + _(' · files go into the polder-sync/ subfolder'), fb, last=True)
         else:
             ue = Gtk.Entry(); ue.set_width_chars(30); ue.set_text(c['git_url']); ue.set_placeholder_text('https://github.com/naam/polder-sync.git')
             ue.connect('activate', lambda e: (S.update(sync_git_url=e.get_text().strip()), self.show('sync')))
             ue.connect('focus-out-event', lambda e, ev: S.update(sync_git_url=e.get_text().strip()) and False)
-            self.row(k2, 'Repository-URL', 'Gebruik een PRIVÉ repo. Enter = opslaan.', ue)
+            self.row(k2, _('Repository URL'), _('Use a PRIVATE repo. Enter = save.'), ue)
             gh = shutil.which('gh')
             authed = gh and subprocess.run(['gh', 'auth', 'status'], capture_output=True, timeout=10).returncode == 0
             gb = Gtk.Box(spacing=8)
-            lb = Gtk.Button(label='Inloggen bij GitHub'); lb.get_style_context().add_class('btn')
-            lb.connect('clicked', lambda *a: subprocess.Popen(['xfce4-terminal', '--title', 'GitHub inloggen', '-x', 'sh', '-c',
-                       'gh auth login --web -h github.com -p https && gh auth setup-git; echo; echo "Klaar, je kunt dit venster sluiten."; read x']))
-            cb = Gtk.Button(label='Privé-repo maken'); cb.get_style_context().add_class('btn'); cb.set_sensitive(bool(authed))
+            lb = Gtk.Button(label=_('Sign in to GitHub')); lb.get_style_context().add_class('btn')
+            lb.connect('clicked', lambda *a: subprocess.Popen(['xfce4-terminal', '--title', _('GitHub sign-in'), '-x', 'sh', '-c',
+                       'gh auth login --web -h github.com -p https && gh auth setup-git; echo; echo "$1"; read x', 'sh', _('Done, you can close this window.')]))
+            cb = Gtk.Button(label=_('Create private repo')); cb.get_style_context().add_class('btn'); cb.set_sensitive(bool(authed))
             def create(*a):
-                r = subprocess.run(['gh', 'repo', 'create', 'polder-sync', '--private', '--description', 'Polder OS instellingen (Polder Sync)'], capture_output=True, text=True, timeout=60)
+                r = subprocess.run(['gh', 'repo', 'create', 'polder-sync', '--private', '--description', _('Polder OS settings (Polder Sync)')], capture_output=True, text=True, timeout=60)
                 login = subprocess.run(['gh', 'api', 'user', '-q', '.login'], capture_output=True, text=True, timeout=30).stdout.strip()
                 if login and (r.returncode == 0 or 'already exists' in r.stderr): S.update(sync_git_url=f'https://github.com/{login}/polder-sync.git')
-                else: self.sync_note = 'Repo maken mislukt: ' + r.stderr.strip()[-200:]
+                else: self.sync_note = _('Creating repo failed: ') + r.stderr.strip()[-200:]
                 self.show('sync')
             cb.connect('clicked', create)
             for b in (lb, cb): gb.pack_start(b, False, False, 0)
-            sub = ('Ingelogd bij GitHub (gh).' if authed else 'Log in via je browser met een code (GitHub device-login).') if gh else 'GitHub CLI (gh) is niet geïnstalleerd.'
+            sub = (_('Signed in to GitHub (gh).') if authed else _('Sign in through your browser with a code (GitHub device login).')) if gh else _('GitHub CLI (gh) is not installed.')
             if getattr(self, 'sync_note', ''): sub += ' ' + self.sync_note
-            self.row(k2, 'GitHub', sub, gb if gh else None, last=True)
+            self.row(k2, _('GitHub'), sub, gb if gh else None, last=True)
 
-        k3 = self.card(o, 'Versleuteling')
-        self.row(k3, 'Versleutelen met wachtzin', 'Alles wordt op deze pc versleuteld (scrypt + AES/Fernet) voordat het de map of repo bereikt. Zonder wachtzin kan niemand het lezen, ook jij niet.',
+        k3 = self.card(o, _('Encryption'))
+        self.row(k3, _('Encrypt with passphrase'), _('Everything is encrypted on this PC (scrypt + AES/Fernet) before it reaches the folder or repo. Without the passphrase nobody can read it, not even you.'),
                  self.switch(c['encrypt'], lambda v: (S.update(sync_encrypt=v), self.show('sync'))), last=not c['encrypt'])
         if c['encrypt']:
-            pe = Gtk.Entry(); pe.set_visibility(False); pe.set_width_chars(22); pe.set_placeholder_text('Wachtzin'); pe.set_text(Y.get_pass())
-            sb = Gtk.Button(label='Opslaan'); sb.get_style_context().add_class('btn')
+            pe = Gtk.Entry(); pe.set_visibility(False); pe.set_width_chars(22); pe.set_placeholder_text(_('Passphrase')); pe.set_text(Y.get_pass())
+            sb = Gtk.Button(label=_('Save')); sb.get_style_context().add_class('btn')
             box = Gtk.Box(spacing=8); box.pack_start(pe, False, False, 0); box.pack_start(sb, False, False, 0)
             sb.connect('clicked', lambda *a: (Y.set_pass(pe.get_text()), self.show('sync')))
-            self.row(k3, 'Wachtzin', ('Ingesteld' if Y.get_pass() else 'Nog niet ingesteld') + ' · gebruik op elke pc dezelfde wachtzin. Wordt nooit gesynchroniseerd.', box, last=True)
+            self.row(k3, _('Passphrase'), (_('Set') if Y.get_pass() else _('Not set yet')) + _(' · use the same passphrase on every PC. It is never synced.'), box, last=True)
 
         miss = Y.missing_store_apps()
         if miss:
-            k4 = self.card(o, 'Apps van je andere pc')
-            ib = Gtk.Button(label='Installeren'); ib.get_style_context().add_class('btn')
+            k4 = self.card(o, _('Apps from your other PC'))
+            ib = Gtk.Button(label=_('Install')); ib.get_style_context().add_class('btn')
             debs = [a['id'] for a in miss if a.get('source') != 'Flathub']; flats = [a['id'] for a in miss if a.get('source') == 'Flathub']
             cmd = ' && '.join(([f"pkexec apt-get install -y {' '.join(debs)}"] if debs else []) + ([f"pkexec flatpak install --system -y flathub {' '.join(flats)}"] if flats else []))
-            ib.connect('clicked', lambda *a: subprocess.Popen(['xfce4-terminal', '--title', 'Apps herstellen', '-x', 'sh', '-c', cmd + '; echo; echo Klaar.; read x']))
-            self.row(k4, f'{len(miss)} app(s) nog niet geïnstalleerd', ', '.join(a.get('name', a['id']) for a in miss), ib, last=True)
+            ib.connect('clicked', lambda *a: subprocess.Popen(['xfce4-terminal', '--title', _('Restore apps'), '-x', 'sh', '-c', cmd + '; echo; echo "$1"; read x', 'sh', _('Done.')]))
+            self.row(k4, _('{p0} app(s) not installed yet').format(p0=len(miss)), ', '.join(a.get('name', a['id']) for a in miss), ib, last=True)
         import glob as _g
         nb2 = len(_g.glob(os.path.join(Y.BACKUPS, '*.json')))
-        k5 = self.card(o, 'Back-ups')
-        ob = Gtk.Button(label='Map openen'); ob.get_style_context().add_class('btn'); ob.connect('clicked', lambda *a: subprocess.Popen(['xdg-open', Y.BACKUPS]))
-        self.row(k5, f'{nb2} back-up(s)', 'Voor elke synchronisatie die iets overschrijft, wordt je oude toestand bewaard (laatste 10). Per instelling wint de nieuwste wijziging.', ob if nb2 else None, last=True)
+        k5 = self.card(o, _('Backups'))
+        ob = Gtk.Button(label=_('Open folder')); ob.get_style_context().add_class('btn'); ob.connect('clicked', lambda *a: subprocess.Popen(['xdg-open', Y.BACKUPS]))
+        self.row(k5, _('{nb2} backup(s)').format(nb2=nb2), _('Before every sync that overwrites something, your old state is kept (last 10). For each setting the newest change wins.'), ob if nb2 else None, last=True)
 
     def page_safeharbor(self, o):   # Polder SafeHarbor: herstelpunten (btrfs + snapper), see docs/safeharbor.md
         st = getattr(self, 'sh_status', None)
         if st is None:
-            c = self.card(o, 'SafeHarbor'); self.row(c, 'Status ophalen…', None, last=True)
+            c = self.card(o, _('SafeHarbor')); self.row(c, _('Getting status…'), None, last=True)
             def work():
-                st = self.sh_call('status') or {'available': False, 'reason': 'SafeHarbor is op dit systeem niet geïnstalleerd.'}
+                st = self.sh_call('status') or {'available': False, 'reason': _('SafeHarbor is not installed on this system.')}
                 GLib.idle_add(lambda: (setattr(self, 'sh_status', st), self.cur == 'safeharbor' and self.show('safeharbor')))
             threading.Thread(target=work, daemon=True).start(); return
         self.sh_status = None   # refresh on the next visit
-        c = self.card(o, 'SafeHarbor')
-        ob = Gtk.Button(label='Openen'); ob.get_style_context().add_class('btn')
+        c = self.card(o, _('SafeHarbor'))
+        ob = Gtk.Button(label=_('Open')); ob.get_style_context().add_class('btn')
         ob.connect('clicked', lambda *a: subprocess.Popen(['polder-safeharbor'], start_new_session=True))
         if not st.get('available'):
-            self.row(c, 'Niet beschikbaar', st.get('reason') or '', None)
-            self.row(c, 'Wat is SafeHarbor?', 'Polder OS maakt vóór elke update automatisch een herstelpunt, zodat je met één klik terug kunt. Daarvoor moet Polder OS op een btrfs-schijf met de SafeHarbor-indeling staan.', last=True)
+            self.row(c, _('Not available'), st.get('reason') or '', None)
+            self.row(c, _('What is SafeHarbor?'), _('Polder OS automatically creates a restore point before every update, so you can go back with one click. For this, Polder OS must be installed on a btrfs disk with the SafeHarbor layout.'), last=True)
             return
         snaps = st.get('snapshots') or []
         last = snaps[-1] if snaps else None
-        if st.get('failed_boot'): self.row(c, 'Het vorige opstarten is niet gelukt', 'Open SafeHarbor om een eerdere versie te herstellen.', err=True)
+        if st.get('failed_boot'): self.row(c, _('The previous boot did not succeed'), _('Open SafeHarbor to restore an earlier version.'), err=True)
         if st.get('booted_snapshot') is not None:
-            self.row(c, f"Je gebruikt een eerdere versie (herstelpunt {st['booted_snapshot']})", 'Alleen-lezen. Open SafeHarbor om er je vaste versie van te maken.', err=True)
-        self.row(c, 'Herstelpunten', (f"{len(snaps)} bewaard · laatste: {last['description']} ({last['date'][:16]})" if last else 'Nog geen herstelpunten.'), ob)
+            self.row(c, _('You are using an earlier version (restore point {p0})').format(p0=st['booted_snapshot']), _('Read-only. Open SafeHarbor to make it your permanent version.'), err=True)
+        self.row(c, _('Restore points'), (_('{p0} kept · latest: {p1} ({p2})').format(p0=len(snaps), p1=last['description'], p2=last['date'][:16]) if last else _('No restore points yet.')), ob)
         def auto(v):
             threading.Thread(target=lambda: (self.sh_call('set-auto', 'on' if v else 'off'), GLib.idle_add(lambda: self.show('safeharbor'))), daemon=True).start()
-        self.row(c, 'Herstelpunt vóór elke update', 'Ook bij automatische updates en Polder-updates.', self.switch(bool(st.get('auto', True)), auto))
+        self.row(c, _('Restore point before every update'), _('Also for automatic updates and Polder updates.'), self.switch(bool(st.get('auto', True)), auto))
         ret = int(st.get('retention') or 10)
         opts = sorted({3, 5, 10, 20, 30, ret})
         def retention(v):
             threading.Thread(target=lambda: (self.sh_call('set-retention', v), GLib.idle_add(lambda: self.show('safeharbor'))), daemon=True).start()
-        self.row(c, 'Aantal herstelpunten bewaren', 'Oudere punten worden automatisch opgeruimd.', self.combo([(n, f'{n} herstelpunten') for n in opts], ret, retention), last=True)
+        self.row(c, _('Number of restore points to keep'), _('Older points are cleaned up automatically.'), self.combo([(n, _('{n} restore points').format(n=n)) for n in opts], ret, retention), last=True)
 
     def sh_call(self, *args):
         cmd = (os.environ.get('POLDER_SAFEHARBOR_HELPER') or 'pkexec /usr/libexec/polder-safeharbor-helper').split()
@@ -657,7 +694,7 @@ class App(Gtk.Window):
         except Exception: return None
 
     def page_over(self, o):
-        c = self.card(o, 'Over Polder OS')
+        c = self.card(o, _('About Polder OS'))
         mem = {l.split(':')[0]: int(l.split()[1]) for l in open('/proc/meminfo') if l.startswith(('MemTotal', 'MemAvailable'))}
         deb = open('/etc/debian_version').read().strip() if os.path.exists('/etc/debian_version') else '?'
         pretty = next((l.split('=', 1)[1].strip().strip('"') for l in open('/etc/os-release') if l.startswith('PRETTY_NAME')), '')
@@ -666,46 +703,46 @@ class App(Gtk.Window):
         hdr.pack_start(Gtk.Image.new_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_scale(os.path.join(C, 'brand', 'polderos-logo.png'), 64, 64, True)), False, False, 0)
         tb = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER)
         l = Gtk.Label(label=S.VERSION, xalign=0); l.get_style_context().add_class('h1'); tb.pack_start(l, False, False, 0)
-        l2 = Gtk.Label(label='Een ChromeOS-achtige Linux-desktop, gebouwd op Debian', xalign=0); l2.get_style_context().add_class('rsub'); tb.pack_start(l2, False, False, 0)
+        l2 = Gtk.Label(label=_('A ChromeOS-like Linux desktop, built on Debian'), xalign=0); l2.get_style_context().add_class('rsub'); tb.pack_start(l2, False, False, 0)
         hdr.pack_start(tb, False, False, 0); c.pack_start(hdr, False, False, 0)
-        self.row(c, 'Basis', f'{pretty} (debian_version {deb}) · ISO: NAME="Polder OS", ID=polderos, ID_LIKE=debian')
-        self.row(c, 'Kernel', platform.release())
-        self.row(c, 'Geheugen', f"{mem['MemTotal'] / 1048576:.1f} GB totaal · {mem['MemAvailable'] / 1048576:.1f} GB beschikbaar")
-        self.row(c, 'Scherm', f'{scr.get_width()} × {scr.get_height()}')
-        wb = Gtk.Button(label='Openen'); wb.connect('clicked', lambda *x: subprocess.Popen([sys.executable, os.path.join(C, 'welcome', 'welkom.py')], start_new_session=True))
-        self.row(c, 'Welkom bij Polder OS', 'De rondleiding van de eerste keer opnieuw bekijken.', wb, last=True)
+        self.row(c, _('Base'), f'{pretty} (debian_version {deb}) · ISO: NAME="Polder OS", ID=polderos, ID_LIKE=debian')
+        self.row(c, _('Kernel'), platform.release())
+        self.row(c, _('Memory'), _('{p0:.1f} GB total · {p1:.1f} GB available').format(p0=mem['MemTotal'] / 1048576, p1=mem['MemAvailable'] / 1048576))
+        self.row(c, _('Display'), f'{scr.get_width()} × {scr.get_height()}')
+        wb = Gtk.Button(label=_('Open')); wb.connect('clicked', lambda *x: subprocess.Popen([sys.executable, os.path.join(C, 'welcome', 'welkom.py')], start_new_session=True))
+        self.row(c, _('Welcome to Polder OS'), _('Watch the first-run tour again.'), wb, last=True)
         self.updates_card(o)
 
     def updates_card(self, o):   # Revision 26: automatic updates
         import updates as U
-        c = self.card(o, 'Updates')
+        c = self.card(o, _('Updates'))
         en = U.auto_enabled()
-        if en is None: self.row(c, 'Automatische updates', 'unattended-upgrades is niet ingesteld op dit systeem (wel in de Polder OS ISO).')
+        if en is None: self.row(c, _('Automatic updates'), _('unattended-upgrades is not set up on this system (it is in the Polder OS ISO).'))
         else:
             def toggle(v):
                 def work():
-                    ok = U.set_auto(v); GLib.idle_add(lambda: (setattr(self, 'upd_msg', None if ok else 'Wijzigen mislukt (geen toestemming).'), self.show('over')))
+                    ok = U.set_auto(v); GLib.idle_add(lambda: (setattr(self, 'upd_msg', None if ok else _('Change failed (no permission).')), self.show('over')))
                 threading.Thread(target=work, daemon=True).start()
-            self.row(c, 'Automatische updates', 'Beveiligings- en stabiele updates \'s nachts installeren (unattended-upgrades) en Flatpak-apps dagelijks bijwerken.', self.switch(en, toggle))
+            self.row(c, _('Automatic updates'), _('Install security and stable updates at night (unattended-upgrades) and update Flatpak apps daily.'), self.switch(en, toggle))
         lu = U.last_update()
-        self.row(c, 'Laatst bijgewerkt', time.strftime('%d-%m-%Y %H:%M', time.localtime(lu[0])) + f' (bron: {lu[1]})' if lu else 'Nog nooit (geen updategeschiedenis gevonden)')
+        self.row(c, _('Last updated'), time.strftime('%d-%m-%Y %H:%M', time.localtime(lu[0])) + _(' (source: {p0})').format(p0=lu[1]) if lu else _('Never (no update history found)'))
         rb = U.reboot_required()
-        if rb: self.row(c, 'Opnieuw opstarten vereist', 'Updates zijn geïnstalleerd; start opnieuw op om ze te gebruiken.', err=True)
-        nb = Gtk.Button(label='Nu controleren')
+        if rb: self.row(c, _('Restart required'), _('Updates have been installed; restart to use them.'), err=True)
+        nb = Gtk.Button(label=_('Check now'))
         def check(*a):
-            self.upd_msg = 'Controleren…'; self.show('over')
+            self.upd_msg = _('Checking…'); self.show('over')
             def done(r):
                 parts = []
-                if r['apt'] is not None: parts.append(f"{r['apt']} Debian-update(s)")
-                if r['flatpak'] is not None: parts.append(f"{r['flatpak']} Flatpak-update(s)")
-                msg = ', '.join(parts) or 'Controleren mislukt'
+                if r['apt'] is not None: parts.append(_('{p0} Debian update(s)').format(p0=r['apt']))
+                if r['flatpak'] is not None: parts.append(_('{p0} Flatpak update(s)').format(p0=r['flatpak']))
+                msg = ', '.join(parts) or _('Check failed')
                 if r['error'] and r['apt'] is None: msg += f" · {r['error'][:90]}"
                 GLib.idle_add(lambda: (setattr(self, 'upd_msg', msg + ' · ' + time.strftime('%H:%M')), self.cur == 'over' and self.show('over')))
             U.check(done)
         nb.connect('clicked', check)
-        self.row(c, 'Controleren op updates', getattr(self, 'upd_msg', None) or 'Via PackageKit (Debian) en Flatpak.', nb)
-        sb = Gtk.Button(label='Openen'); sb.connect('clicked', lambda *a: subprocess.Popen([sys.executable, os.path.join(C, 'store', 'store.py'), 'updates'], start_new_session=True))
-        self.row(c, 'Updates in Polder Store', 'Bekijk en installeer beschikbare updates.', sb, last=True)
+        self.row(c, _('Check for updates'), getattr(self, 'upd_msg', None) or _('Via PackageKit (Debian) and Flatpak.'), nb)
+        sb = Gtk.Button(label=_('Open')); sb.connect('clicked', lambda *a: subprocess.Popen([sys.executable, os.path.join(C, 'store', 'store.py'), 'updates'], start_new_session=True))
+        self.row(c, _('Updates in Polder Store'), _('View and install available updates.'), sb, last=True)
 
     def quit(self, *a):
         try: os.remove(PID)

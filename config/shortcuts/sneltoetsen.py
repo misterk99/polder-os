@@ -2,6 +2,7 @@
 """Polder OS 'Sneltoetsen' overview (ChromeOS keyboard shortcut viewer). Runs only while open; toggled by Ctrl+Alt+/,
 launcher search ('sneltoetsen') and Instellingen > Toetsenbord. Content comes from wm/shortcut_table.py (the table
 keyd.py binds from), live xfwm4 bindings, and in-popup keys verified against their handlers."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, signal, subprocess
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in ('osb', 'notify', 'wm'): sys.path.insert(0, os.path.join(C, d))
@@ -11,7 +12,7 @@ import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.pa
 import osbnotify as N, shortcut_table as T
 PID = '/tmp/osb-sneltoetsen.pid'; W, H = 780, 540
 NAMES = {'Super_L': 'Super', 'bracketleft': '[', 'bracketright': ']', 'equal': '=', 'minus': '-', 'slash': '/', 'Print': 'Print Screen',
-         'Escape': 'Esc', 'Return': 'Enter', 'Delete': 'Delete', 'space': 'Spatie', 'Up': '↑', 'Down': '↓', 'Left': '←', 'Right': '→',
+         'Escape': 'Esc', 'Return': 'Enter', 'Delete': 'Delete', 'space': _('Space'), 'Up': '↑', 'Down': '↓', 'Left': '←', 'Right': '→',
          'Home': 'Home', 'End': 'End', 'Tab': 'Tab'}
 
 def entries():
@@ -67,7 +68,7 @@ def chip(k):
 
 class Viewer(Gtk.Window):
     def __init__(self):
-        super().__init__(type=Gtk.WindowType.TOPLEVEL, title='Sneltoetsen')
+        super().__init__(type=Gtk.WindowType.TOPLEVEL, title=_('Keyboard shortcuts'))
         self.set_decorated(False); self.set_keep_above(True); self.set_skip_taskbar_hint(True); self.set_type_hint(Gdk.WindowTypeHint.DIALOG)
         self.set_name('swin'); self.set_resizable(False); self.set_size_request(W, H); RGBA.enable(self)
         scr = Gdk.Screen.get_default(); sw, sh = scr.get_width(), scr.get_height(); x, y = (sw - W) // 2, (sh - 52 - H) // 2
@@ -79,7 +80,7 @@ class Viewer(Gtk.Window):
         self.data = entries()
         card = Gtk.Box(); card.set_name('card'); self.add(card)
         left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL); left.set_size_request(220, -1)
-        t = Gtk.Label(label='Sneltoetsen', xalign=0); t.get_style_context().add_class('title'); left.pack_start(t, False, False, 0)
+        t = Gtk.Label(label=_('Keyboard shortcuts'), xalign=0); t.get_style_context().add_class('title'); left.pack_start(t, False, False, 0)
         self.nav = Gtk.ListBox(); self.nav.set_name('nav')
         for g in T.GROUPS:
             r = Gtk.ListBoxRow(); r.g = g; r.add(Gtk.Label(label=g, xalign=0)); self.nav.add(r)
@@ -87,7 +88,7 @@ class Viewer(Gtk.Window):
         card.pack_start(left, False, False, 0)
         right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8); right.set_border_width(16)
         top = Gtk.Box(spacing=8)
-        self.search = Gtk.SearchEntry(); self.search.set_name('search'); self.search.set_placeholder_text('Sneltoetsen zoeken'); self.search.set_hexpand(True)
+        self.search = Gtk.SearchEntry(); self.search.set_name('search'); self.search.set_placeholder_text(_('Search keyboard shortcuts')); self.search.set_hexpand(True)
         self.search.connect('search-changed', self.on_search); top.pack_start(self.search, True, True, 0)
         x_ = Gtk.Button(); x_.add(Gtk.Image.new_from_icon_name('window-close-symbolic', Gtk.IconSize.MENU)); x_.get_style_context().add_class('close')
         x_.connect('clicked', lambda *a: Gtk.main_quit()); top.pack_start(x_, False, False, 0); right.pack_start(top, False, False, 0)
@@ -115,7 +116,7 @@ class Viewer(Gtk.Window):
     def fill(self, items, grouped=False):
         for c in self.list.get_children(): c.destroy()
         if not items:
-            l = Gtk.Label(label='Geen sneltoetsen gevonden'); l.get_style_context().add_class('empty'); self.list.add(l)
+            l = Gtk.Label(label=_('No keyboard shortcuts found')); l.get_style_context().add_class('empty'); self.list.add(l)
         for e in items: self.list.add(self.row(e, show_group=grouped))
         self.list.show_all()
 

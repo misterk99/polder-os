@@ -3,6 +3,8 @@
 //! Resident: SIGUSR1 toggles (launcher-toggle.sh), same PID file as launcher.py so only one of the two runs.
 //! Empty query = app grid (drag & drop order, right-click pin menu); typing = grouped results: Webapp, Rekenmachine,
 //! Apps, Instellingen, Bestanden, Internet. No fake results: .desktop files, Settings sections, the real file tree, real maths.
+#[path = "../i18n.rs"] #[macro_use] mod i18n;
+#[allow(unused_imports)] use i18n::tr;
 #[path = "../theme.rs"] mod theme;
 #[path = "../menu.rs"] mod menu;
 #[path = "../calc.rs"] mod calc;
@@ -12,23 +14,24 @@ use menu::Item;
 use std::{cell::RefCell, path::{Path, PathBuf}, process::{Command, Stdio}, rc::Rc, sync::{Arc, Mutex}, time::{Duration, Instant, SystemTime}};
 
 const W: i32 = 640; const H: i32 = 500; const MARGIN: i32 = 10; const SHELF: i32 = 62;
-const SECTIONS: [(&str, &str, &str, &str); 16] = [
-    ("Welkom bij Polder OS", "Rondleiding en eerste instellingen", "__welkom", "welkom welcome rondleiding tour eerste start introductie"),
-    ("Sneltoetsen bekijken", "Toetsenbord · Ctrl+Alt+/", "__sneltoetsen", "sneltoetsen sneltoets shortcuts toetscombinaties toetsen keyboard"),
-    ("Thema: licht, donker of automatisch", "Personalisatie", "personalisatie", "thema donker licht dark light modus automatisch nacht"),
-    ("Achtergrond", "Personalisatie", "personalisatie", "achtergrond wallpaper bureaublad polderheuvel"),
-    ("Accentkleur", "Personalisatie", "personalisatie", "accent kleur kleuren"),
-    ("Meldingen", "Meldingen", "meldingen", "meldingen notificaties pop-ups popup"),
-    ("Niet storen", "Meldingen", "meldingen", "niet storen dnd stil"),
-    ("Agenda-abonnementen (iCal)", "Agenda", "agenda", "agenda kalender ical ics webcal feestdagen"),
-    ("Toetsenbordindeling", "Toetsenbord en taal", "toetsenbord", "toetsenbord keyboard indeling layout taal qwerty"),
-    ("Datum en tijd", "Datum en tijd", "datum", "datum tijd klok 24-uurs uur"),
-    ("Weer-locatie", "Weer", "weer", "weer weather locatie stad plaats"),
-    ("Webapps installeren", "Webapps", "webapps", "webapp webapps pwa site app installeren"),
-    ("Telefoon koppelen", "Telefoon", "telefoon", "telefoon phone kde connect koppelen android iphone"),
-    ("Polder Assistent en AI-sleutel", "Assistent", "assistent", "assistent assistant ai openai gemini claude sleutel key"),
-    ("Polder Sync", "Sync", "sync", "sync synchroniseren back-up backup herstel github nextcloud dropbox andere pc"),
-    ("Over Polder OS", "Versie, geheugen, systeem", "over", "over versie polder os systeem geheugen info"),
+const SECTIONS: [(&str, &str, &str, &str); 17] = [
+    (crate::i18n::n_("Welcome to Polder OS"), crate::i18n::n_("Tour and first-run settings"), "__welkom", crate::i18n::n_("welcome tour first start introduction welkom rondleiding")),
+    (crate::i18n::n_("View keyboard shortcuts"), crate::i18n::n_("Keyboard · Ctrl+Alt+/"), "__sneltoetsen", crate::i18n::n_("shortcuts shortcut keys keyboard sneltoetsen")),
+    (crate::i18n::n_("Theme: light, dark or automatic"), crate::i18n::n_("Personalization"), "personalisatie", crate::i18n::n_("theme dark light mode automatic night thema donker licht")),
+    (crate::i18n::n_("Wallpaper"), crate::i18n::n_("Personalization"), "personalisatie", crate::i18n::n_("wallpaper background desktop polderheuvel achtergrond")),
+    (crate::i18n::n_("Accent color"), crate::i18n::n_("Personalization"), "personalisatie", crate::i18n::n_("accent color colors kleur")),
+    (crate::i18n::n_("Notifications"), crate::i18n::n_("Notifications"), "meldingen", crate::i18n::n_("notifications pop-ups popup meldingen")),
+    (crate::i18n::n_("Do not disturb"), crate::i18n::n_("Notifications"), "meldingen", crate::i18n::n_("do not disturb dnd silent niet storen")),
+    (crate::i18n::n_("Calendar subscriptions (iCal)"), crate::i18n::n_("Calendar"), "agenda", crate::i18n::n_("calendar ical ics webcal holidays agenda")),
+    (crate::i18n::n_("Keyboard layout"), crate::i18n::n_("Keyboard"), "toetsenbord", crate::i18n::n_("keyboard layout qwerty toetsenbord indeling")),
+    (crate::i18n::n_("Language: Nederlands / English"), crate::i18n::n_("Language and region"), "taal", crate::i18n::n_("language taal english nederlands dutch locale region regio")),
+    (crate::i18n::n_("Date and time"), crate::i18n::n_("Date and time"), "datum", crate::i18n::n_("date time clock 24-hour hour datum tijd")),
+    (crate::i18n::n_("Weather location"), crate::i18n::n_("Weather"), "weer", crate::i18n::n_("weather location city place weer")),
+    (crate::i18n::n_("Install web apps"), crate::i18n::n_("Web apps"), "webapps", crate::i18n::n_("webapp web apps pwa site app install")),
+    (crate::i18n::n_("Pair phone"), crate::i18n::n_("Phone"), "telefoon", "telefoon phone kde connect koppelen android iphone"),
+    (crate::i18n::n_("Polder Assistant and AI key"), crate::i18n::n_("Assistant"), "assistent", crate::i18n::n_("assistant ai openai gemini claude key assistent")),
+    (crate::i18n::n_("Polder Sync"), crate::i18n::n_("Sync"), "sync", crate::i18n::n_("sync backup restore github nextcloud dropbox other pc synchroniseren")),
+    (crate::i18n::n_("About Polder OS"), crate::i18n::n_("Version, memory, system"), "over", crate::i18n::n_("about version polder os system memory info")),
 ];
 
 fn run(argv: &[&str]) {
@@ -175,10 +178,10 @@ fn app_menu(r: &R, w: &impl IsA<gtk::Widget>, x: f64, y: f64, a: &gio::DesktopAp
     let id = aid(a); let pinned = theme::pinned(&theme::settings()).contains(&id);
     let pin = move |on: bool, id: String| { let mut p: Vec<String> = theme::pinned(&theme::settings()).into_iter().filter(|x| *x != id).collect(); if on { p.push(id) } theme::set_pinned(p); };
     let id2 = id.clone();
-    let mut items = vec![if pinned { Item::Entry("view-pin-symbolic", "Losmaken van plank".into(), Some(Box::new(move || pin(false, id2.clone())))) }
-                         else { Item::Entry("view-pin-symbolic", "Vastzetten aan plank".into(), Some(Box::new(move || pin(true, id2.clone())))) }];
-    { let (r, a) = (r.clone(), a.clone()); items.push(Item::Entry("media-playback-start-symbolic", "Openen".into(), Some(Box::new(move || launch_app(&r, &a))))); }
-    if grid { let r = r.clone(); items.push(Item::Sep); items.push(Item::Entry("view-sort-ascending-symbolic", "Sorteren op naam".into(),
+    let mut items = vec![if pinned { Item::Entry("view-pin-symbolic", tr("Unpin from shelf").into(), Some(Box::new(move || pin(false, id2.clone())))) }
+                         else { Item::Entry("view-pin-symbolic", tr("Pin to shelf").into(), Some(Box::new(move || pin(true, id2.clone())))) }];
+    { let (r, a) = (r.clone(), a.clone()); items.push(Item::Entry("media-playback-start-symbolic", tr("Open").into(), Some(Box::new(move || launch_app(&r, &a))))); }
+    if grid { let r = r.clone(); items.push(Item::Sep); items.push(Item::Entry("view-sort-ascending-symbolic", tr("Sort by name").into(),
         Some(Box::new(move || { theme::update_setting("app_order", serde_json::Value::from(Vec::<String>::new())); load_apps(&r); })))); }
     // pointer in screen coordinates = widget point -> window + the layer surface's position
     let win = r.borrow().win.clone(); let sc = r.borrow().screen;
@@ -240,13 +243,13 @@ fn on_changed(r: &R) {
     let mut first: Option<gtk::ListBoxRow> = None;
     {
         if let Some((url, name)) = webapp_cmd(&q) {
-            header(r, "Webapp");
-            let sub = format!("{}  ·  Enter installeert", name.as_ref().map(|n| format!("Naam: {n}")).unwrap_or_else(|| "Pictogram en naam komen van de website".into()));
-            first = Some(row(r, Err("web-browser-symbolic"), &format!("{url} als app installeren"), &sub, Act::Webapp(url, name), true));
+            header(r, tr("Web app"));
+            let sub = tf!("{}  ·  Enter installs", name.as_ref().map(|n| format!("Naam: {n}")).unwrap_or_else(|| tr("Icon and name come from the website").into()));
+            first = Some(row(r, Err("web-browser-symbolic"), &tf!("Install {url} as an app" ; url), &sub, Act::Webapp(url, name), true));
         } }
     if let Some(res) = calc::calc(&q) {
-        header(r, "Rekenmachine");
-        let rw = row(r, Err("accessories-calculator-symbolic"), &format!("= {res}"), &format!("{q}  ·  Enter kopieert het resultaat"), Act::Calc(res), true);
+        header(r, tr("Calculator"));
+        let rw = row(r, Err("accessories-calculator-symbolic"), &format!("= {res}"), &tf!("{q}  ·  Enter copies the result" ; q), Act::Calc(res), true);
         first = first.or(Some(rw));
     }
     let apps = r.borrow().apps.clone();
@@ -256,34 +259,34 @@ fn on_changed(r: &R) {
     sc.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
     let apps: Vec<_> = sc.into_iter().filter(|x| x.0 >= 30.0).take(5).map(|x| x.1).collect();
     if !apps.is_empty() {
-        header(r, "Apps");
+        header(r, tr("Apps"));
         for a in apps {
             let sub = a.generic_name().map(|s| s.to_string()).or(a.description().map(|s| s.to_string())).unwrap_or_default();
             let rw = row(r, Ok(app_icon(&a)), &a.display_name(), &sub, Act::App(a.clone()), false); first = first.or(Some(rw));
         }
     }
-    let mut sets: Vec<(f64, usize)> = SECTIONS.iter().enumerate().map(|(i, (t, sub, _, k))| (score(&ql, &[t, k, sub]), i)).collect();
+    let mut sets: Vec<(f64, usize)> = SECTIONS.iter().enumerate().map(|(i, (t, sub, _, k))| (score(&ql, &[&tr(t), &tr(k), &tr(sub), t, k]), i)).collect();
     sets.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
     let sets: Vec<usize> = sets.into_iter().filter(|x| x.0 >= 45.0).take(3).map(|x| x.1).collect();
     if !sets.is_empty() {
-        header(r, "Instellingen");
-        for i in sets { let (t, sub, sec, _) = SECTIONS[i];
-            let rw = row(r, Err("emblem-system-symbolic"), t, &format!("Instellingen › {sub}"), Act::Set(sec.into()), false); first = first.or(Some(rw)); }
+        header(r, tr("Settings"));
+        for i in sets { let (t, sub, sec, _) = SECTIONS[i]; let (t, sub) = (tr(t), tr(sub));
+            let rw = row(r, Err("emblem-system-symbolic"), t, &tf!("Settings › {sub}" ; sub), Act::Set(sec.into()), false); first = first.or(Some(rw)); }
     }
     if ql.chars().count() >= 2 {
         let fx = r.borrow().files.clone(); let files = search_files(&fx, &ql, 5);
         if !files.is_empty() {
-            header(r, "Bestanden"); let home = files_home(); let base = home.parent().map(Path::to_path_buf).unwrap_or_default();
+            header(r, tr("Files")); let home = files_home(); let base = home.parent().map(Path::to_path_buf).unwrap_or_default();
             for f in files {
                 let rel = f.path.parent().and_then(|p| p.strip_prefix(&base).ok()).map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
                 let when = glib::DateTime::from_unix_local(f.mtime).ok().and_then(|d| d.format("%d-%m-%Y %H:%M").ok()).map(|s| s.to_string()).unwrap_or_default();
                 let icon = if f.dir { Err("folder-symbolic") } else { let (ct, _) = gio::content_type_guess(Some(&f.path), &[]); Ok(gio::content_type_get_icon(&ct)) };
-                let rw = row(r, icon, &f.name, &format!("{rel} · gewijzigd {when}"), Act::File(f.path.clone(), f.dir), false); first = first.or(Some(rw));
+                let rw = row(r, icon, &f.name, &tf!("{rel} · modified {when}" ; rel, when), Act::File(f.path.clone(), f.dir), false); first = first.or(Some(rw));
             }
         }
     }
-    header(r, "Internet");
-    let web = row(r, Err("web-browser-symbolic"), &format!("Zoeken op het web: {q}"), "Google in Chromium", Act::Web(q.clone()), false);
+    header(r, tr("Internet"));
+    let web = row(r, Err("web-browser-symbolic"), &tf!("Search the web: {q}" ; q), tr("Google in Chromium"), Act::Web(q.clone()), false);
     stack.set_visible_child_name("results");
     list.select_row(Some(&first.unwrap_or(web)));
 }
@@ -315,7 +318,7 @@ fn run_row(r: &R, row: &gtk::ListBoxRow) {
         Act::App(a) => { launch_app(r, &a); return; }
         Act::Calc(v) => {
             gdk::Display::default().unwrap().clipboard().set_text(&v.replace(' ', ""));   // resident process keeps owning the selection
-            run(&["notify-send", "-a", "Rekenmachine", "Gekopieerd", &v]);
+            run(&["notify-send", "-a", tr("Calculator"), tr("Copied"), &v]);
         }
         Act::Webapp(url, name) => {
             std::thread::spawn(move || {
@@ -324,11 +327,11 @@ fn run_row(r: &R, row: &gtk::ListBoxRow) {
                     Ok(o) if o.status.success() => {
                         let v: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap_or_default();
                         let (n, i) = (v["name"].as_str().unwrap_or(&url).to_string(), v["icon"].as_str().unwrap_or("web-browser").to_string());
-                        let _ = Command::new("notify-send").args(["-a", "Webapps", "-i", &i, "Webapp geïnstalleerd", &format!("{n} staat nu in de launcher")]).status();
+                        let _ = Command::new("notify-send").args(["-a", tr("Web apps"), "-i", &i, tr("Web app installed"), &tf!("{n} is now in the launcher" ; n)]).status();
                     }
-                    Ok(o) => { let e = String::from_utf8_lossy(&o.stderr); let last = e.trim().lines().last().unwrap_or("onbekende fout").chars().take(200).collect::<String>();
-                        let _ = Command::new("notify-send").args(["-a", "Webapps", "Installeren mislukt", &last]).status(); }
-                    Err(e) => { let _ = Command::new("notify-send").args(["-a", "Webapps", "Installeren mislukt", &e.to_string()]).status(); }
+                    Ok(o) => { let e = String::from_utf8_lossy(&o.stderr); let last = e.trim().lines().last().unwrap_or(tr("unknown error")).chars().take(200).collect::<String>();
+                        let _ = Command::new("notify-send").args(["-a", tr("Web apps"), tr("Installation failed"), &last]).status(); }
+                    Err(e) => { let _ = Command::new("notify-send").args(["-a", tr("Web apps"), tr("Installation failed"), &e.to_string()]).status(); }
                 }
             });
         }
@@ -357,7 +360,7 @@ fn launch_app(r: &R, a: &gio::DesktopAppInfo) {
 }
 
 fn build(app: &gtk::Application) {
-    let win = gtk::Window::builder().title("Polder Launcher").decorated(false).resizable(false).application(app).build();
+    let win = gtk::Window::builder().title(tr("Polder Launcher")).decorated(false).resizable(false).application(app).build();
     win.set_widget_name("lwin"); win.set_default_size(W, H);
     let prov = gtk::CssProvider::new(); let disp = gdk::Display::default().unwrap();
     gtk::style_context_add_provider_for_display(&disp, &prov, 800);
@@ -369,7 +372,7 @@ fn build(app: &gtk::Application) {
     }
     let bx = gtk::Box::new(gtk::Orientation::Vertical, 12); bx.set_widget_name("lbox"); bx.set_size_request(W, H); win.set_child(Some(&bx));
     let entry = gtk::SearchEntry::new(); entry.set_widget_name("search");
-    entry.set_placeholder_text(Some("Zoek op je apparaat, in apps, instellingen, op internet…")); bx.append(&entry);
+    entry.set_placeholder_text(Some(tr("Search your device, apps, settings, the web…"))); bx.append(&entry);
     let stack = gtk::Stack::new(); stack.set_vexpand(true); bx.append(&stack);
     let grid = gtk::FlowBox::new(); grid.set_max_children_per_line(5); grid.set_min_children_per_line(5);
     grid.set_selection_mode(gtk::SelectionMode::None); grid.set_homogeneous(true); grid.set_valign(gtk::Align::Start);

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Watches ~/.config/osb/settings.json and applies changes live; auto theme by time; periodic ICS feed sync.
 Plain Python (no GTK) to stay light: polls the file mtime once per second."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, time, threading, subprocess
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, '..', 'calendar')); sys.path.insert(0, os.path.join(HERE, '..', 'weather'))
 import osbsettings as S, apply as A, feeds, weather as W
@@ -25,8 +26,8 @@ def reboot_watch():
         if r and r['since'] != seen:
             seen = r['since']; json.dump(r, open(st, 'w'))
             subprocess.Popen(['pkill', '-USR1', '-x', 'tint2'])
-            n = subprocess.run(['notify-send', '-a', 'Systeem', '-i', 'system-software-update-symbolic', '-A', 'reboot=Nu opnieuw opstarten', '--wait',
-                                'Opnieuw opstarten om bij te werken', 'Er zijn updates geïnstalleerd' + (f" ({', '.join(r['pkgs'][:3])})" if r['pkgs'] else '') + '.'],
+            n = subprocess.run(['notify-send', '-a', _('System'), '-i', 'system-software-update-symbolic', '-A', 'reboot=' + _('Restart now'), '--wait',
+                                _('Restart to update'), _('Updates have been installed') + (f" ({', '.join(r['pkgs'][:3])})" if r['pkgs'] else '') + '.'],
                                capture_output=True, text=True).stdout.strip()
             if n == 'reboot':
                 if os.environ.get('POLDEROS_ISO'): subprocess.Popen(['systemctl', 'reboot'])

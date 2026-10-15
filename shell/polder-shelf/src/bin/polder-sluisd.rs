@@ -4,13 +4,15 @@
 //!   discard <id> | archive <id> | unarchive <id> | network <id> on|off | du
 //!   run <id> [--net] [--terminal] [-- cmd...]     start a terminal/app inside the proefpolder (bubblewrap)
 //!   daemon                                        resident: reports interrupted merges and storage use (notifications)
+#[path = "../i18n.rs"] #[macro_use] mod i18n;
+#[allow(unused_imports)] use i18n::tr;
 #[path = "../sluis.rs"] mod sluis;
 use serde_json::json;
 use sluis::*;
 use std::path::Path;
 
 fn notify(title: &str, body: &str, icon: &str) {
-    let _ = std::process::Command::new("notify-send").args(["-a", "Polder Sluis", "-i", icon, title, body]).status();
+    let _ = std::process::Command::new("notify-send").args(["-a", tr("Polder Sluis"), "-i", icon, title, body]).status();
 }
 fn out(v: serde_json::Value) { println!("{}", serde_json::to_string(&v).unwrap()); }
 fn fail(m: String) -> ! { out(json!({"ok": false, "error": m})); std::process::exit(1) }
@@ -34,11 +36,11 @@ fn paths(args: &[String]) -> (Vec<String>, Vec<String>) {
 
 fn run(id: &str, args: &[String]) -> ! {
     let mut m = meta(id).unwrap_or_else(|x| fail(x));
-    if m.archived { fail("Deze proefpolder is gearchiveerd; haal hem eerst uit het archief.".into()); }
+    if m.archived { fail(tr("This test polder is archived; unarchive it first.").into()); }
     let net = args.iter().any(|a| a == "--net") || m.network;
     let mut cmd: Vec<String> = args.iter().skip_while(|a| *a != "--").skip(1).cloned().collect();
     if cmd.is_empty() || args.iter().any(|a| a == "--terminal") {
-        let title = format!("[Proefpolder: {}] Terminal", m.name);
+        let title = tf!("[Test polder: {}] Terminal", m.name);
         let app_id = format!("nl.polderos.sluis.{}", m.id);
         cmd = if which("foot") { vec!["foot".into(), format!("--app-id={app_id}"), format!("--title={title}"), "bash".into()] }
               else if which("xfce4-terminal") { vec!["xfce4-terminal".into(), format!("--title={title}"), "--disable-server".into()] }
@@ -57,16 +59,16 @@ fn daemon() -> ! {
     loop {
         for m in list() {
             if let Some(p) = pending_merge(&m.id) {
-                if warned.insert(format!("p{}{p}", m.id)) { notify("Overnemen onderbroken", &format!("Proefpolder ‘{}’: open Sluis om af te maken of terug te draaien.", m.name), "dialog-warning-symbolic"); }
+                if warned.insert(format!("p{}{p}", m.id)) { notify(tr("Merge interrupted"), &tf!("Test polder ‘{}’: open Sluis to finish or roll back.", m.name), "dialog-warning-symbolic"); }
             }
             let u = disk_usage(&pdir(&m.id));
             if u > 2 << 30 && warned.insert(format!("u{}", m.id)) {
-                notify("Proefpolder neemt veel ruimte in", &format!("‘{}’ gebruikt {:.1} GB. Weggooien of archiveren?", m.name, u as f64 / (1u64 << 30) as f64), "drive-harddisk-symbolic");
+                notify(tr("Test polder takes up a lot of space"), &tf!("‘{}’ uses {:.1} GB. Discard or archive?", m.name, u as f64 / (1u64 << 30) as f64), "drive-harddisk-symbolic");
             }
         }
         let st = unsafe { let mut s: libc::statvfs = std::mem::zeroed(); let c = std::ffi::CString::new(data_dir().to_string_lossy().as_bytes()).unwrap(); libc::statvfs(c.as_ptr(), &mut s); s };
         if st.f_blocks > 0 && (st.f_bavail as f64) < st.f_blocks as f64 * 0.05 && warned.insert("disk".into()) {
-            notify("Schijf bijna vol", "Proefpolders gebruiken ruimte op je schijf. Ruim oude polders op in Sluis.", "drive-harddisk-symbolic");
+            notify(tr("Disk almost full"), tr("Test polders use space on your disk. Clean up old polders in Sluis."), "drive-harddisk-symbolic");
         }
         std::thread::sleep(std::time::Duration::from_secs(300));
     }
@@ -79,7 +81,7 @@ fn main() {
     match c {
         "list" => out(json!(list().iter().map(info).collect::<Vec<_>>())),
         "create" => {
-            if a.len() < 3 { fail("gebruik: create <naam> <map> [omschrijving]".into()); }
+            if a.len() < 3 { fail(tr("usage: create <name> <folder> [description]").into()); }
             let m = create(&a[1], Path::new(&a[2]), a.get(3).map(|s| s.as_str()).unwrap_or("")).unwrap_or_else(|x| fail(x));
             out(info(&m))
         }
@@ -91,11 +93,11 @@ fn main() {
         "merge" => {
             let (s, f) = paths(&a[2..]);
             let name = meta(&id).map(|m| m.name).unwrap_or_default();
-            if s.is_empty() && f.is_empty() { fail("geen paden gekozen: geef de paden die je wilt overnemen (zie `changes`)".into()) }
+            if s.is_empty() && f.is_empty() { fail(tr("no paths chosen: give the paths you want to merge (see `changes`)").into()) }
             match merge(&id, &s, &f) {
                 Ok(r) => {
-                    if r.failed.is_empty() { notify("Wijzigingen overgenomen", &format!("{} wijziging(en) uit ‘{name}’ staan nu op het vasteland.", r.done.len()), "emblem-ok-symbolic"); }
-                    else { notify("Overnemen deels gelukt", &format!("{} gelukt, {} niet (zie Sluis).", r.done.len(), r.failed.len()), "dialog-warning-symbolic"); }
+                    if r.failed.is_empty() { notify(tr("Changes merged"), &tf!("{} change(s) from ‘{name}’ are now on the mainland.", r.done.len() ; name), "emblem-ok-symbolic"); }
+                    else { notify(tr("Merge partly succeeded"), &tf!("{} succeeded, {} did not (see Sluis).", r.done.len(), r.failed.len()), "dialog-warning-symbolic"); }
                     out(json!({"ok": true, "report": r}))
                 }
                 Err(x) => { if x.starts_with("CRASH") { std::process::abort(); } fail(x) }
@@ -104,7 +106,7 @@ fn main() {
         "pending" => out(json!({"pending": pending_merge(&id)})),
         "resume" => match resume(&id) { Ok(r) => out(json!({"ok": true, "report": r})), Err(x) => fail(x) },
         "rollback" => match rollback(&id, a.get(2).map(|s| s.as_str())) {
-            Ok(r) => { notify("Overname teruggedraaid", &format!("{} bestand(en) teruggezet op het vasteland.", r.done.len()), "edit-undo-symbolic"); out(json!({"ok": true, "report": r})) }
+            Ok(r) => { notify(tr("Merge rolled back"), &tf!("{} file(s) restored on the mainland.", r.done.len()), "edit-undo-symbolic"); out(json!({"ok": true, "report": r})) }
             Err(x) => fail(x) },
         "discard" => { discard(&id).unwrap_or_else(|x| fail(x)); out(json!({"ok": true})) }
         "archive" | "unarchive" => out(info(&archive(&id, c == "archive").unwrap_or_else(|x| fail(x)))),

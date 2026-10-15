@@ -2,6 +2,8 @@
 //! Polder Telefoon-hub (ChromeOS Phone Hub / Phone Link style) on KDE Connect: battery, network, phone notifications
 //! (dismiss / reply), find my phone, send file, shared clipboard, photos + files via sftp, and the pairing flow.
 //! Overlay layer surface above the shelf; run again to close. Every value comes from kdeconnectd over D-Bus.
+#[path = "../i18n.rs"] #[macro_use] mod i18n;
+#[allow(unused_imports)] use i18n::tr;
 #[path = "../theme.rs"] mod theme;
 #[path = "../kdc.rs"] mod kdc;
 use gtk::{gdk, gio, glib, prelude::*};
@@ -52,20 +54,20 @@ fn refresh(h: &H, force: bool) {
     while let Some(c) = body.first_child() { body.remove(&c); }
     match &st {
         St::NotInstalled => {
-            body.append(&lbl("KDE Connect is niet geïnstalleerd", "htitle"));
-            body.append(&lbl("Installeer het pakket kdeconnect om je telefoon te koppelen (ook nodig op je telefoon: de app KDE Connect).", "hsub"));
+            body.append(&lbl(tr("KDE Connect is not installed"), "htitle"));
+            body.append(&lbl(tr("Install the kdeconnect package to pair your phone (your phone also needs the KDE Connect app)."), "hsub"));
         }
         St::NotRunning => {
-            body.append(&lbl("KDE Connect staat uit", "htitle"));
-            body.append(&lbl("Start de verbindingsdienst om je telefoon te vinden.", "hsub"));
-            let b = pill("Starten", true); let w = Rc::downgrade(h);
-            b.connect_clicked(move |_| if let Some(h) = w.upgrade() { if kdc::start() { toast(&h, "KDE Connect wordt gestart…") } else { toast(&h, "Starten is mislukt") } });
+            body.append(&lbl(tr("KDE Connect is off"), "htitle"));
+            body.append(&lbl(tr("Start the connection service to find your phone."), "hsub"));
+            let b = pill(tr("Start"), true); let w = Rc::downgrade(h);
+            b.connect_clicked(move |_| if let Some(h) = w.upgrade() { if kdc::start() { toast(&h, tr("Starting KDE Connect…")) } else { toast(&h, tr("Starting failed")) } });
             body.append(&b);
         }
         St::NoDevice(devs) => {
-            body.append(&lbl("Telefoon koppelen", "htitle"));
+            body.append(&lbl(tr("Pair phone"), "htitle"));
             if devs.is_empty() {
-                body.append(&lbl("Open KDE Connect op je telefoon. Je telefoon en deze computer moeten op hetzelfde wifi-netwerk zitten.", "hsub"));
+                body.append(&lbl(tr("Open KDE Connect on your phone. Your phone and this computer must be on the same Wi‑Fi network."), "hsub"));
             }
             for d in devs {
                 let card = gtk::Box::new(gtk::Orientation::Vertical, 8); card.add_css_class("card"); card.add_css_class("inner");
@@ -78,15 +80,15 @@ fn refresh(h: &H, force: bool) {
                     b.connect_clicked(move |_| if let Some(h) = w.upgrade() { res(&h, kdc::dev_call(&id, m, None), ok); refresh(&h, true) }); b };
                 if d.by_peer {
                     card.append(&lbl(&format!("{} wil koppelen. Controleer dat deze code ook op je telefoon staat: {}", d.name, d.key), "hsub"));
-                    acts.append(&mk("Accepteren", true, "acceptPairing", "Gekoppeld")); acts.append(&mk("Weigeren", false, "cancelPairing", "Geweigerd"));
+                    acts.append(&mk(tr("Accept"), true, "acceptPairing", tr("Paired"))); acts.append(&mk(tr("Decline"), false, "cancelPairing", tr("Declined")));
                 } else if d.requested {
                     card.append(&lbl(&format!("Bevestig op je telefoon. Code: {}", d.key), "hsub"));
-                    acts.append(&mk("Annuleren", false, "cancelPairing", "Geannuleerd"));
-                } else { acts.append(&mk("Koppelen", true, "requestPairing", "Koppelverzoek verstuurd")); }
+                    acts.append(&mk(tr("Cancel"), false, "cancelPairing", tr("Cancelled")));
+                } else { acts.append(&mk(tr("Pair"), true, "requestPairing", tr("Pairing request sent"))); }
                 card.append(&acts); body.append(&card);
             }
-            let b = pill("Opnieuw zoeken", false); let w = Rc::downgrade(h);
-            b.connect_clicked(move |_| if let Some(h) = w.upgrade() { res(&h, kdc::call(kdc::ROOT, "org.kde.kdeconnect.daemon", "forceOnNetworkChange", None), "Zoeken…") });
+            let b = pill(tr("Search again"), false); let w = Rc::downgrade(h);
+            b.connect_clicked(move |_| if let Some(h) = w.upgrade() { res(&h, kdc::call(kdc::ROOT, "org.kde.kdeconnect.daemon", "forceOnNetworkChange", None), tr("Searching…")) });
             body.append(&b);
         }
         St::Paired(d, i) => build_paired(h, &body, d, i),
@@ -114,15 +116,15 @@ fn build_paired(h: &H, body: &gtk::Box, d: &Dev, i: &Info) {
     let col = gtk::Box::new(gtk::Orientation::Vertical, 2); col.set_hexpand(true);
     col.append(&lbl(&d.name, "htitle"));
     let st = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    st.append(&lbl(if d.reachable { "Verbonden" } else { "Niet bereikbaar" }, "hsub"));
+    st.append(&lbl(if d.reachable { tr("Connected") } else { tr("Unreachable") }, "hsub"));
     if let Some((c, ch)) = i.battery {
         let lv = (c + 5) / 10 * 10;
         st.append(&gtk::Image::from_icon_name(&format!("battery-level-{lv}{}-symbolic", if ch { "-charging" } else { "" })));
-        st.append(&lbl(&format!("{c}%{}", if ch { " (laadt op)" } else { "" }), "hsub"));
+        st.append(&lbl(&format!("{c}%{}", if ch { tr(" (charging)") } else { "" }), "hsub"));
     }
     if let Some((t, s)) = &i.net { st.append(&gtk::Image::from_icon_name(signal_bars(*s))); st.append(&lbl(t, "hsub")); }
     col.append(&st); hdr.append(&col); body.append(&hdr);
-    if !d.reachable { body.append(&lbl("Je telefoon is gekoppeld maar niet in de buurt of niet op hetzelfde netwerk.", "hsub")); }
+    if !d.reachable { body.append(&lbl(tr("Your phone is paired but not nearby or not on the same network."), "hsub")); }
     else {
         // actions
         let g = gtk::Grid::new(); g.set_column_spacing(8); g.set_row_spacing(8); g.set_column_homogeneous(true);
@@ -131,28 +133,28 @@ fn build_paired(h: &H, body: &gtk::Box, d: &Dev, i: &Info) {
         let tile = |icon: &str, t: &str| { let b = gtk::Button::new(); b.add_css_class("tile"); let bx = gtk::Box::new(gtk::Orientation::Horizontal, 10);
             let im = gtk::Image::from_icon_name(icon); im.set_pixel_size(20); bx.append(&im); let l = lbl(t, "title"); l.set_wrap(false); bx.append(&l); b.set_child(Some(&bx)); b };
         if has("kdeconnect_findmyphone") {
-            let b = tile("find-location-symbolic", "Telefoon zoeken"); let (w, id) = (Rc::downgrade(h), d.id.clone());
-            b.connect_clicked(move |_| if let Some(h) = w.upgrade() { res(&h, kdc::plugin_call(&id, "findmyphone", "findmyphone", "ring", None), "Je telefoon gaat over") });
+            let b = tile("find-location-symbolic", tr("Find phone")); let (w, id) = (Rc::downgrade(h), d.id.clone());
+            b.connect_clicked(move |_| if let Some(h) = w.upgrade() { res(&h, kdc::plugin_call(&id, "findmyphone", "findmyphone", "ring", None), tr("Your phone is ringing")) });
             add(b.upcast_ref());
         }
         if has("kdeconnect_share") {
-            let b = tile("document-send-symbolic", "Bestand sturen"); let (w, id) = (Rc::downgrade(h), d.id.clone());
+            let b = tile("document-send-symbolic", tr("Send file")); let (w, id) = (Rc::downgrade(h), d.id.clone());
             b.connect_clicked(move |_| if let Some(h) = w.upgrade() { send_file(&h, &id) });
             add(b.upcast_ref());
         }
         if let Some(on) = i.clipboard {
             let b = gtk::ToggleButton::new(); b.add_css_class("tile"); b.set_active(on);
             let bx = gtk::Box::new(gtk::Orientation::Horizontal, 10); let im = gtk::Image::from_icon_name("edit-paste-symbolic"); im.set_pixel_size(20); bx.append(&im);
-            let tb = gtk::Box::new(gtk::Orientation::Vertical, 0); let l = lbl("Klembord delen", "title"); l.set_wrap(false); tb.append(&l);
-            tb.append(&lbl(if on { "Aan" } else { "Uit" }, "sub")); bx.append(&tb); b.set_child(Some(&bx));
+            let tb = gtk::Box::new(gtk::Orientation::Vertical, 0); let l = lbl(tr("Share clipboard"), "title"); l.set_wrap(false); tb.append(&l);
+            tb.append(&lbl(if on { tr("On") } else { tr("Off") }, "sub")); bx.append(&tb); b.set_child(Some(&bx));
             let (w, id) = (Rc::downgrade(h), d.id.clone());
             b.connect_toggled(move |b| if let Some(h) = w.upgrade() {
                 res(&h, kdc::dev_call(&id, "setPluginEnabled", Some(("kdeconnect_clipboard", b.is_active()).to_variant())),
-                    if b.is_active() { "Klembord wordt gedeeld" } else { "Klembord delen uit" }); refresh(&h, true) });
+                    if b.is_active() { tr("Clipboard is shared") } else { tr("Clipboard sharing off") }); refresh(&h, true) });
             add(b.upcast_ref());
         }
         if has("kdeconnect_sftp") {
-            let b = tile("folder-pictures-symbolic", "Foto's en bestanden"); let (w, id) = (Rc::downgrade(h), d.id.clone());
+            let b = tile("folder-pictures-symbolic", tr("Photos and files")); let (w, id) = (Rc::downgrade(h), d.id.clone());
             b.connect_clicked(move |_| if let Some(h) = w.upgrade() {
                 match kdc::sftp_dirs(&id) { Ok(r) => { h.borrow_mut().photos = Some(r); refresh(&h, true) } Err(e) => toast(&h, &e) } });
             add(b.upcast_ref());
@@ -161,18 +163,18 @@ fn build_paired(h: &H, body: &gtk::Box, d: &Dev, i: &Info) {
         if let Some((mp, dirs)) = h.borrow().photos.clone() { body.append(&photos(&mp, &dirs)); }
         // phone notifications
         if has("kdeconnect_notifications") {
-            body.append(&lbl(&format!("Meldingen van je telefoon ({})", i.notifs.len()), "histtitle"));
-            if i.notifs.is_empty() { body.append(&lbl("Geen meldingen", "hsub")); }
+            body.append(&lbl(&tf!("Notifications from your phone ({})", i.notifs.len()), "histtitle"));
+            if i.notifs.is_empty() { body.append(&lbl(tr("No notifications"), "hsub")); }
             for nt in &i.notifs { body.append(&notif_card(h, &d.id, nt)); }
         }
     }
     // footer
     let ft = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    let un = pill("Ontkoppelen", false); let (w, id) = (Rc::downgrade(h), d.id.clone());
-    un.connect_clicked(move |_| if let Some(h) = w.upgrade() { res(&h, kdc::dev_call(&id, "unpair", None), "Ontkoppeld"); h.borrow_mut().photos = None; refresh(&h, true) });
+    let un = pill(tr("Unpair"), false); let (w, id) = (Rc::downgrade(h), d.id.clone());
+    un.connect_clicked(move |_| if let Some(h) = w.upgrade() { res(&h, kdc::dev_call(&id, "unpair", None), tr("Unpaired")); h.borrow_mut().photos = None; refresh(&h, true) });
     ft.append(&un);
     let sp = gtk::Box::new(gtk::Orientation::Horizontal, 0); sp.set_hexpand(true); ft.append(&sp);
-    let se = pill("Instellingen", false);
+    let se = pill(tr("Settings"), false);
     se.connect_clicked(|_| { run(&["python3", &theme::config_dir().join("settings/instellingen.py").to_string_lossy(), "telefoon"]); quit() });
     ft.append(&se); body.append(&ft);
 }
@@ -181,7 +183,7 @@ fn is_img(p: &std::path::Path) -> bool { p.extension().map(|e| ["jpg", "jpeg", "
 /// Recent photos (newest four from the camera folder) + the phone's shared folders, all from the sftp mount.
 fn photos(mp: &str, dirs: &[(String, String)]) -> gtk::Box {
     let b = gtk::Box::new(gtk::Orientation::Vertical, 8); b.add_css_class("card"); b.add_css_class("inner");
-    b.append(&lbl("Recente foto's", "ntitle"));
+    b.append(&lbl(tr("Recent photos"), "ntitle"));
     let cam = dirs.iter().find(|(p, l)| l.eq_ignore_ascii_case("camera") || p.contains("DCIM")).map(|x| x.0.clone()).unwrap_or_else(|| mp.to_string());
     let mut imgs: Vec<_> = std::fs::read_dir(&cam).map(|r| r.flatten().map(|e| e.path()).filter(|p| is_img(p)).collect()).unwrap_or_default();
     imgs.sort_by_key(|p: &std::path::PathBuf| std::cmp::Reverse(theme::mtime(p)));
@@ -192,10 +194,10 @@ fn photos(mp: &str, dirs: &[(String, String)]) -> gtk::Box {
         btn.set_tooltip_text(p.file_name().map(|f| f.to_string_lossy().to_string()).as_deref());
         let ps = p.to_string_lossy().to_string(); btn.connect_clicked(move |_| open_path(&ps)); row.append(&btn);
     }
-    if imgs.is_empty() { b.append(&lbl("Geen foto's gevonden", "hsub")); } else { b.append(&row); }
+    if imgs.is_empty() { b.append(&lbl(tr("No photos found"), "hsub")); } else { b.append(&row); }
     let fr = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     for (p, l) in dirs { let bt = pill(l, false); let p = p.clone(); bt.connect_clicked(move |_| open_path(&p)); fr.append(&bt); }
-    let all = pill("Alle bestanden", false); let m = mp.to_string(); all.connect_clicked(move |_| open_path(&m)); fr.append(&all);
+    let all = pill(tr("All files"), false); let m = mp.to_string(); all.connect_clicked(move |_| open_path(&m)); fr.append(&all);
     b.append(&fr); b
 }
 
@@ -206,19 +208,19 @@ fn notif_card(h: &H, dev: &str, n: &kdc::Notif) -> gtk::Box {
     col.append(&lbl(&n.app, "app")); col.append(&lbl(&n.title, "ntitle")); if !n.text.is_empty() { col.append(&lbl(&n.text, "nbody")); }
     top.append(&col);
     if n.dismissable {
-        let x = gtk::Button::from_icon_name("window-close-symbolic"); x.add_css_class("x"); x.set_valign(gtk::Align::Start); x.set_tooltip_text(Some("Wegvegen"));
+        let x = gtk::Button::from_icon_name("window-close-symbolic"); x.add_css_class("x"); x.set_valign(gtk::Align::Start); x.set_tooltip_text(Some(tr("Dismiss")));
         let (w, d, id) = (Rc::downgrade(h), dev.to_string(), n.id.clone());
-        x.connect_clicked(move |_| if let Some(h) = w.upgrade() { res(&h, kdc::notif_call(&d, &id, "dismiss", None), "Melding weggeveegd"); refresh(&h, true) });
+        x.connect_clicked(move |_| if let Some(h) = w.upgrade() { res(&h, kdc::notif_call(&d, &id, "dismiss", None), tr("Notification dismissed")); refresh(&h, true) });
         top.append(&x);
     }
     card.append(&top);
     if !n.reply_id.is_empty() {   // only notifications the phone marked as repliable (KDE Connect replyId)
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        let e = gtk::Entry::new(); e.set_placeholder_text(Some("Antwoorden…")); e.set_hexpand(true); row.append(&e);
-        let s = pill("Sturen", true);
+        let e = gtk::Entry::new(); e.set_placeholder_text(Some(tr("Reply…"))); e.set_hexpand(true); row.append(&e);
+        let s = pill(tr("Send"), true);
         let (w, d, id, e2) = (Rc::downgrade(h), dev.to_string(), n.id.clone(), e.clone());
         let send = move || if let Some(h) = w.upgrade() { let t = e2.text().to_string(); if t.trim().is_empty() { return; }
-            res(&h, kdc::notif_call(&d, &id, "sendReply", Some((t.as_str(),).to_variant())), "Antwoord verstuurd"); e2.set_text(""); };
+            res(&h, kdc::notif_call(&d, &id, "sendReply", Some((t.as_str(),).to_variant())), tr("Reply sent")); e2.set_text(""); };
         let s2 = send.clone(); s.connect_clicked(move |_| s2()); e.connect_activate(move |_| send());
         row.append(&s); card.append(&row);
     }
@@ -229,8 +231,8 @@ fn notif_card(h: &H, dev: &str, n: &kdc::Notif) -> gtk::Box {
 fn send_file(h: &H, id: &str) {
     let win = h.borrow().win.clone(); win.set_visible(false);
     #[allow(deprecated)]
-    let fc = gtk::FileChooserDialog::new(Some("Bestand naar telefoon sturen"), None::<&gtk::Window>, gtk::FileChooserAction::Open,
-                                         &[("Annuleren", gtk::ResponseType::Cancel), ("Sturen", gtk::ResponseType::Accept)]);
+    let fc = gtk::FileChooserDialog::new(Some(tr("Send file to phone")), None::<&gtk::Window>, gtk::FileChooserAction::Open,
+                                         &[(tr("Cancel"), gtk::ResponseType::Cancel), (tr("Send"), gtk::ResponseType::Accept)]);
     #[allow(deprecated)] fc.set_select_multiple(true);
     let (w, id) = (Rc::downgrade(h), id.to_string());
     #[allow(deprecated)]
@@ -241,7 +243,7 @@ fn send_file(h: &H, id: &str) {
         if let Some(h) = w.upgrade() {
             h.borrow().win.present();
             if !uris.is_empty() { res(&h, kdc::plugin_call(&id, "share", "share", "shareUrls", Some((uris.clone(),).to_variant())),
-                                      &format!("{} bestand(en) verstuurd", uris.len())); }
+                                      &tf!("{} file(s) sent", uris.len())); }
         }
     });
     fc.present();
@@ -249,15 +251,15 @@ fn send_file(h: &H, id: &str) {
 
 fn build(app: &gtk::Application) -> H {
     let win = gtk::ApplicationWindow::new(app).upcast::<gtk::Window>();
-    win.set_title(Some("Telefoon")); win.set_widget_name("qswin"); win.set_decorated(false);
+    win.set_title(Some(tr("Phone"))); win.set_widget_name("qswin"); win.set_decorated(false);
     win.init_layer_shell(); win.set_namespace("polder-phonehub"); win.set_layer(Layer::Overlay);
     win.set_anchor(Edge::Right, true); win.set_anchor(Edge::Bottom, true); win.set_margin(Edge::Right, 10); win.set_margin(Edge::Bottom, 62);
     win.set_exclusive_zone(0); win.set_keyboard_mode(KeyboardMode::OnDemand);
     let prov = gtk::CssProvider::new(); gtk::style_context_add_provider_for_display(&gdk::Display::default().unwrap(), &prov, 800);
     let panel = gtk::Box::new(gtk::Orientation::Vertical, 12); panel.set_widget_name("panel"); panel.set_size_request(W, -1);
     let top = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    let t = lbl("Telefoon", "histtitle"); t.set_hexpand(true); top.append(&t);
-    let x = gtk::Button::from_icon_name("window-close-symbolic"); x.add_css_class("x"); x.set_tooltip_text(Some("Sluiten")); x.connect_clicked(|_| quit()); top.append(&x);
+    let t = lbl(tr("Phone"), "histtitle"); t.set_hexpand(true); top.append(&t);
+    let x = gtk::Button::from_icon_name("window-close-symbolic"); x.add_css_class("x"); x.set_tooltip_text(Some(tr("Close"))); x.connect_clicked(|_| quit()); top.append(&x);
     panel.append(&top);
     let body = gtk::Box::new(gtk::Orientation::Vertical, 10); panel.append(&body);
     // toast floats over the panel bottom: it must not change the surface height (content would jump under the pointer)

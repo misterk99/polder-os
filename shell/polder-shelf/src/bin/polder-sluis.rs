@@ -3,6 +3,8 @@
 //! compare with the vasteland (the original folder) and let only the chosen changes in through the sluis.
 //! GUI on top of `polder-sluisd` (all work happens there; JSON over stdout). `polder-sluis --new <map>` opens the
 //! "Nieuwe proefpolder" dialog for a folder (Thunar: Openen in Sluis).
+#[path = "../i18n.rs"] #[macro_use] mod i18n;
+#[allow(unused_imports)] use i18n::tr;
 #[path = "../theme.rs"] mod theme;
 use gtk::{gio, glib, pango, prelude::*};
 use serde_json::{json, Value};
@@ -19,7 +21,7 @@ fn call(args: &[String]) -> Value {
         Err(e) => json!({"ok": false, "error": format!("polder-sluisd niet gevonden: {e}")}),
     }
 }
-fn err_of(v: &Value) -> Option<String> { if v["ok"] == json!(false) { Some(v["error"].as_str().unwrap_or("Er ging iets mis.").to_string()) } else { None } }
+fn err_of(v: &Value) -> Option<String> { if v["ok"] == json!(false) { Some(v["error"].as_str().unwrap_or(tr("Something went wrong.")).to_string()) } else { None } }
 fn size_h(n: u64) -> String {
     let f = n as f64;
     if f < 1024.0 { format!("{n} B") } else if f < 1048576.0 { format!("{:.0} kB", f / 1024.0) } else if f < 1073741824.0 { format!("{:.1} MB", f / 1048576.0) } else { format!("{:.2} GB", f / 1073741824.0) }
@@ -27,7 +29,7 @@ fn size_h(n: u64) -> String {
 fn date_h(t: i64) -> String {
     glib::DateTime::from_unix_local(t).ok().and_then(|d| d.format("%-d-%-m-%Y %H:%M").ok()).map(|s| s.to_string()).unwrap_or_default()
 }
-fn kind_nl(k: &str) -> &str { match k { "toegevoegd" => "Nieuw", "gewijzigd" => "Gewijzigd", "verwijderd" => "Verwijderd", "rechten" => "Rechten", "type" => "Ander type", "hernoemd" => "Hernoemd", x => x } }
+fn kind_nl(k: &str) -> &str { match k { "toegevoegd" => tr("New"), "gewijzigd" => tr("Modified"), "verwijderd" => tr("Deleted"), "rechten" => tr("Permissions"), "type" => tr("Type changed"), "hernoemd" => tr("Renamed"), x => x } }
 
 fn css(p: &std::collections::HashMap<String, String>) -> String {
     let g = |k: &str| p.get(k).cloned().unwrap_or_default();
@@ -94,7 +96,7 @@ fn dialog(a: &A, title: &str, body: &gtk::Widget, ok: &str, danger: bool, on_ok:
     let v = gtk::Box::new(gtk::Orientation::Vertical, 12); v.set_margin_top(20); v.set_margin_bottom(16); v.set_margin_start(22); v.set_margin_end(22);
     v.append(&lbl(title, "h1")); v.append(body);
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 8); row.set_halign(gtk::Align::End); row.set_margin_top(6);
-    let c = btn("Annuleren", "flat2"); let o = btn(ok, if danger { "pill" } else { "pill" });
+    let c = btn(tr("Cancel"), "flat2"); let o = btn(ok, if danger { "pill" } else { "pill" });
     row.append(&c); row.append(&o); v.append(&row); d.set_child(Some(&v));
     let d1 = d.clone(); c.connect_clicked(move |_| d1.close());
     let d2 = d.clone(); o.connect_clicked(move |_| { d2.close(); on_ok(); });
@@ -114,7 +116,7 @@ fn reload(a: &A, select: Option<String>) {
             let n = lbl(p["meta"]["name"].as_str().unwrap_or(""), "h2"); n.set_hexpand(true); top.append(&n);
             b.append(&top);
             let st = p["status"].as_str().unwrap_or("");
-            let t = lbl(st, "tag"); if st == "Conflict" { t.add_css_class("conflict"); } if st == "Gearchiveerd" { t.add_css_class("arch"); }
+            let t = lbl(&status_label(st), "tag"); if st == "Conflict" { t.add_css_class("conflict"); } if st == "Gearchiveerd" { t.add_css_class("arch"); }
             t.set_halign(gtk::Align::Start);
             let meta = gtk::Box::new(gtk::Orientation::Vertical, 3); meta.append(&t);
             meta.append(&lbl(&format!("{} wijz. · {}", p["changes"], size_h(p["usage"].as_u64().unwrap_or(0))), "sub"));
@@ -135,12 +137,14 @@ fn empty_state(a: &A) {
     let d = a.borrow().detail.clone(); clear(&d);
     let v = gtk::Box::new(gtk::Orientation::Vertical, 10); v.set_valign(gtk::Align::Center); v.set_vexpand(true); v.set_halign(gtk::Align::Center);
     let i = gtk::Image::from_icon_name("folder-new-symbolic"); i.set_pixel_size(64); v.append(&i);
-    let t = lbl("Nog geen proefpolders", "h1"); t.set_xalign(0.5); v.append(&t);
-    let s = lbl("Een proefpolder is een kopie van een projectmap waarin je vrij kunt experimenteren. Je originele map, het vasteland, blijft onaangeroerd tot jij wijzigingen door de sluis laat.", "sub");
+    let t = lbl(tr("No test polders yet"), "h1"); t.set_xalign(0.5); v.append(&t);
+    let s = lbl(tr("A test polder is a copy of a project folder where you can experiment freely. Your original folder, the mainland, stays untouched until you let changes through the lock."), "sub");
     s.set_justify(gtk::Justification::Center); s.set_max_width_chars(60); s.set_xalign(0.5); v.append(&s);
-    let b = btn("Nieuwe proefpolder", "pill"); b.set_halign(gtk::Align::Center); let a2 = a.clone(); b.connect_clicked(move |_| new_dialog(&a2, None)); v.append(&b);
+    let b = btn(tr("New test polder"), "pill"); b.set_halign(gtk::Align::Center); let a2 = a.clone(); b.connect_clicked(move |_| new_dialog(&a2, None)); v.append(&b);
     d.append(&v);
 }
+/// Engine status ids are stable (Dutch) strings; translate for display only.
+fn status_label(st: &str) -> String { match st { "Actief" => tr("Active"), "Klaar om over te nemen" => tr("Ready to merge"), "Gearchiveerd" => tr("Archived"), "Conflict" => tr("Conflict"), x => x }.to_string() }
 fn polder(a: &A, id: &str) -> Value { a.borrow().polders.iter().find(|p| p["meta"]["id"].as_str() == Some(id)).cloned().unwrap_or(Value::Null) }
 
 fn open(a: &A, id: &str) {
@@ -163,44 +167,44 @@ fn render(a: &A, id: &str) {
     tv.append(&lbl(&format!("Vasteland: {}  ·  gemaakt {}  ·  {} in gebruik{}", tilde(m["origin"].as_str().unwrap_or("")), date_h(m["created"].as_i64().unwrap_or(0)),
         size_h(p["usage"].as_u64().unwrap_or(0)), if desc.is_empty() { String::new() } else { format!("  ·  {desc}") }), "sub"));
     hd.append(&tv);
-    let st = p["status"].as_str().unwrap_or(""); let t = lbl(st, "tag"); t.set_valign(gtk::Align::Start); if st == "Conflict" { t.add_css_class("conflict"); } hd.append(&t);
+    let st = p["status"].as_str().unwrap_or(""); let t = lbl(&status_label(st), "tag"); t.set_valign(gtk::Align::Start); if st == "Conflict" { t.add_css_class("conflict"); } hd.append(&t);
     d.append(&hd);
     // actions
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    let term = btn("Terminal in de polder", "pill"); term.set_sensitive(!archived);
+    let term = btn(tr("Terminal in the polder"), "pill"); term.set_sensitive(!archived);
     let a2 = a.clone(); let i2 = id.to_string(); term.connect_clicked(move |_| {
         let _ = std::process::Command::new(sluisd()).args(["run", &i2, "--terminal"]).spawn();
-        toast(&a2, "Terminal start in de proefpolder");
+        toast(&a2, tr("Terminal starts in the test polder"));
     });
     row.append(&term);
-    let netl = lbl("Internet", "sub"); netl.set_wrap(false); netl.set_margin_start(8); row.append(&netl);
+    let netl = lbl(tr("Internet"), "sub"); netl.set_wrap(false); netl.set_margin_start(8); row.append(&netl);
     let sw = gtk::Switch::new(); sw.set_active(m["network"].as_bool().unwrap_or(false)); sw.set_valign(gtk::Align::Center); sw.set_sensitive(!archived);
     let a2 = a.clone(); let i2 = id.to_string();
     sw.connect_state_set(move |s, on| {
-        if !on { let a3 = a2.clone(); bg(&a2, vec!["network".into(), i2.clone(), "off".into()], move |a, _| { toast(a, "Internet staat uit in deze proefpolder"); let _ = a3; }); return glib::Propagation::Proceed; }
-        let body = lbl("Met internet kunnen programma's in de proefpolder gegevens versturen, downloaden of iets online doen. Dat kan Sluis niet terugdraaien: alleen bestanden in je projectmap blijven in de polder. Zet het alleen aan voor programma's die je vertrouwt.", "sub");
+        if !on { let a3 = a2.clone(); bg(&a2, vec!["network".into(), i2.clone(), "off".into()], move |a, _| { toast(a, tr("Internet is off in this test polder")); let _ = a3; }); return glib::Propagation::Proceed; }
+        let body = lbl(tr("With internet, programs in the test polder can send data, download or do things online. Sluis cannot undo that: only files in your project folder stay in the polder. Only turn it on for programs you trust."), "sub");
         body.set_max_width_chars(56);
         let (a3, i3, s2) = (a2.clone(), i2.clone(), s.clone());
-        dialog(&a2, "Internet aanzetten in deze proefpolder?", body.upcast_ref(), "Internet aanzetten", true, move || {
-            bg(&a3, vec!["network".into(), i3.clone(), "on".into()], |a, _| toast(a, "Internet staat aan voor nieuwe programma's in deze proefpolder"));
+        dialog(&a2, tr("Turn on internet in this test polder?"), body.upcast_ref(), tr("Turn on internet"), true, move || {
+            bg(&a3, vec!["network".into(), i3.clone(), "on".into()], |a, _| toast(a, tr("Internet is on for new programs in this test polder")));
             s2.set_active(true);
         });
         glib::Propagation::Stop
     });
     row.append(&sw);
     let sp = gtk::Box::new(gtk::Orientation::Horizontal, 0); sp.set_hexpand(true); row.append(&sp);
-    let arch = btn(if archived { "Uit archief halen" } else { "Archiveren" }, "flat2");
+    let arch = btn(if archived { tr("Unarchive") } else { tr("Archive") }, "flat2");
     let a2 = a.clone(); let i2 = id.to_string();
     arch.connect_clicked(move |_| { let i3 = i2.clone(); bg(&a2, vec![if archived { "unarchive" } else { "archive" }.into(), i2.clone()], move |a, v| {
-        if let Some(e) = err_of(&v) { toast(a, &e) } else { toast(a, if archived { "Proefpolder is weer actief" } else { "Proefpolder gearchiveerd" }); reload(a, Some(i3)); } }); });
+        if let Some(e) = err_of(&v) { toast(a, &e) } else { toast(a, if archived { tr("Test polder is active again") } else { tr("Test polder archived") }); reload(a, Some(i3)); } }); });
     row.append(&arch);
-    let del = btn("Weggooien", "flat2 danger");
+    let del = btn(tr("Discard"), "flat2 danger");
     let a2 = a.clone(); let i2 = id.to_string(); let name = m["name"].as_str().unwrap_or("").to_string();
     del.connect_clicked(move |_| {
-        let body = lbl(&format!("Alle wijzigingen in ‘{name}’ die je niet hebt overgenomen gaan verloren. Je originele map blijft zoals hij is."), "sub"); body.set_max_width_chars(56);
+        let body = lbl(&tf!("All changes in ‘{name}’ that you have not merged will be lost. Your original folder stays as it is." ; name), "sub"); body.set_max_width_chars(56);
         let (a3, i3) = (a2.clone(), i2.clone());
-        dialog(&a2, "Proefpolder weggooien?", body.upcast_ref(), "Weggooien", true, move || bg(&a3, vec!["discard".into(), i3.clone()], |a, v| {
-            if let Some(e) = err_of(&v) { toast(a, &e) } else { a.borrow_mut().cur = None; toast(a, "Proefpolder weggegooid"); reload(a, None); } }));
+        dialog(&a2, tr("Discard test polder?"), body.upcast_ref(), tr("Discard"), true, move || bg(&a3, vec!["discard".into(), i3.clone()], |a, v| {
+            if let Some(e) = err_of(&v) { toast(a, &e) } else { a.borrow_mut().cur = None; toast(a, tr("Test polder discarded")); reload(a, None); } }));
     });
     row.append(&del);
     d.append(&row);
@@ -208,19 +212,19 @@ fn render(a: &A, id: &str) {
     if let Some(pm) = p["pending_merge"].as_str() {
         let b = gtk::Box::new(gtk::Orientation::Horizontal, 10); b.add_css_class("banner"); b.add_css_class("bad");
         let v = gtk::Box::new(gtk::Orientation::Vertical, 2); v.set_hexpand(true);
-        v.append(&lbl("Overnemen is onderbroken", "h2")); v.append(&lbl("Een eerdere overname is niet afgemaakt (bijvoorbeeld door een crash of stroomstoring). Maak hem af of draai alles terug; tot die tijd kun je niets anders overnemen.", ""));
+        v.append(&lbl(tr("Merge was interrupted"), "h2")); v.append(&lbl(tr("An earlier merge was not finished (for example because of a crash or power failure). Finish it or roll everything back; until then you cannot merge anything else."), ""));
         b.append(&v);
-        let f = btn("Afmaken", "pill"); let r = btn("Terugdraaien", "flat2");
+        let f = btn(tr("Finish"), "pill"); let r = btn(tr("Roll back"), "flat2");
         for (w, cmd) in [(&f, "resume"), (&r, "rollback")] {
             let a2 = a.clone(); let i2 = id.to_string(); let c = cmd.to_string(); let _ = pm;
             w.connect_clicked(move |_| { let i3 = i2.clone(); let c2 = c.clone(); bg(&a2, vec![c.clone(), i2.clone()], move |a, v| {
-                if let Some(e) = err_of(&v) { toast(a, &e) } else { let r = &v["report"]; toast(a, &format!("{}: {} bestand(en), {} mislukt", if c2 == "resume" { "Afgemaakt" } else { "Teruggedraaid" }, r["done"].as_array().map(|x| x.len()).unwrap_or(0), r["failed"].as_array().map(|x| x.len()).unwrap_or(0))); reload(a, Some(i3)); } }); });
+                if let Some(e) = err_of(&v) { toast(a, &e) } else { let r = &v["report"]; toast(a, &tf!("{}: {} file(s), {} failed", if c2 == "resume" { tr("Finished") } else { tr("Rolled back") }, r["done"].as_array().map(|x| x.len()).unwrap_or(0), r["failed"].as_array().map(|x| x.len()).unwrap_or(0))); reload(a, Some(i3)); } }); });
             w.set_valign(gtk::Align::Center); b.append(w);
         }
         d.append(&b);
     }
     if !archived {
-        let info = lbl("Programma's in de polder kunnen je projectmap alleen in de polder wijzigen; de rest van je thuismap is er een wegwerpkopie. Het is geen beveiligde virtuele machine: wat via internet of apparaten gebeurt, kan niet worden teruggedraaid.", "sub");
+        let info = lbl(tr("Programs in the polder can only change your project folder inside the polder; the rest of your home folder is a throwaway copy there. It is not a secured virtual machine: what happens via the internet or devices cannot be undone."), "sub");
         d.append(&info);
     }
     if let Some(e) = err_of(&ch) { d.append(&lbl(&e, "banner bad")); return; }
@@ -230,8 +234,8 @@ fn render(a: &A, id: &str) {
     let left = gtk::Box::new(gtk::Orientation::Vertical, 6);
     let lh = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     let n_conf = list.iter().filter(|c| c["conflict"] == json!(true)).count();
-    let hl = lbl(&format!("{} wijzigingen{}", list.len(), if n_conf > 0 { format!(", {n_conf} conflict(en)") } else { String::new() }), "h2"); hl.set_hexpand(true); lh.append(&hl);
-    let all = btn("Alles zonder conflict", "flat2"); lh.append(&all);
+    let hl = lbl(&format!("{} wijzigingen{}", list.len(), if n_conf > 0 { tf!(", {n_conf} conflict(s)" ; n_conf) } else { String::new() }), "h2"); hl.set_hexpand(true); lh.append(&hl);
+    let all = btn(tr("All without conflict"), "flat2"); lh.append(&all);
     left.append(&lh);
     let lb = gtk::ListBox::new(); lb.add_css_class("changes"); lb.set_selection_mode(gtk::SelectionMode::Single);
     let mut checks = vec![];
@@ -244,10 +248,10 @@ fn render(a: &A, id: &str) {
         let conflict = c["conflict"] == json!(true);
         h.append(&cb);
         let kind = c["kind"].as_str().unwrap_or("");
-        let tg = lbl(if conflict { "Conflict" } else { kind_nl(kind) }, "tag"); tg.add_css_class(if conflict { "conflict" } else { kind }); tg.set_valign(gtk::Align::Center); h.append(&tg);
+        let tg = lbl(if conflict { tr("Conflict") } else { kind_nl(kind) }, "tag"); tg.add_css_class(if conflict { "conflict" } else { kind }); tg.set_valign(gtk::Align::Center); h.append(&tg);
         let shown = match c["renamed_from"].as_str() { Some(f) => format!("{f} → {path}"), None => path.clone() };
         let pl = lbl(&shown, ""); pl.set_wrap(false); pl.set_ellipsize(pango::EllipsizeMode::Middle); pl.set_hexpand(true); h.append(&pl);
-        if c["warnings"].as_array().map(|w| w.iter().any(|x| x.as_str().map(|s| s.contains("rechten") || s.contains("symlink") || s.contains("buiten")).unwrap_or(false))).unwrap_or(false) {
+        if c["warnings"].as_array().map(|w| w.iter().any(|x| x.as_str().map(|s| s == tr("changes permissions") || s == "symlink" || s.starts_with(tr("symlink points outside the folder: {target}").split('{').next().unwrap_or("\u{0}"))).unwrap_or(false))).unwrap_or(false) {
             let w = gtk::Image::from_icon_name("dialog-warning-symbolic"); w.set_tooltip_text(Some(&c["warnings"].as_array().unwrap().iter().filter_map(|x| x.as_str()).collect::<Vec<_>>().join("\n"))); h.append(&w);
         }
         r.set_child(Some(&h)); lb.append(&r);
@@ -258,14 +262,14 @@ fn render(a: &A, id: &str) {
     let checks2 = checks.clone();
     all.connect_clicked(move |_| for (cb, _, conf) in &checks2 { cb.set_active(!conf); });
     if list.is_empty() {
-        lb.append(&lbl(if archived { "Geen wijzigingen." } else { "Nog geen wijzigingen. Open een terminal in de polder en ga je gang." }, "sub"));
+        lb.append(&lbl(if archived { tr("No changes.") } else { tr("No changes yet. Open a terminal in the polder and go ahead.") }, "sub"));
     }
     let sc = gtk::ScrolledWindow::builder().vexpand(true).hscrollbar_policy(gtk::PolicyType::Never).child(&lb).build();
     let card = gtk::Box::new(gtk::Orientation::Vertical, 0); card.add_css_class("card"); card.append(&sc); card.set_vexpand(true);
     left.append(&card);
     pane.set_start_child(Some(&left));
     let diff = gtk::Box::new(gtk::Orientation::Vertical, 6); diff.set_margin_start(8);
-    diff.append(&lbl("Kies een wijziging om te vergelijken.", "sub"));
+    diff.append(&lbl(tr("Choose a change to compare."), "sub"));
     pane.set_end_child(Some(&diff));
     a.borrow_mut().diff = diff;
     let a2 = a.clone(); let lst = list.clone(); let origin = ch["origin"].as_str().unwrap_or("").to_string(); let upper = ch["upper"].as_str().unwrap_or("").to_string();
@@ -275,8 +279,8 @@ fn render(a: &A, id: &str) {
     d.append(&pane);
     // merge bar
     let mb = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    let ml = lbl("Niets komt op het vasteland zonder jouw toestemming. Je ziet eerst precies wat er gebeurt.", "sub"); ml.set_hexpand(true); mb.append(&ml);
-    let go = btn("Geselecteerde overnemen…", "pill"); go.set_sensitive(!archived && p["pending_merge"].is_null());
+    let ml = lbl(tr("Nothing reaches the mainland without your permission. You first see exactly what will happen."), "sub"); ml.set_hexpand(true); mb.append(&ml);
+    let go = btn(tr("Merge selected…"), "pill"); go.set_sensitive(!archived && p["pending_merge"].is_null());
     let a2 = a.clone(); let i2 = id.to_string(); go.connect_clicked(move |_| dry_run(&a2, &i2));
     mb.append(&go); d.append(&mb);
 }
@@ -308,10 +312,10 @@ fn tv() -> (gtk::TextView, gtk::TextBuffer) {
 }
 fn meta_rows(st: &Value) -> String {
     match st["t"].as_str() {
-        Some("File") => format!("bestand · {} · rechten {:o}\nsha256 {}…", size_h(st["size"].as_u64().unwrap_or(0)), st["mode"].as_u64().unwrap_or(0), &st["hash"].as_str().unwrap_or("")[..16.min(st["hash"].as_str().unwrap_or("").len())]),
+        Some("File") => tf!("file · {} · permissions {:o}\nsha256 {}…", size_h(st["size"].as_u64().unwrap_or(0)), st["mode"].as_u64().unwrap_or(0), &st["hash"].as_str().unwrap_or("")[..16.min(st["hash"].as_str().unwrap_or("").len())]),
         Some("Link") => format!("symlink → {}", st["target"].as_str().unwrap_or("")),
         Some("Dir") => format!("map · rechten {:o}", st["mode"].as_u64().unwrap_or(0)),
-        _ => "bestaat niet".into(),
+        _ => tr("does not exist").into(),
     }
 }
 fn show_diff(a: &A, c: &Value, origin: &str, upper: &str) {
@@ -322,8 +326,8 @@ fn show_diff(a: &A, c: &Value, origin: &str, upper: &str) {
     for w in c["warnings"].as_array().cloned().unwrap_or_default() { let l = lbl(&format!("⚠ {}", w.as_str().unwrap_or("")), "sub"); l.set_max_width_chars(30); d.append(&l); }
     if c["conflict"] == json!(true) {
         let b = gtk::Box::new(gtk::Orientation::Vertical, 6); b.add_css_class("banner"); b.add_css_class("warn");
-        let cl = lbl("Conflict: dit bestand is sinds het maken van de polder ook op het vasteland gewijzigd. Overnemen vervangt die wijziging.", ""); cl.set_max_width_chars(30); b.append(&cl);
-        let cb = gtk::CheckButton::new(); let cl = lbl("Toch de polderversie kiezen (vasteland-versie vervangen)", ""); cl.set_max_width_chars(30); cl.set_hexpand(true); let crow = gtk::Box::new(gtk::Orientation::Horizontal, 6); crow.append(&cb); crow.append(&cl);
+        let cl = lbl(tr("Conflict: this file was also changed on the mainland since the polder was created. Merging replaces that change."), ""); cl.set_max_width_chars(30); b.append(&cl);
+        let cb = gtk::CheckButton::new(); let cl = lbl(tr("Choose the polder version anyway (replace the mainland version)"), ""); cl.set_max_width_chars(30); cl.set_hexpand(true); let crow = gtk::Box::new(gtk::Orientation::Horizontal, 6); crow.append(&cb); crow.append(&cl);
         cb.set_active(a.borrow().force.contains(path));
         let a2 = a.clone(); let p2 = path.to_string();
         cb.connect_toggled(move |cb| { let mut x = a2.borrow_mut(); if cb.is_active() { x.force.insert(p2.clone()); x.selected.insert(p2.clone()); } else { x.force.remove(&p2); } });
@@ -331,7 +335,7 @@ fn show_diff(a: &A, c: &Value, origin: &str, upper: &str) {
     }
     let (ht, bt) = (if c["home"]["t"] == "Absent" { Some(String::new()) } else { read_text(&hp) }, if c["branch"]["t"] == "Absent" { Some(String::new()) } else { read_text(&bp) });
     let heads = gtk::Box::new(gtk::Orientation::Horizontal, 6); heads.set_homogeneous(true);
-    heads.append(&lbl("Vasteland (nu)", "difftitle")); heads.append(&lbl("Proefpolder", "difftitle")); d.append(&heads);
+    heads.append(&lbl(tr("Mainland (now)"), "difftitle")); heads.append(&lbl(tr("Test polder"), "difftitle")); d.append(&heads);
     match (ht, bt) {
         (Some(h), Some(b)) if c["home"]["t"] != "Link" && c["branch"]["t"] != "Link" => {
             let (hl, bl): (Vec<&str>, Vec<&str>) = (h.lines().collect(), b.lines().collect());
@@ -349,7 +353,7 @@ fn show_diff(a: &A, c: &Value, origin: &str, upper: &str) {
                         }
                     }
                 }
-                None => { lbuf.set_text("(te groot om regel voor regel te vergelijken)"); rbuf.set_text(&meta_rows(&c["branch"])); }
+                None => { lbuf.set_text(tr("(too large to compare line by line)")); rbuf.set_text(&meta_rows(&c["branch"])); }
             }
             let row = gtk::Box::new(gtk::Orientation::Horizontal, 6); row.set_homogeneous(true); row.set_vexpand(true);
             let ls = gtk::ScrolledWindow::builder().child(&lv).vexpand(true).hexpand(true).min_content_width(60).build(); let rs = gtk::ScrolledWindow::builder().child(&rv).vexpand(true).hexpand(true).min_content_width(60).build();
@@ -363,7 +367,7 @@ fn show_diff(a: &A, c: &Value, origin: &str, upper: &str) {
             d.append(&row);
             let base = lbl(&format!("Bij het maken van de polder: {}", meta_rows(&c["base"]).replace('\n', " · ")), "sub"); d.append(&base);
             if c["home"]["t"] == "File" || c["branch"]["t"] == "File" {
-                let ob = btn("Beide versies openen", "flat2"); ob.set_halign(gtk::Align::Start);
+                let ob = btn(tr("Open both versions"), "flat2"); ob.set_halign(gtk::Align::Start);
                 let (h2, b2) = (hp.clone(), bp.clone());
                 ob.connect_clicked(move |_| { for p in [&h2, &b2] { if std::path::Path::new(p).exists() { let _ = gio::AppInfo::launch_default_for_uri(&gio::File::for_path(p).uri(), None::<&gio::AppLaunchContext>); } } });
                 d.append(&ob);
@@ -385,32 +389,32 @@ fn sel_args(a: &A) -> Vec<String> {
     v
 }
 fn dry_run(a: &A, id: &str) {
-    if a.borrow().selected.is_empty() { toast(a, "Selecteer eerst een of meer wijzigingen"); return; }
+    if a.borrow().selected.is_empty() { toast(a, tr("Select one or more changes first")); return; }
     let mut args = vec!["plan".into(), id.into()]; args.extend(sel_args(a));
     let id2 = id.to_string();
     bg(a, args, move |a, v| {
         if let Some(e) = err_of(&v) { toast(a, &e); return; }
         let ops = v["ops"].as_array().cloned().unwrap_or_default();
         let body = gtk::Box::new(gtk::Orientation::Vertical, 8);
-        body.append(&lbl("Proefdraaien: zo verandert je originele map. Er is nog niets gewijzigd.", "sub"));
+        body.append(&lbl(tr("Dry run: this is how your original folder will change. Nothing has been changed yet."), "sub"));
         let lb = gtk::Box::new(gtk::Orientation::Vertical, 2);
         for o in &ops { lb.append(&lbl(&format!("• {}", act_nl(o)), "")); }
-        if ops.is_empty() { lb.append(&lbl("Er valt niets over te nemen.", "")); }
+        if ops.is_empty() { lb.append(&lbl(tr("There is nothing to merge."), "")); }
         let sc = gtk::ScrolledWindow::builder().child(&lb).min_content_height(80).max_content_height(200).propagate_natural_height(true).hscrollbar_policy(gtk::PolicyType::Never).build();
         body.append(&sc);
         let warns: Vec<String> = v["warnings"].as_array().cloned().unwrap_or_default().iter().filter_map(|w| w.as_str().map(String::from)).filter(|w| !w.ends_with(": symlink")).collect();
         if !warns.is_empty() { let w = lbl(&format!("Let op:\n{}", warns.iter().map(|w| format!("• {w}")).collect::<Vec<_>>().join("\n")), "banner warn"); body.append(&w); }
         let sk = v["skipped"].as_array().cloned().unwrap_or_default();
         if !sk.is_empty() { body.append(&lbl(&format!("Overgeslagen:\n{}", sk.iter().map(|s| format!("• {}: {}", s[0].as_str().unwrap_or(""), s[1].as_str().unwrap_or(""))).collect::<Vec<_>>().join("\n")), "sub")); }
-        if ops.is_empty() { dialog(a, "Niets over te nemen", body.upcast_ref(), "Sluiten", false, || {}); return; }
+        if ops.is_empty() { dialog(a, tr("Nothing to merge"), body.upcast_ref(), tr("Close"), false, || {}); return; }
         let (a2, i2) = (a.clone(), id2.clone());
-        dialog(a, &format!("{} wijziging(en) overnemen?", ops.len()), body.upcast_ref(), "Overnemen", false, move || {
+        dialog(a, &tf!("Merge {} change(s)?", ops.len()), body.upcast_ref(), tr("Merge"), false, move || {
             let mut args = vec!["merge".into(), i2.clone()]; args.extend(sel_args(&a2));
             let i3 = i2.clone();
             bg(&a2, args, move |a, v| {
                 if let Some(e) = err_of(&v) { toast(a, &format!("Overnemen mislukt: {e}")); reload(a, Some(i3)); return; }
                 let r = &v["report"]; let nf = r["failed"].as_array().map(|x| x.len()).unwrap_or(0);
-                let msg = if nf == 0 { format!("{} wijziging(en) overgenomen naar het vasteland", r["done"].as_array().map(|x| x.len()).unwrap_or(0)) }
+                let msg = if nf == 0 { tf!("{} change(s) merged to the mainland", r["done"].as_array().map(|x| x.len()).unwrap_or(0)) }
                           else { format!("{} overgenomen, {nf} niet: {}", r["done"].as_array().map(|x| x.len()).unwrap_or(0), r["failed"][0][1].as_str().unwrap_or("")) };
                 toast(a, &msg);
                 { let mut x = a.borrow_mut(); x.selected.clear(); x.force.clear(); }
@@ -423,42 +427,42 @@ fn dry_run(a: &A, id: &str) {
 // ------------------------------------------------------------------ new polder
 fn new_dialog(a: &A, folder: Option<String>) {
     let parent = a.borrow().win.clone();
-    let d = gtk::Window::builder().transient_for(&parent).modal(true).resizable(false).default_width(480).title("Nieuwe proefpolder").build();
+    let d = gtk::Window::builder().transient_for(&parent).modal(true).resizable(false).default_width(480).title(tr("New test polder")).build();
     d.add_css_class("sl");
     let v = gtk::Box::new(gtk::Orientation::Vertical, 10); v.set_margin_top(20); v.set_margin_bottom(16); v.set_margin_start(22); v.set_margin_end(22);
-    v.append(&lbl("Nieuwe proefpolder", "h1"));
-    v.append(&lbl("Sluis pompt een nieuwe polder droog naast je map: daarin experimenteer je vrij, je originele map blijft onaangeroerd.", "sub"));
-    let name = gtk::Entry::builder().placeholder_text("Naam, bijvoorbeeld Nieuw ontwerp").build();
-    let desc = gtk::Entry::builder().placeholder_text("Omschrijving (optioneel)").build();
-    let fl = lbl(&folder.as_deref().map(tilde).unwrap_or("Nog geen map gekozen".into()), "sub"); let fsel = Rc::new(RefCell::new(folder.clone()));
-    let fb = btn("Map kiezen…", "flat2");
+    v.append(&lbl(tr("New test polder"), "h1"));
+    v.append(&lbl(tr("Sluis pumps a new polder dry next to your folder: you experiment freely in it, your original folder stays untouched."), "sub"));
+    let name = gtk::Entry::builder().placeholder_text(tr("Name, for example New design")).build();
+    let desc = gtk::Entry::builder().placeholder_text(tr("Description (optional)")).build();
+    let fl = lbl(&folder.as_deref().map(tilde).unwrap_or(tr("No folder chosen yet").into()), "sub"); let fsel = Rc::new(RefCell::new(folder.clone()));
+    let fb = btn(tr("Choose folder…"), "flat2");
     let frow = gtk::Box::new(gtk::Orientation::Horizontal, 8); frow.append(&fb); fl.set_hexpand(true); frow.append(&fl);
-    v.append(&lbl("Naam", "difftitle")); v.append(&name); v.append(&lbl("Map (het vasteland)", "difftitle")); v.append(&frow); v.append(&desc);
-    if let Some(f) = &folder { if let Some(n) = std::path::Path::new(f).file_name() { name.set_text(&format!("{} – experiment", n.to_string_lossy())); } }
+    v.append(&lbl(tr("Name"), "difftitle")); v.append(&name); v.append(&lbl(tr("Folder (the mainland)"), "difftitle")); v.append(&frow); v.append(&desc);
+    if let Some(f) = &folder { if let Some(n) = std::path::Path::new(f).file_name() { name.set_text(&tf!("{} – experiment", n.to_string_lossy())); } }
     let (fs2, fl2, d2) = (fsel.clone(), fl.clone(), d.clone());
     fb.connect_clicked(move |_| {
         #[allow(deprecated)]
-        let fc = gtk::FileChooserNative::new(Some("Kies een projectmap"), Some(&d2), gtk::FileChooserAction::SelectFolder, Some("Kiezen"), Some("Annuleren"));
+        let fc = gtk::FileChooserNative::new(Some(tr("Choose a project folder")), Some(&d2), gtk::FileChooserAction::SelectFolder, Some(tr("Choose")), Some(tr("Cancel")));
         let (fs3, fl3) = (fs2.clone(), fl2.clone());
         #[allow(deprecated)]
         fc.connect_response(move |fc, r| { if r == gtk::ResponseType::Accept { if let Some(p) = fc.file().and_then(|f| f.path()) { let s = p.to_string_lossy().to_string(); fl3.set_label(&tilde(&s)); *fs3.borrow_mut() = Some(s); } } });
         #[allow(deprecated)] fc.show();
     });
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 8); row.set_halign(gtk::Align::End); row.set_margin_top(6);
-    let c = btn("Annuleren", "flat2"); let o = btn("Polder maken", "pill");
+    let c = btn(tr("Cancel"), "flat2"); let o = btn(tr("Create polder"), "pill");
     row.append(&c); row.append(&o); v.append(&row); d.set_child(Some(&v));
     let d1 = d.clone(); c.connect_clicked(move |_| d1.close());
     let (a2, d3) = (a.clone(), d.clone());
     o.connect_clicked(move |o| {
-        let Some(f) = fsel.borrow().clone() else { toast(&a2, "Kies eerst een map"); return; };
-        let n = name.text().to_string(); let n = if n.trim().is_empty() { "Proefpolder".to_string() } else { n };
-        o.set_sensitive(false); o.set_label("Bezig met droogpompen…");
+        let Some(f) = fsel.borrow().clone() else { toast(&a2, tr("Choose a folder first")); return; };
+        let n = name.text().to_string(); let n = if n.trim().is_empty() { tr("Test polder").to_string() } else { n };
+        o.set_sensitive(false); o.set_label(tr("Pumping dry…"));
         let d4 = d3.clone();
         bg(&a2, vec!["create".into(), n, f, desc.text().to_string()], move |a, v| {
             d4.close();
             if let Some(e) = err_of(&v) { toast(a, &e); return; }
             let id = v["meta"]["id"].as_str().unwrap_or("").to_string();
-            toast(a, "Proefpolder klaar. Open een terminal om te beginnen.");
+            toast(a, tr("Test polder ready. Open a terminal to get started."));
             reload(a, Some(id));
         });
     });
@@ -469,16 +473,16 @@ fn build(app: &gtk::Application, new_folder: Option<String>) -> A {
     let prov = gtk::CssProvider::new();
     #[allow(deprecated)] prov.load_from_data(&css(&theme::palette()));
     gtk::style_context_add_provider_for_display(&gtk::gdk::Display::default().unwrap(), &prov, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
-    let win = gtk::ApplicationWindow::builder().application(app).title("Sluis").default_width(1010).default_height(560).build();
+    let win = gtk::ApplicationWindow::builder().application(app).title(tr("Sluis")).default_width(1010).default_height(560).build();
     win.add_css_class("sl");
     let ov = gtk::Overlay::new();
     let root = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     let side = gtk::Box::new(gtk::Orientation::Vertical, 10); side.add_css_class("side"); side.set_size_request(210, -1);
     let hb = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     let ic = gtk::Image::from_icon_name("view-dual-symbolic"); ic.set_pixel_size(24); hb.append(&ic);
-    let tv = gtk::Box::new(gtk::Orientation::Vertical, 0); tv.append(&lbl("Sluis", "h1")); tv.append(&lbl("Proefpolders", "sub")); hb.append(&tv);
+    let tv = gtk::Box::new(gtk::Orientation::Vertical, 0); tv.append(&lbl(tr("Sluis"), "h1")); tv.append(&lbl(tr("Test polders"), "sub")); hb.append(&tv);
     side.append(&hb);
-    let nb = btn("Nieuwe proefpolder", "pill"); side.append(&nb);
+    let nb = btn(tr("New test polder"), "pill"); side.append(&nb);
     let plist = gtk::ListBox::new(); plist.add_css_class("polders");
     side.append(&gtk::ScrolledWindow::builder().child(&plist).vexpand(true).hscrollbar_policy(gtk::PolicyType::Never).build());
     root.append(&side);

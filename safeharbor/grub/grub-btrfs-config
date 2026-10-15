@@ -1,5 +1,12 @@
 # Polder SafeHarbor overrides for the vendored grub-btrfs (sourced after its own /etc/default/grub-btrfs/config defaults)
-GRUB_BTRFS_SUBMENUNAME="Polder OS - eerdere versies (SafeHarbor)"
+# Submenu label follows the system language (Instellingen › Taal en regio writes LANG to /etc/default/locale via localectl);
+# GRUB itself has no gettext for generated menu titles, so it is chosen when update-grub / grub-btrfsd regenerates the menu.
+_polder_lang=$( (. /etc/default/locale 2>/dev/null; echo "${LANG:-nl_NL.UTF-8}") )
+case "$_polder_lang" in
+  en*) GRUB_BTRFS_SUBMENUNAME="Polder OS - earlier versions (SafeHarbor)" ;;
+  *)   GRUB_BTRFS_SUBMENUNAME="Polder OS - eerdere versies (SafeHarbor)" ;;
+esac
+unset _polder_lang
 GRUB_BTRFS_TITLE_FORMAT=("date" "description")
 GRUB_BTRFS_LIMIT="20"
 GRUB_BTRFS_SHOW_SNAPSHOTS_FOUND="true"

@@ -2,6 +2,7 @@
 [Desktop Entry]
 Name=Polder OS (Wayland development)
 Comment=Polder OS on polder-comp; experimental Debian wlroots build
+Comment[nl]=Polder OS op polder-comp; experimentele Debian-wlroots-build
 Exec=/usr/share/polderos/polderos-wayland-session
 TryExec=/usr/bin/polder-comp
 Type=Application

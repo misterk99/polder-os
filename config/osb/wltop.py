@@ -13,7 +13,7 @@ def toplevels(p=None, wait=0.4):
     if own: p = subprocess.Popen([helper()], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     tl, buf, end = {}, b'', time.time() + wait
     while time.time() < end:
-        r, _, _ = select.select([p.stdout], [], [], max(0, end - time.time()))
+        r, _x, _x = select.select([p.stdout], [], [], max(0, end - time.time()))
         if not r: break
         d = os.read(p.stdout.fileno(), 65536)
         if not d: break

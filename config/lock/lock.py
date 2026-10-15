@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Polder OS lock screen. Grabs keyboard+pointer on a fullscreen override-redirect window; unlocks only after
 PAM ('login' service) accepts the password of the user running this process. Single instance (/tmp/osb-lock.pid)."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, pwd, threading, subprocess, signal, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lockui
@@ -13,7 +14,7 @@ class Lock(lockui.LockUI):
         s = S.load(); display = s.get('display_name') or me.pw_gecos.split(',')[0] or me.pw_name
         hint = None
         if os.environ.get('OSB_LOCK_TEST_ACCOUNT'):   # box-only test arrangement, shown honestly on screen
-            display = s.get('display_name') or 'Gebruiker'; hint = f'Testaccount voor deze prototype-box: {me.pw_name}'
+            display = s.get('display_name') or _('User'); hint = _('Test account for this prototype box: {pw_name}').format(pw_name=me.pw_name)
         face = os.path.join(me.pw_dir, '.face')
         self.user = me.pw_name
         super().__init__([{'name': me.pw_name, 'display': display, 'face': face}], hint=hint, popup=True)
@@ -36,7 +37,7 @@ class Lock(lockui.LockUI):
         def work():
             import pam
             p = pam.pam(); ok = p.authenticate(self.user, pw, service='login')
-            GLib.idle_add(done, ok, '' if ok else ('Onjuist wachtwoord' if 'failure' in (p.reason or '').lower() else f'Onjuist wachtwoord'))
+            GLib.idle_add(done, ok, '' if ok else (_('Incorrect password') if 'failure' in (p.reason or '').lower() else _('Incorrect password')))
         threading.Thread(target=work, daemon=True).start()
 
     def unlocked(self):
@@ -46,7 +47,7 @@ class Lock(lockui.LockUI):
 
     def power(self, action):
         # SAFETY: the prototype never powers off/logs out the box; the ISO maps these to systemctl/loginctl.
-        self.msg.set_text({'shutdown': 'Uitschakelen is uitgeschakeld in het prototype', 'logout': 'Afmelden is uitgeschakeld in het prototype'}[action])
+        self.msg.set_text({'shutdown': _('Shutting down is disabled in the prototype'), 'logout': _('Signing out is disabled in the prototype')}[action])
         print('would run:', {'shutdown': 'systemctl poweroff', 'logout': 'loginctl terminate-session $XDG_SESSION_ID'}[action], flush=True)
         if os.environ.get('POLDEROS_ISO'):
             subprocess.Popen({'shutdown': ['systemctl', 'poweroff'], 'logout': ['sh', '-c', 'loginctl terminate-session "$XDG_SESSION_ID"']}[action])

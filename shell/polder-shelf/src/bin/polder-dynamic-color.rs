@@ -1,5 +1,7 @@
 //! polder-dynamic-color <image> [--seeds] [--index N] [--theme light|dark]
 //! --seeds: up to four seed colours (best first), one #rrggbb per line.  Otherwise: palette.env lines for the theme.
+#[path = "../i18n.rs"] #[macro_use] mod i18n;
+#[allow(unused_imports)] use i18n::tr;
 #[path = "../dyncolor.rs"] mod dyncolor;
 use gtk::gdk_pixbuf::{InterpType, Pixbuf};
 fn main() {

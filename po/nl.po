@@ -1,0 +1,4272 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Polder OS\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-15 23:02+0200\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: nl\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: config/assistant/actions.py:101
+#, python-brace-format
+msgid "{p0}: {desc}, {p1}° (feels like {p2}°), wind {p3} km/h.{extra}"
+msgstr "{p0}: {desc}, {p1}° (voelt als {p2}°), wind {p3} km/u.{extra}"
+
+#: config/assistant/actions.py:110
+#, python-brace-format
+msgid "No files found for \"{query}\"."
+msgstr "Geen bestanden gevonden voor \"{query}\"."
+
+#: config/assistant/actions.py:111
+msgid "Found:\n"
+msgstr "Gevonden:\n"
+
+#: config/assistant/actions.py:114
+msgid "File does not exist."
+msgstr "Bestand bestaat niet."
+
+#: config/assistant/actions.py:115
+#, python-brace-format
+msgid "{p0} opened."
+msgstr "{p0} geopend."
+
+#: config/assistant/actions.py:133
+msgid "Lock the screen now?"
+msgstr "Scherm nu vergrendelen?"
+
+#: config/assistant/actions.py:133
+#, python-brace-format
+msgid "Turn Bluetooth {}?"
+msgstr "Bluetooth {}schakelen?"
+
+#: config/assistant/actions.py:133
+#, python-brace-format
+msgid "Turn Wi‑Fi {}?"
+msgstr "Wifi {}schakelen?"
+
+#: config/assistant/actions.py:140 config/assistant/actions.py:68
+#: config/assistant/actions.py:74 config/assistant/actions.py:79
+msgid "off"
+msgstr "uit"
+
+#: config/assistant/actions.py:145
+#, python-brace-format
+msgid "Unknown action {name}"
+msgstr "Onbekende actie {name}"
+
+#: config/assistant/actions.py:147
+#, python-brace-format
+msgid "Action {name} failed: {p0}: {e}"
+msgstr "Actie {name} mislukt: {p0}: {e}"
+
+#: config/assistant/actions.py:18
+#, python-brace-format
+msgid "Unknown theme: {mode}"
+msgstr "Onbekend thema: {mode}"
+
+#: config/assistant/actions.py:19
+msgid "Dark theme is on."
+msgstr "Donker thema staat aan."
+
+#: config/assistant/actions.py:19
+msgid "Light theme is on."
+msgstr "Licht thema staat aan."
+
+#: config/assistant/actions.py:19
+msgid "Theme is set to automatic."
+msgstr "Thema staat op automatisch."
+
+#: config/assistant/actions.py:41
+#, python-brace-format
+msgid "No app found for \"{name}\"."
+msgstr "Geen app gevonden voor \"{name}\"."
+
+#: config/assistant/actions.py:43
+#, python-brace-format
+msgid "Opening {p0}."
+msgstr "{p0} wordt geopend."
+
+#: config/assistant/actions.py:46
+msgid "Calendar opened."
+msgstr "Agenda geopend."
+
+#: config/assistant/actions.py:52
+msgid "No audio system (pactl/amixer) found."
+msgstr "Geen audiosysteem (pactl/amixer) gevonden."
+
+#: config/assistant/actions.py:53
+msgid "Setting volume failed: "
+msgstr "Volume instellen mislukt: "
+
+#: config/assistant/actions.py:53
+#, python-brace-format
+msgid "Volume at {level}%."
+msgstr "Volume op {level}%."
+
+#: config/assistant/actions.py:58
+#, python-brace-format
+msgid "Brightness at {level}%."
+msgstr "Helderheid op {level}%."
+
+#: config/assistant/actions.py:60
+msgid "No display found for brightness."
+msgstr "Geen scherm gevonden voor helderheid."
+
+#: config/assistant/actions.py:63
+#, python-brace-format
+msgid "Brightness at {p0}% (software, via xrandr)."
+msgstr "Helderheid op {p0}% (software, via xrandr)."
+
+#: config/assistant/actions.py:63
+msgid "Setting brightness failed."
+msgstr "Helderheid instellen mislukt."
+
+#: config/assistant/actions.py:66
+msgid "Wi‑Fi not available: NetworkManager (nmcli) is missing."
+msgstr "Wifi niet beschikbaar: NetworkManager (nmcli) ontbreekt."
+
+#: config/assistant/actions.py:68
+msgid "Switching Wi‑Fi failed: "
+msgstr "Wifi schakelen mislukt: "
+
+#: config/assistant/actions.py:68
+#, python-brace-format
+msgid "Wi‑Fi is {p0}."
+msgstr "Wifi staat {p0}."
+
+#: config/assistant/actions.py:68 config/assistant/actions.py:74
+#: config/assistant/actions.py:79
+msgid "on"
+msgstr "aan"
+
+#: config/assistant/actions.py:71
+msgid "Bluetooth not available: bluetoothctl is missing."
+msgstr "Bluetooth niet beschikbaar: bluetoothctl ontbreekt."
+
+#: config/assistant/actions.py:74
+#, python-brace-format
+msgid "Bluetooth is {p0}."
+msgstr "Bluetooth staat {p0}."
+
+#: config/assistant/actions.py:74
+msgid "Switching Bluetooth failed: "
+msgstr "Bluetooth schakelen mislukt: "
+
+#: config/assistant/actions.py:74
+msgid "no adapter"
+msgstr "geen adapter"
+
+#: config/assistant/actions.py:79
+#, python-brace-format
+msgid "Do not disturb is {p0}."
+msgstr "Niet storen staat {p0}."
+
+#: config/assistant/actions.py:80
+#, python-brace-format
+msgid "Switching do not disturb failed: {e}"
+msgstr "Niet storen schakelen mislukt: {e}"
+
+#: config/assistant/actions.py:83
+msgid "Locking the screen."
+msgstr "Scherm wordt vergrendeld."
+
+#: config/assistant/actions.py:86 config/capture/capture.py:23
+#: config/store/store.py:451
+msgid "Screenshots"
+msgstr "Schermafbeeldingen"
+
+#: config/assistant/actions.py:87
+msgid "Screenshot %Y-%m-%d %H.%M.%S.png"
+msgstr "Schermafbeelding %Y-%m-%d %H.%M.%S.png"
+
+#: config/assistant/actions.py:90
+msgid "Screenshot failed (ImageMagick import missing?)."
+msgstr "Schermafbeelding mislukt (ImageMagick import ontbreekt?)."
+
+#: config/assistant/actions.py:91 config/assistant/assistant.py:38
+#: config/assistant/assistant.py:55 config/settings/instellingen.py:536
+msgid "Polder Assistant"
+msgstr "Polder Assistent"
+
+#: config/assistant/actions.py:91
+msgid "Screenshot saved"
+msgstr "Schermafbeelding opgeslagen"
+
+#: config/assistant/actions.py:91
+#, python-brace-format
+msgid "Screenshot saved: {p}"
+msgstr "Schermafbeelding opgeslagen: {p}"
+
+#: config/assistant/actions.py:96
+msgid "No current weather data (Polder Weather could not fetch anything in the last 2 hours)."
+msgstr "Geen actuele weergegevens (Polder Weer heeft de afgelopen 2 uur niets kunnen ophalen)."
+
+#: config/assistant/actions.py:99
+#, python-brace-format
+msgid " Today {p0}–{p1}°, chance of rain {p2}%."
+msgstr " Vandaag {p0}–{p1}°, regenkans {p2}%."
+
+#: config/assistant/assistant.py:15
+msgid "Find file invoice"
+msgstr "Zoek bestand factuur"
+
+#: config/assistant/assistant.py:15
+msgid "Open terminal"
+msgstr "Open terminal"
+
+#: config/assistant/assistant.py:15
+msgid "Take a screenshot"
+msgstr "Maak een screenshot"
+
+#: config/assistant/assistant.py:15
+msgid "Turn on dark theme"
+msgstr "Zet donker thema aan"
+
+#: config/assistant/assistant.py:15
+msgid "Volume to 30%"
+msgstr "Volume op 30%"
+
+#: config/assistant/assistant.py:15
+msgid "What's the weather like?"
+msgstr "Wat voor weer is het?"
+
+#: config/assistant/assistant.py:152
+msgid "I don't understand that locally. Try e.g. \"volume 50\", \"open firefox\" or \"find file notes\". For free-form questions: set an OpenAI, Gemini or Claude key in Settings › Assistant."
+msgstr "Dat begrijp ik lokaal niet. Probeer bv. \"volume op 50\", \"open firefox\" of \"zoek bestand notities\". Voor vrije vragen: stel een OpenAI-, Gemini- of Claude-sleutel in via Instellingen › Assistent."
+
+#: config/assistant/assistant.py:157 config/capture/capture.py:248
+#: config/lock/lockui.py:191 config/quicksettings/qs.py:323
+#: config/settings/instellingen.py:604
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:86
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:235
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:285
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:149
+#: shell/polder-shelf/src/bin/polder-sluis.rs:99
+#: shell/polder-shelf/src/bin/polder-sluis.rs:445
+#: shell/polder-shelf/src/bin/polder-sluis.rs:452
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: config/assistant/assistant.py:157
+msgid "Yes"
+msgstr "Ja"
+
+#: config/assistant/assistant.py:161
+msgid "Cancelled."
+msgstr "Geannuleerd."
+
+#: config/assistant/assistant.py:179
+msgid "The user declined this action."
+msgstr "De gebruiker heeft deze actie geweigerd."
+
+#: config/assistant/assistant.py:179
+#, python-brace-format
+msgid "✗ {name} declined"
+msgstr "✗ {name} geweigerd"
+
+#: config/assistant/assistant.py:189
+#, python-brace-format
+msgid ""
+"{p0} returned an error: {err}\n"
+"Check your key in Settings › Assistant."
+msgstr ""
+"{p0} gaf een fout: {err}\n"
+"Controleer je sleutel in Instellingen › Assistent."
+
+#: config/assistant/assistant.py:191 config/assistant/assistant.py:192
+#: config/settings/instellingen.py:649
+msgid "Done."
+msgstr "Klaar."
+
+#: config/assistant/assistant.py:61
+msgid "Ask or say something… (e.g. \"turn wifi off\")"
+msgstr "Vraag of zeg iets… (bv. \"zet wifi uit\")"
+
+#: config/assistant/assistant.py:78
+msgid "Local · no key"
+msgstr "Lokaal · geen sleutel"
+
+#: config/assistant/assistant.py:89
+msgid "Hi! I can control your computer: theme, volume, brightness, Wi‑Fi, Bluetooth, do not disturb, apps, calendar, weather, file search, locking and screenshots."
+msgstr "Hoi! Ik kan je computer bedienen: thema, volume, helderheid, wifi, bluetooth, niet storen, apps, agenda, weer, bestanden zoeken, vergrendelen en schermafbeeldingen."
+
+#: config/assistant/llm.py:160
+#, python-brace-format
+msgid "Connected to {p0} ({model})."
+msgstr "Verbonden met {p0} ({model})."
+
+#: config/assistant/llm.py:25
+#, python-brace-format
+msgid "Polder Assistant ({p})"
+msgstr "Polder Assistent ({p})"
+
+#: config/assistant/llm.py:56
+#, python-brace-format
+msgid "No connection: {reason}"
+msgstr "Geen verbinding: {reason}"
+
+#: config/assistant/llm.py:83
+msgid "No API key set."
+msgstr "Geen API-sleutel ingesteld."
+
+#: config/calendar/cal.py:146 config/quicksettings/qs.py:109
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:324
+#, python-brace-format, rust-format
+msgid "{weekday} {month} {day}"
+msgstr "{weekday} {day} {month}"
+
+#: config/calendar/cal.py:150
+msgid "No events"
+msgstr "Geen evenementen"
+
+#: config/calendar/cal.py:158 config/calendar/feeds.py:105
+msgid "(no title)"
+msgstr "(geen titel)"
+
+#: config/calendar/cal.py:164
+#, python-brace-format
+msgid "+{p0} more"
+msgstr "+{p0} meer"
+
+#: config/calendar/cal.py:172 config/calendar/cal.py:174
+msgid "All day"
+msgstr "Hele dag"
+
+#: config/calendar/cal.py:172
+#, python-brace-format
+msgid "All day (day {p0} of {p1})"
+msgstr "Hele dag (dag {p0} van {p1})"
+
+#: config/calendar/cal.py:174
+msgid "From "
+msgstr "Vanaf "
+
+#: config/calendar/cal.py:174
+msgid "Until "
+msgstr "Tot "
+
+#: config/calendar/cal.py:27
+msgid "January February March April May June July August September October November December"
+msgstr "januari februari maart april mei juni juli augustus september oktober november december"
+
+#: config/calendar/cal.py:28 config/quicksettings/qs.py:107
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:15
+msgid "Mon Tue Wed Thu Fri Sat Sun"
+msgstr "ma di wo do vr za zo"
+
+#: config/calendar/cal.py:28
+msgid "Monday Tuesday Wednesday Thursday Friday Saturday Sunday"
+msgstr "maandag dinsdag woensdag donderdag vrijdag zaterdag zondag"
+
+#: config/calendar/cal.py:76 config/weather/wxcard.py:62
+msgid "Today"
+msgstr "Vandaag"
+
+#: config/calendar/cal.py:77
+msgid "Next month"
+msgstr "Volgende maand"
+
+#: config/calendar/cal.py:77
+msgid "Previous month"
+msgstr "Vorige maand"
+
+#: config/calendar/feeds.py:28
+msgid "Enter a valid link starting with http://, https:// or webcal://"
+msgstr "Voer een geldige link in die begint met http://, https:// of webcal://"
+
+#: config/calendar/feeds.py:34 config/calendar/feeds.py:84
+#: config/launcher/launcher.py:31 config/settings/instellingen.py:27
+#: config/shelf/shelf.py:155 config/welcome/welkom.py:221
+#: shell/polder-shelf/src/bin/polder-launcher.rs:25
+#: shell/polder-shelf/src/main.rs:123
+msgid "Calendar"
+msgstr "Agenda"
+
+#: config/calendar/feeds.py:44
+msgid "no iCalendar data (BEGIN:VCALENDAR missing)"
+msgstr "geen iCalendar-gegevens (BEGIN:VCALENDAR ontbreekt)"
+
+#: config/calendar/feeds.py:51
+#, python-brace-format
+msgid "Network error: {reason}"
+msgstr "Netwerkfout: {reason}"
+
+#: config/calendar/feeds.py:85
+msgid "Local"
+msgstr "Lokaal"
+
+#: config/capture/capture.py:114
+msgid "Capture"
+msgstr "Vastleggen"
+
+#: config/capture/capture.py:114
+msgid "Record"
+msgstr "Opnemen"
+
+#: config/capture/capture.py:117
+msgid "Click anywhere to "
+msgstr "Klik ergens om het "
+
+#: config/capture/capture.py:117
+msgid "capture the full screen"
+msgstr "volledige scherm vast te leggen"
+
+#: config/capture/capture.py:117
+msgid "record the full screen"
+msgstr "volledige scherm op te nemen"
+
+#: config/capture/capture.py:118
+msgid "Click a window to "
+msgstr "Klik op een venster om het "
+
+#: config/capture/capture.py:118
+msgid "capture it"
+msgstr "vast te leggen"
+
+#: config/capture/capture.py:118
+msgid "record it"
+msgstr "op te nemen"
+
+#: config/capture/capture.py:119
+msgid "Drag to select a region"
+msgstr "Sleep om een gedeelte te selecteren"
+
+#: config/capture/capture.py:184
+msgid "Screen recording (video)"
+msgstr "Schermopname (video)"
+
+#: config/capture/capture.py:184
+msgid "Screenshot"
+msgstr "Screenshot"
+
+#: config/capture/capture.py:189
+msgid "Full screen"
+msgstr "Volledig scherm"
+
+#: config/capture/capture.py:189
+msgid "Region"
+msgstr "Gedeelte"
+
+#: config/capture/capture.py:189 config/wm/winlist.py:112
+msgid "Window"
+msgstr "Venster"
+
+#: config/capture/capture.py:194 config/launcher/launcher.py:281
+#: config/settings/instellingen.py:81 config/settings/instellingen.py:88
+#: config/settings/instellingen.py:19 config/settings/instellingen.py:318
+#: config/shelf/shelf.py:121 config/wm/winlist.py:6 config/wm/winlist.py:41
+#: shell/polder-shelf/src/bin/polder-launcher.rs:272
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:177
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:297
+#: shell/polder-shelf/src/main.rs:170 config/settings/instellingen.desktop:3
+msgid "Settings"
+msgstr "Instellingen"
+
+#: config/capture/capture.py:196
+msgid "Close (Esc)"
+msgstr "Sluiten (Esc)"
+
+#: config/capture/capture.py:24
+msgid "Screen recordings"
+msgstr "Schermopnamen"
+
+#: config/capture/capture.py:24
+msgid "Videos"
+msgstr "Video's"
+
+#: config/capture/capture.py:247
+msgid "Save to"
+msgstr "Opslaan in"
+
+#: config/capture/capture.py:248 config/settings/instellingen.py:604
+#: config/settings/instellingen.py:462
+#: shell/polder-shelf/src/bin/polder-sluis.rs:445
+msgid "Choose"
+msgstr "Kiezen"
+
+#: config/capture/capture.py:252
+msgid " / Screen recordings"
+msgstr " / Schermopnamen"
+
+#: config/capture/capture.py:252
+#, python-brace-format
+msgid "Save to: {p0}"
+msgstr "Opslaan in: {p0}"
+
+#: config/capture/capture.py:253
+msgid "Change folder…"
+msgstr "Map wijzigen…"
+
+#: config/capture/capture.py:254
+msgid "Restore default folders"
+msgstr "Standaardmappen herstellen"
+
+#: config/capture/capture.py:255
+msgid "Show mouse pointer (video)"
+msgstr "Muisaanwijzer tonen (video)"
+
+#: config/capture/capture.py:279
+#, python-brace-format
+msgid "Screenshot {stamp}.png"
+msgstr "Schermafbeelding {stamp}.png"
+
+#: config/capture/capture.py:291
+msgid "Also copied to the clipboard."
+msgstr "Ook gekopieerd naar het klembord."
+
+#: config/capture/capture.py:291
+msgid "Saved; copying to the clipboard failed."
+msgstr "Opgeslagen; kopiëren naar het klembord is mislukt."
+
+#: config/capture/capture.py:291
+msgid "Screenshot taken"
+msgstr "Schermafbeelding gemaakt"
+
+#: config/capture/capture.py:294
+#, python-brace-format
+msgid "Screen recording {stamp}.mp4"
+msgstr "Schermopname {stamp}.mp4"
+
+#: config/capture/capture.py:321 config/capture/capture.py:258
+#: config/quicksettings/qs.py:65
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:102
+msgid "Screen capture"
+msgstr "Schermopname"
+
+#: config/capture/capture.py:321
+msgid "Show folder"
+msgstr "Map tonen"
+
+#: config/capture/capture.py:333 config/capture/capture.py:342
+msgid "Screen capture failed"
+msgstr "Schermopname mislukt"
+
+#: config/capture/capture.py:333
+msgid "Screen recording saved"
+msgstr "Schermopname opgeslagen"
+
+#: config/capture/capture.py:333
+#, python-brace-format
+msgid "See {p0}"
+msgstr "Zie {p0}"
+
+#: config/capture/capture.py:342
+msgid "The screen could not be captured."
+msgstr "Het scherm kon niet worden vastgelegd."
+
+#: config/capture/capture_backend.py:103
+msgid "Select a larger region to record."
+msgstr "Selecteer een groter gedeelte om op te nemen."
+
+#: config/capture/portal-chooser.py:14
+msgid "Share screen"
+msgstr "Scherm delen"
+
+#: config/capture/portal-chooser.py:25
+msgid ""
+"Choose the screen you want to share.\n"
+"Everything on this screen is visible to the app."
+msgstr ""
+"Kies het scherm dat je wilt delen.\n"
+"Alles op dit scherm is zichtbaar voor de app."
+
+#: config/clip/clipd.py:125 config/quicksettings/qs.py:222
+#: shell/polder-shelf/src/bin/polder-clipd.rs:150
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:226
+msgid "Clear all"
+msgstr "Alles wissen"
+
+#: config/clip/clipd.py:129 shell/polder-shelf/src/bin/polder-clipd.rs:155
+msgid ""
+"Nothing copied yet.\n"
+"Copy text or an image to find it here again."
+msgstr ""
+"Nog niets gekopieerd.\n"
+"Kopieer tekst of een afbeelding om die hier terug te vinden."
+
+#: config/clip/clipd.py:136
+#, python-brace-format
+msgid "Image {p0}×{p1}"
+msgstr "Afbeelding {p0}×{p1}"
+
+#: config/clip/clipd.py:141 config/settings/instellingen.py:330
+#: config/settings/instellingen.py:495 config/store/store.py:485
+#: shell/polder-shelf/src/bin/polder-clipd.rs:172
+msgid "Remove"
+msgstr "Verwijderen"
+
+#: config/clip/clipd.py:41 config/clip/clipd.py:123
+#: config/settings/instellingen.py:393
+#: shell/polder-shelf/src/bin/polder-clipd.rs:120
+#: shell/polder-shelf/src/bin/polder-clipd.rs:149
+msgid "Clipboard"
+msgstr "Klembord"
+
+#: config/iso/greeter/polderos-greeter.desktop:3
+msgid "Polder OS Greeter"
+msgstr "Polder OS Greeter"
+
+#: config/iso/greeter/polderos-greeter.desktop:4
+msgid "ChromeOS-style login screen for Polder OS"
+msgstr "ChromeOS-stijl inlogscherm voor Polder OS"
+
+#: config/iso/greeter/polderos-wayland.desktop:3
+msgid "Polder OS (Wayland development)"
+msgstr "Polder OS (Wayland development)"
+
+#: config/iso/greeter/polderos-wayland.desktop:4
+msgid "Polder OS on polder-comp; experimental Debian wlroots build"
+msgstr "Polder OS op polder-comp; experimentele Debian-wlroots-build"
+
+#: config/iso/greeter/polderos.desktop:4
+msgid "ChromeOS-like desktop"
+msgstr "ChromeOS-achtige desktop"
+
+#: config/launcher/launcher.py:127
+#: shell/polder-shelf/src/bin/polder-launcher.rs:363
+msgid "Polder Launcher"
+msgstr "Polder Launcher"
+
+#: config/launcher/launcher.py:141
+#: shell/polder-shelf/src/bin/polder-launcher.rs:375
+msgid "Search your device, apps, settings, the web…"
+msgstr "Zoek op je apparaat, in apps, instellingen, op internet…"
+
+#: config/launcher/launcher.py:199
+#: shell/polder-shelf/src/bin/polder-launcher.rs:182
+msgid "Pin to shelf"
+msgstr "Vastzetten aan plank"
+
+#: config/launcher/launcher.py:199
+#: shell/polder-shelf/src/bin/polder-launcher.rs:181
+msgid "Unpin from shelf"
+msgstr "Losmaken van plank"
+
+#: config/launcher/launcher.py:200 config/settings/instellingen.py:537
+#: config/settings/instellingen.py:667 config/settings/instellingen.py:712
+#: config/settings/instellingen.py:744 config/settings/instellingen.py:494
+#: config/store/store.py:484 shell/polder-shelf/src/bin/polder-launcher.rs:183
+msgid "Open"
+msgstr "Openen"
+
+#: config/launcher/launcher.py:201
+#: shell/polder-shelf/src/bin/polder-launcher.rs:184
+msgid "Sort by name"
+msgstr "Sorteren op naam"
+
+#: config/launcher/launcher.py:24
+#: shell/polder-shelf/src/bin/polder-launcher.rs:18
+msgid "Tour and first-run settings"
+msgstr "Rondleiding en eerste instellingen"
+
+#: config/launcher/launcher.py:24 config/settings/instellingen.py:713
+#: config/welcome/welkom.py:53 config/welcome/welkom.py:120
+#: shell/polder-shelf/src/bin/polder-launcher.rs:18
+msgid "Welcome to Polder OS"
+msgstr "Welkom bij Polder OS"
+
+#: config/launcher/launcher.py:24
+#: shell/polder-shelf/src/bin/polder-launcher.rs:18
+msgid "welcome tour first start introduction welkom rondleiding"
+msgstr "welkom welcome rondleiding tour eerste start introductie"
+
+#: config/launcher/launcher.py:25
+#: shell/polder-shelf/src/bin/polder-launcher.rs:19
+msgid "Keyboard · Ctrl+Alt+/"
+msgstr "Toetsenbord · Ctrl+Alt+/"
+
+#: config/launcher/launcher.py:25 config/settings/instellingen.py:390
+#: shell/polder-shelf/src/bin/polder-launcher.rs:19
+msgid "View keyboard shortcuts"
+msgstr "Sneltoetsen bekijken"
+
+#: config/launcher/launcher.py:25
+#: shell/polder-shelf/src/bin/polder-launcher.rs:19
+msgid "shortcuts shortcut keys keyboard sneltoetsen"
+msgstr "sneltoetsen sneltoets shortcuts toetscombinaties toetsen keyboard"
+
+#: config/launcher/launcher.py:26 config/launcher/launcher.py:27
+#: config/launcher/launcher.py:28 config/settings/instellingen.py:24
+#: config/settings/instellingen.py:242
+#: shell/polder-shelf/src/bin/polder-launcher.rs:20
+#: shell/polder-shelf/src/bin/polder-launcher.rs:21
+#: shell/polder-shelf/src/bin/polder-launcher.rs:22
+msgid "Personalization"
+msgstr "Personalisatie"
+
+#: config/launcher/launcher.py:26
+#: shell/polder-shelf/src/bin/polder-launcher.rs:20
+msgid "Theme: light, dark or automatic"
+msgstr "Thema: licht, donker of automatisch"
+
+#: config/launcher/launcher.py:26
+#: shell/polder-shelf/src/bin/polder-launcher.rs:20
+msgid "theme dark light mode automatic night thema donker licht"
+msgstr "thema donker licht dark light modus automatisch nacht"
+
+#: config/launcher/launcher.py:269
+msgid "  ·  Enter installs"
+msgstr "  ·  Enter installeert"
+
+#: config/launcher/launcher.py:269
+#: shell/polder-shelf/src/bin/polder-launcher.rs:247
+msgid "Icon and name come from the website"
+msgstr "Pictogram en naam komen van de website"
+
+#: config/launcher/launcher.py:269
+#, python-brace-format
+msgid "Install {p0} as an app"
+msgstr "{p0} als app installeren"
+
+#: config/launcher/launcher.py:269
+msgid "Name: "
+msgstr "Naam: "
+
+#: config/launcher/launcher.py:269
+#: shell/polder-shelf/src/bin/polder-launcher.rs:246
+msgid "Web app"
+msgstr "Webapp"
+
+#: config/launcher/launcher.py:27 config/settings/instellingen.py:272
+#: shell/polder-shelf/src/bin/polder-launcher.rs:21
+msgid "Wallpaper"
+msgstr "Achtergrond"
+
+#: config/launcher/launcher.py:27
+#: shell/polder-shelf/src/bin/polder-launcher.rs:21
+msgid "wallpaper background desktop polderheuvel achtergrond"
+msgstr "achtergrond wallpaper bureaublad polderheuvel"
+
+#: config/launcher/launcher.py:272 config/launcher/launcher.py:336
+#: shell/polder-shelf/src/bin/polder-launcher.rs:251
+#: shell/polder-shelf/src/bin/polder-launcher.rs:321
+msgid "Calculator"
+msgstr "Rekenmachine"
+
+#: config/launcher/launcher.py:272
+#: shell/polder-shelf/src/bin/polder-launcher.rs:252
+#, python-brace-format, rust-format
+msgid "{q}  ·  Enter copies the result"
+msgstr "{q}  ·  Enter kopieert het resultaat"
+
+#: config/launcher/launcher.py:276
+#: shell/polder-shelf/src/bin/polder-launcher.rs:262
+msgid "Apps"
+msgstr "Apps"
+
+#: config/launcher/launcher.py:28 config/settings/instellingen.py:251
+#: config/settings/instellingen.py:269 config/welcome/welkom.py:190
+#: shell/polder-shelf/src/bin/polder-launcher.rs:22
+msgid "Accent color"
+msgstr "Accentkleur"
+
+#: config/launcher/launcher.py:28
+#: shell/polder-shelf/src/bin/polder-launcher.rs:22
+msgid "accent color colors kleur"
+msgstr "accent kleur kleuren"
+
+#: config/launcher/launcher.py:282
+#: shell/polder-shelf/src/bin/polder-launcher.rs:274
+#, python-brace-format, rust-format
+msgid "Settings › {sub}"
+msgstr "Instellingen › {sub}"
+
+#: config/launcher/launcher.py:286 config/wm/winlist.py:5
+#: config/wm/winlist.py:90 config/wm/winlist.py:91
+#: shell/polder-shelf/src/bin/polder-launcher.rs:279
+#: config/files/files.desktop:2
+msgid "Files"
+msgstr "Bestanden"
+
+#: config/launcher/launcher.py:29 config/launcher/launcher.py:30
+#: config/settings/instellingen.py:26 config/settings/instellingen.py:308
+#: shell/polder-shelf/src/bin/polder-launcher.rs:23
+#: shell/polder-shelf/src/bin/polder-launcher.rs:24
+msgid "Notifications"
+msgstr "Meldingen"
+
+#: config/launcher/launcher.py:29
+#: shell/polder-shelf/src/bin/polder-launcher.rs:23
+msgid "notifications pop-ups popup meldingen"
+msgstr "meldingen notificaties pop-ups popup"
+
+#: config/launcher/launcher.py:290
+#: shell/polder-shelf/src/bin/polder-launcher.rs:284
+#, python-brace-format, rust-format
+msgid "{rel} · modified {when}"
+msgstr "{rel} · gewijzigd {when}"
+
+#: config/launcher/launcher.py:291 config/store/store.py:22
+#: shell/polder-shelf/src/bin/polder-launcher.rs:288
+#: shell/polder-shelf/src/bin/polder-sluis.rs:180
+msgid "Internet"
+msgstr "Internet"
+
+#: config/launcher/launcher.py:292
+#: shell/polder-shelf/src/bin/polder-launcher.rs:289
+msgid "Google in Chromium"
+msgstr "Google in Chromium"
+
+#: config/launcher/launcher.py:292
+#: shell/polder-shelf/src/bin/polder-launcher.rs:289
+#, python-brace-format, rust-format
+msgid "Search the web: {q}"
+msgstr "Zoeken op het web: {q}"
+
+#: config/launcher/launcher.py:30 config/quicksettings/qs.py:66
+#: config/settings/instellingen.py:314
+#: shell/polder-shelf/src/bin/polder-launcher.rs:24
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:103
+msgid "Do not disturb"
+msgstr "Niet storen"
+
+#: config/launcher/launcher.py:30
+#: shell/polder-shelf/src/bin/polder-launcher.rs:24
+msgid "do not disturb dnd silent niet storen"
+msgstr "niet storen dnd stil"
+
+#: config/launcher/launcher.py:31
+#: shell/polder-shelf/src/bin/polder-launcher.rs:25
+msgid "Calendar subscriptions (iCal)"
+msgstr "Agenda-abonnementen (iCal)"
+
+#: config/launcher/launcher.py:31
+#: shell/polder-shelf/src/bin/polder-launcher.rs:25
+msgid "calendar ical ics webcal holidays agenda"
+msgstr "agenda kalender ical ics webcal feestdagen"
+
+#: config/launcher/launcher.py:32 config/quicksettings/qs.py:64
+#: config/settings/instellingen.py:28 config/settings/instellingen.py:375
+#: config/shelf/shelf.py:166 shell/polder-shelf/src/bin/polder-launcher.rs:26
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:101
+#: shell/polder-shelf/src/main.rs:154
+msgid "Keyboard"
+msgstr "Toetsenbord"
+
+#: config/launcher/launcher.py:32 config/settings/instellingen.py:383
+#: config/shelf/shelf.py:153 shell/polder-shelf/src/bin/polder-launcher.rs:26
+#: shell/polder-shelf/src/main.rs:123
+msgid "Keyboard layout"
+msgstr "Toetsenbordindeling"
+
+#: config/launcher/launcher.py:32
+#: shell/polder-shelf/src/bin/polder-launcher.rs:26
+msgid "keyboard layout qwerty toetsenbord indeling"
+msgstr "toetsenbord keyboard indeling layout qwerty"
+
+#: config/launcher/launcher.py:33 config/settings/instellingen.py:29
+#: config/settings/instellingen.py:402
+#: shell/polder-shelf/src/bin/polder-launcher.rs:27
+msgid "Language and region"
+msgstr "Taal en regio"
+
+#: config/launcher/launcher.py:33
+#: shell/polder-shelf/src/bin/polder-launcher.rs:27
+msgid "Language: Nederlands / English"
+msgstr "Taal: Nederlands / English"
+
+#: config/launcher/launcher.py:33
+#: shell/polder-shelf/src/bin/polder-launcher.rs:27
+msgid "language taal english nederlands dutch locale region regio"
+msgstr "taal language nederlands english dutch locale regio region"
+
+#: config/launcher/launcher.py:336
+#: shell/polder-shelf/src/bin/polder-launcher.rs:321
+msgid "Copied"
+msgstr "Gekopieerd"
+
+#: config/launcher/launcher.py:34 config/settings/instellingen.py:30
+#: config/settings/instellingen.py:437
+#: shell/polder-shelf/src/bin/polder-launcher.rs:28
+msgid "Date and time"
+msgstr "Datum en tijd"
+
+#: config/launcher/launcher.py:34
+#: shell/polder-shelf/src/bin/polder-launcher.rs:28
+msgid "date time clock 24-hour hour datum tijd"
+msgstr "datum tijd klok 24-uurs uur"
+
+#: config/launcher/launcher.py:340
+#: shell/polder-shelf/src/bin/polder-launcher.rs:330
+msgid "Web app installed"
+msgstr "Webapp geïnstalleerd"
+
+#: config/launcher/launcher.py:340
+#, python-brace-format
+msgid "{p0} is now in the launcher"
+msgstr "{p0} staat nu in de launcher"
+
+#: config/launcher/launcher.py:341
+#: shell/polder-shelf/src/bin/polder-launcher.rs:333
+#: shell/polder-shelf/src/bin/polder-launcher.rs:334
+msgid "Installation failed"
+msgstr "Installeren mislukt"
+
+#: config/launcher/launcher.py:35 config/settings/instellingen.py:31
+#: config/settings/instellingen.py:446 config/shelf/shelf.py:154
+#: shell/polder-shelf/src/bin/polder-launcher.rs:29
+#: shell/polder-shelf/src/main.rs:123
+msgid "Weather"
+msgstr "Weer"
+
+#: config/launcher/launcher.py:35
+#: shell/polder-shelf/src/bin/polder-launcher.rs:29
+msgid "Weather location"
+msgstr "Weer-locatie"
+
+#: config/launcher/launcher.py:35
+#: shell/polder-shelf/src/bin/polder-launcher.rs:29
+msgid "weather location city place weer"
+msgstr "weer weather locatie stad plaats"
+
+#: config/launcher/launcher.py:36
+#: shell/polder-shelf/src/bin/polder-launcher.rs:30
+msgid "Install web apps"
+msgstr "Webapps installeren"
+
+#: config/launcher/launcher.py:36 config/launcher/launcher.py:340
+#: config/launcher/launcher.py:341 config/settings/instellingen.py:32
+#: shell/polder-shelf/src/bin/polder-launcher.rs:30
+#: shell/polder-shelf/src/bin/polder-launcher.rs:330
+#: shell/polder-shelf/src/bin/polder-launcher.rs:333
+#: shell/polder-shelf/src/bin/polder-launcher.rs:334
+msgid "Web apps"
+msgstr "Webapps"
+
+#: config/launcher/launcher.py:36
+#: shell/polder-shelf/src/bin/polder-launcher.rs:30
+msgid "webapp web apps pwa site app install"
+msgstr "webapp webapps pwa site app installeren"
+
+#: config/launcher/launcher.py:37 config/settings/instellingen.py:507
+#: shell/polder-shelf/src/bin/polder-launcher.rs:31
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:68
+msgid "Pair phone"
+msgstr "Telefoon koppelen"
+
+#: config/launcher/launcher.py:37 config/osb/phone.py:86 config/osb/phone.py:85
+#: config/quicksettings/qs.py:76 config/settings/instellingen.py:33
+#: config/settings/instellingen.py:502
+#: shell/polder-shelf/src/bin/polder-launcher.rs:31
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:254
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:261
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:76
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:78
+msgid "Phone"
+msgstr "Telefoon"
+
+#: config/launcher/launcher.py:38 config/settings/instellingen.py:34
+#: shell/polder-shelf/src/bin/polder-launcher.rs:32
+msgid "Assistant"
+msgstr "Assistent"
+
+#: config/launcher/launcher.py:38
+#: shell/polder-shelf/src/bin/polder-launcher.rs:32
+msgid "Polder Assistant and AI key"
+msgstr "Polder Assistent en AI-sleutel"
+
+#: config/launcher/launcher.py:38
+#: shell/polder-shelf/src/bin/polder-launcher.rs:32
+msgid "assistant ai openai gemini claude key assistent"
+msgstr "assistent assistant ai openai gemini claude sleutel key"
+
+#: config/launcher/launcher.py:39 config/settings/instellingen.py:571
+#: shell/polder-shelf/src/bin/polder-launcher.rs:33
+msgid "Polder Sync"
+msgstr "Polder Sync"
+
+#: config/launcher/launcher.py:39 config/settings/instellingen.py:35
+#: shell/polder-shelf/src/bin/polder-launcher.rs:33
+msgid "Sync"
+msgstr "Sync"
+
+#: config/launcher/launcher.py:39
+#: shell/polder-shelf/src/bin/polder-launcher.rs:33
+msgid "sync backup restore github nextcloud dropbox other pc synchroniseren"
+msgstr "sync synchroniseren back-up backup herstel github nextcloud dropbox andere pc"
+
+#: config/launcher/launcher.py:40 config/settings/instellingen.py:37
+#: config/settings/instellingen.py:697
+#: shell/polder-shelf/src/bin/polder-launcher.rs:34
+msgid "About Polder OS"
+msgstr "Over Polder OS"
+
+#: config/launcher/launcher.py:40
+#: shell/polder-shelf/src/bin/polder-launcher.rs:34
+msgid "Version, memory, system"
+msgstr "Versie, geheugen, systeem"
+
+#: config/launcher/launcher.py:40
+#: shell/polder-shelf/src/bin/polder-launcher.rs:34
+msgid "about version polder os system memory info"
+msgstr "over versie polder os systeem geheugen info"
+
+#: config/lock/lock-wayland.py:19 config/lock/lock.py:17
+#, python-brace-format
+msgid "Test account for this prototype box: {pw_name}"
+msgstr "Testaccount voor deze prototype-box: {pw_name}"
+
+#: config/lock/lock-wayland.py:19 config/lock/lock.py:17
+#: config/lock/polderos-greeter.py:25 config/lock/polderos-greeter.py:27
+msgid "User"
+msgstr "Gebruiker"
+
+#: config/lock/lock-wayland.py:39 config/lock/lock.py:40
+#: config/lock/lockui.py:179 config/lock/polderos-greeter.py:60
+msgid "Incorrect password"
+msgstr "Onjuist wachtwoord"
+
+#: config/lock/lock-wayland.py:41
+msgid "Password check not available"
+msgstr "Wachtwoordcontrole niet beschikbaar"
+
+#: config/lock/lock-wayland.py:51 config/lock/lock.py:50
+msgid "Shutting down is disabled in the prototype"
+msgstr "Uitschakelen is uitgeschakeld in het prototype"
+
+#: config/lock/lock-wayland.py:51 config/lock/lock.py:50
+msgid "Signing out is disabled in the prototype"
+msgstr "Afmelden is uitgeschakeld in het prototype"
+
+#: config/lock/lockui.py:100
+msgid "Caps Lock is on"
+msgstr "Caps Lock staat aan"
+
+#: config/lock/lockui.py:173 config/settings/instellingen.py:733
+msgid "Checking…"
+msgstr "Controleren…"
+
+#: config/lock/lockui.py:76 config/lock/polderos-greeter.py:14
+#: config/quicksettings/qs.py:323
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:285
+msgid "Shut down"
+msgstr "Uitschakelen"
+
+#: config/lock/lockui.py:76 config/quicksettings/qs.py:323
+#: config/settings/instellingen.py:424
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:285
+msgid "Sign out"
+msgstr "Afmelden"
+
+#: config/lock/lockui.py:79
+msgid "Polder OS locked"
+msgstr "Polder OS vergrendeld"
+
+#: config/lock/lockui.py:93 config/welcome/welkom.py:153
+msgid "Password"
+msgstr "Wachtwoord"
+
+#: config/lock/polderos-greeter.py:14 config/quicksettings/qs.py:323
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:285
+msgid "Restart"
+msgstr "Opnieuw opstarten"
+
+#: config/lock/polderos-greeter.py:28
+msgid "PREVIEW — not via LightDM, signing in is disabled"
+msgstr "VOORBEELDWEERGAVE — niet via LightDM, inloggen is uitgeschakeld"
+
+#: config/lock/polderos-greeter.py:38
+msgid "Desktop"
+msgstr "Bureaublad"
+
+#: config/lock/polderos-greeter.py:50
+msgid "Preview: signing in is not possible"
+msgstr "Voorbeeldweergave: inloggen niet mogelijk"
+
+#: config/lock/polderos-greeter.py:64
+#, python-brace-format
+msgid "Starting session failed: {message}"
+msgstr "Sessie starten mislukt: {message}"
+
+#: config/lock/polderos-greeter.py:67
+#, python-brace-format
+msgid "Preview: {action} not performed"
+msgstr "Voorbeeldweergave: {action} niet uitgevoerd"
+
+#: config/notify/osb-notifyd.py:152
+#: shell/polder-shelf/src/bin/polder-notifyd.rs:239
+#: shell/polder-shelf/src/theme.rs:100 config/iso/greeter/polderos.desktop:3
+msgid "Polder OS"
+msgstr "Polder OS"
+
+#: config/notify/osb-notifyd.py:152
+#: shell/polder-shelf/src/bin/polder-notifyd.rs:239
+msgid "Polder OS Notifications"
+msgstr "Polder OS Meldingen"
+
+#: config/notify/osb-notifyd.py:166 config/osb/osb-settingsd.py:29
+#: config/wm/shortcut_table.py:52 config/wm/shortcut_table.py:23
+#: config/wm/shortcut_table.py:24 config/wm/shortcut_table.py:25
+#: config/wm/shortcut_table.py:26 config/wm/shortcut_table.py:50
+#: shell/polder-shelf/src/bin/polder-notifyd.rs:175
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:179
+msgid "System"
+msgstr "Systeem"
+
+#: config/notify/osb-notifyd.py:90 config/shelf/shelf.py:398
+#: config/wm/overview.py:165 shell/polder-shelf/src/bin/polder-notifyd.rs:161
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:262
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:202
+#: shell/polder-shelf/src/bin/polder-sluis.rs:409
+#: shell/polder-shelf/src/main.rs:366
+msgid "Close"
+msgstr "Sluiten"
+
+#: config/osb/osb-settingsd.py:29
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:159
+msgid "Restart now"
+msgstr "Nu opnieuw opstarten"
+
+#: config/osb/osb-settingsd.py:30 config/quicksettings/qs.py:112
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:327
+msgid "Restart to update"
+msgstr "Opnieuw opstarten om bij te werken"
+
+#: config/osb/osb-settingsd.py:30
+msgid "Updates have been installed"
+msgstr "Er zijn updates geïnstalleerd"
+
+#: config/osb/osbsettings.py:43 shell/polder-shelf/src/theme.rs:102
+msgid "Dutch"
+msgstr "Nederlands"
+
+#: config/osb/osbsettings.py:43 shell/polder-shelf/src/theme.rs:102
+msgid "English (US)"
+msgstr "Engels (VS)"
+
+#: config/osb/osbsettings.py:43 shell/polder-shelf/src/theme.rs:102
+msgid "English (US, international)"
+msgstr "Engels (VS, internationaal)"
+
+#: config/osb/osbsettings.py:44 shell/polder-shelf/src/theme.rs:103
+msgid "Belgian"
+msgstr "Belgisch"
+
+#: config/osb/osbsettings.py:44 shell/polder-shelf/src/theme.rs:103
+msgid "English (UK)"
+msgstr "Engels (VK)"
+
+#: config/osb/osbsettings.py:44 shell/polder-shelf/src/theme.rs:103
+msgid "French"
+msgstr "Frans"
+
+#: config/osb/osbsettings.py:44 shell/polder-shelf/src/theme.rs:103
+msgid "German"
+msgstr "Duits"
+
+#: config/osb/phone.py:10
+msgid "Notifications from your phone appear here."
+msgstr "Meldingen van je telefoon verschijnen hier."
+
+#: config/osb/phone.py:10
+msgid "Sync notifications"
+msgstr "Meldingen synchroniseren"
+
+#: config/osb/phone.py:11
+msgid "Copied text goes back and forth automatically."
+msgstr "Gekopieerde tekst gaat automatisch heen en weer."
+
+#: config/osb/phone.py:11 shell/polder-shelf/src/bin/polder-phonehub.rs:148
+msgid "Share clipboard"
+msgstr "Klembord delen"
+
+#: config/osb/phone.py:12
+msgid "Receive files"
+msgstr "Bestanden ontvangen"
+
+#: config/osb/phone.py:12
+msgid "Shared files go into ~/Downloads."
+msgstr "Gedeelde bestanden komen in ~/Downloads."
+
+#: config/osb/phone.py:13
+msgid "Battery status"
+msgstr "Batterijstatus"
+
+#: config/osb/phone.py:13
+msgid "Your phone's battery in Quick Settings."
+msgstr "Batterij van je telefoon in Snelle instellingen."
+
+#: config/osb/phone.py:14 config/settings/instellingen.py:520
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:136
+msgid "Find phone"
+msgstr "Telefoon zoeken"
+
+#: config/osb/phone.py:14
+msgid "Make your phone ring, even on silent."
+msgstr "Laat je telefoon overgaan, ook op stil."
+
+#: config/osb/phone.py:85
+msgid "No phone connected"
+msgstr "Geen telefoon verbonden"
+
+#: config/osb/phone.py:85
+msgid "Pair your phone in Settings › Phone."
+msgstr "Koppel je telefoon in Instellingen › Telefoon."
+
+#: config/osb/phone.py:86
+#, python-brace-format
+msgid "Sent to {p0}"
+msgstr "Verstuurd naar {p0}"
+
+#: config/osb/wayland_display.py:116
+msgid "The previous display settings have already been restored."
+msgstr "De vorige beeldscherminstellingen zijn al hersteld."
+
+#: config/osb/wayland_display.py:118
+msgid "The confirmation time has expired."
+msgstr "De bevestigingstijd is verstreken."
+
+#: config/osb/wayland_display.py:23
+msgid "Displays could not be read."
+msgstr "Beeldschermen konden niet worden gelezen."
+
+#: config/osb/wayland_display.py:57
+msgid "Keep at least one display enabled."
+msgstr "Laat minstens één beeldscherm ingeschakeld."
+
+#: config/osb/wayland_display.py:63
+msgid "These display settings are not supported."
+msgstr "Deze beeldscherminstellingen worden niet ondersteund."
+
+#: config/osb/wayland_display.py:96
+msgid "Confirm the previous display change first."
+msgstr "Bevestig eerst de vorige beeldschermwijziging."
+
+#: config/quicksettings/qs.py:108 config/shelf/shelf.py:214
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:16
+#: shell/polder-shelf/src/main.rs:16
+msgid "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec"
+msgstr "jan feb mrt apr mei jun jul aug sep okt nov dec"
+
+#: config/quicksettings/qs.py:112
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:327
+msgid "Update"
+msgstr "Update"
+
+#: config/quicksettings/qs.py:220
+#, python-brace-format
+msgid "Notifications ({p0})"
+msgstr "Meldingen ({p0})"
+
+#: config/quicksettings/qs.py:322
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:283
+msgid "What do you want to do?"
+msgstr "Wat wil je doen?"
+
+#: config/quicksettings/qs.py:324
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:286
+msgid "Sleep"
+msgstr "Slaapstand"
+
+#: config/quicksettings/qs.py:333
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:299
+msgid "Locking or sleep failed. Please try again."
+msgstr "Vergrendelen of slaapstand is mislukt. Probeer het opnieuw."
+
+#: config/quicksettings/qs.py:333
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:299
+msgid "Sleep did not start"
+msgstr "Slaapstand niet gestart"
+
+#: config/quicksettings/qs.py:361
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:259
+msgid "Unknown title"
+msgstr "Onbekende titel"
+
+#: config/quicksettings/qs.py:368
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:264
+msgid "Pause"
+msgstr "Pauzeren"
+
+#: config/quicksettings/qs.py:368
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:264
+msgid "Play"
+msgstr "Afspelen"
+
+#: config/quicksettings/qs.py:369 config/welcome/welkom.py:64
+#: config/welcome/welkom.py:83
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:265
+msgid "Next"
+msgstr "Volgende"
+
+#: config/quicksettings/qs.py:369
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:263
+msgid "Previous"
+msgstr "Vorige"
+
+#: config/quicksettings/qs.py:47 config/quicksettings/qs.py:78
+#: config/settings/instellingen.py:512
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:119
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:38
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:79
+msgid "Connected"
+msgstr "Verbonden"
+
+#: config/quicksettings/qs.py:48
+msgid "Home network (demo)"
+msgstr "Thuisnetwerk (demo)"
+
+#: config/quicksettings/qs.py:57
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:91
+msgid "Wi‑Fi"
+msgstr "Wifi"
+
+#: config/quicksettings/qs.py:58
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:92
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+#: config/quicksettings/qs.py:60
+msgid "Night light"
+msgstr "Nachtlicht"
+
+#: config/quicksettings/qs.py:62 config/settings/instellingen.py:244
+#: config/welcome/welkom.py:181
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:95
+msgid "Automatic"
+msgstr "Automatisch"
+
+#: config/quicksettings/qs.py:62
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:94
+msgid "Dark theme"
+msgstr "Donker thema"
+
+#: config/quicksettings/qs.py:63 config/settings/instellingen.py:251
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:97
+msgid "Colors from wallpaper"
+msgstr "Kleuren uit achtergrond"
+
+#: config/quicksettings/qs.py:63 config/quicksettings/qs.py:47
+#: config/quicksettings/qs.py:60 config/quicksettings/qs.py:62
+#: config/quicksettings/qs.py:76
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:149
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:38
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:76
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:95
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:98
+msgid "Off"
+msgstr "Uit"
+
+#: config/quicksettings/qs.py:63 config/quicksettings/qs.py:60
+#: config/quicksettings/qs.py:62
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:149
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:95
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:98
+msgid "On"
+msgstr "Aan"
+
+#: config/quicksettings/qs.py:65
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:102
+msgid "Screenshot or video"
+msgstr "Screenshot of video"
+
+#: config/quicksettings/qs.py:76
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:78
+msgid "Not paired"
+msgstr "Niet gekoppeld"
+
+#: config/quicksettings/qs.py:78 config/settings/instellingen.py:512
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:119
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:79
+msgid "Unreachable"
+msgstr "Niet bereikbaar"
+
+#: config/settings/instellingen.desktop:5
+msgid "Polder OS settings"
+msgstr "Polder OS-instellingen"
+
+#: config/settings/instellingen.py:128
+msgid "The layout could not be applied."
+msgstr "Indeling kon niet worden toegepast."
+
+#: config/settings/instellingen.py:165
+msgid "Set up displays"
+msgstr "Beeldschermen instellen"
+
+#: config/settings/instellingen.py:167
+msgid "Open the display settings."
+msgstr "Open de beeldscherminstellingen."
+
+#: config/settings/instellingen.py:167
+msgid "Resolution and scale"
+msgstr "Resolutie en schaal"
+
+#: config/settings/instellingen.py:173
+msgid "Displays not available"
+msgstr "Beeldschermen niet beschikbaar"
+
+#: config/settings/instellingen.py:173
+msgid "Try again after the display is connected."
+msgstr "Probeer het opnieuw nadat het scherm is aangesloten."
+
+#: config/settings/instellingen.py:179
+msgid "Use display"
+msgstr "Beeldscherm gebruiken"
+
+#: config/settings/instellingen.py:183
+msgid "Resolution"
+msgstr "Resolutie"
+
+#: config/settings/instellingen.py:185
+msgid "Scale"
+msgstr "Schaal"
+
+#: config/settings/instellingen.py:185
+msgid "Size of text and controls."
+msgstr "Grootte van tekst en bedieningselementen."
+
+#: config/settings/instellingen.py:186
+msgid "Landscape"
+msgstr "Liggend"
+
+#: config/settings/instellingen.py:186
+msgid "Landscape flipped"
+msgstr "Liggend omgekeerd"
+
+#: config/settings/instellingen.py:186
+msgid "Portrait left"
+msgstr "Staand links"
+
+#: config/settings/instellingen.py:186
+msgid "Portrait right"
+msgstr "Staand rechts"
+
+#: config/settings/instellingen.py:187
+msgid "Mirrored"
+msgstr "Gespiegeld"
+
+#: config/settings/instellingen.py:188
+msgid "Orientation"
+msgstr "Oriëntatie"
+
+#: config/settings/instellingen.py:197
+msgid "Placement"
+msgstr "Plaatsing"
+
+#: config/settings/instellingen.py:197
+msgid "Position relative to the other displays."
+msgstr "Positie ten opzichte van de andere beeldschermen."
+
+#: config/settings/instellingen.py:199
+msgid "Apply"
+msgstr "Toepassen"
+
+#: config/settings/instellingen.py:208 config/settings/instellingen.py:506
+msgid "Refresh"
+msgstr "Vernieuwen"
+
+#: config/settings/instellingen.py:210
+msgid "Confirm within 15 seconds. Without confirmation the previous settings are restored."
+msgstr "Bevestig binnen 15 seconden. Zonder bevestiging worden de vorige instellingen hersteld."
+
+#: config/settings/instellingen.py:217
+msgid "Display change not applied"
+msgstr "Beeldschermwijziging niet toegepast"
+
+#: config/settings/instellingen.py:220
+msgid "Keep these display settings?"
+msgstr "Deze beeldscherminstellingen behouden?"
+
+#: config/settings/instellingen.py:221
+msgid "Keep"
+msgstr "Behouden"
+
+#: config/settings/instellingen.py:221
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:168
+msgid "Restore"
+msgstr "Herstellen"
+
+#: config/settings/instellingen.py:233
+#, python-brace-format
+msgid "The previous settings will be restored in {left} seconds."
+msgstr "De vorige instellingen worden over {left} seconden hersteld."
+
+#: config/settings/instellingen.py:244 config/welcome/welkom.py:181
+msgid "Dark"
+msgstr "Donker"
+
+#: config/settings/instellingen.py:244 config/welcome/welkom.py:181
+msgid "Light"
+msgstr "Licht"
+
+#: config/settings/instellingen.py:248
+#, python-brace-format
+msgid "Automatic: light from 07:00 to 19:00, dark after that. Now active: {eff}."
+msgstr "Automatisch: licht van 07:00 tot 19:00, daarna donker. Nu actief: {eff}."
+
+#: config/settings/instellingen.py:248 config/welcome/welkom.py:184
+msgid "Theme"
+msgstr "Thema"
+
+#: config/settings/instellingen.py:25 config/settings/instellingen.py:164
+#: config/settings/instellingen.py:173
+msgid "Displays"
+msgstr "Beeldschermen"
+
+#: config/settings/instellingen.py:254
+msgid "Colors"
+msgstr "Kleuren"
+
+#: config/settings/instellingen.py:254
+msgid "Colors from wallpaper: the system picks colors that match your wallpaper (light and dark)."
+msgstr "Kleuren uit achtergrond: het systeem kiest kleuren die passen bij je achtergrond (licht en donker)."
+
+#: config/settings/instellingen.py:257
+#, python-brace-format
+msgid "Color {p0} from wallpaper"
+msgstr "Kleur {p0} uit achtergrond"
+
+#: config/settings/instellingen.py:265 config/settings/instellingen.py:267
+msgid "Color from wallpaper"
+msgstr "Kleur uit achtergrond"
+
+#: config/settings/instellingen.py:265
+msgid "Not available (polder-dynamic-color is missing); the accent color is used."
+msgstr "Niet beschikbaar (polder-dynamic-color ontbreekt); de accentkleur wordt gebruikt."
+
+#: config/settings/instellingen.py:270
+msgid "Reduce animations when opening windows and in apps."
+msgstr "Verminder animaties bij het openen van vensters en in apps."
+
+#: config/settings/instellingen.py:270
+msgid "Reduce motion"
+msgstr "Minder beweging"
+
+#: config/settings/instellingen.py:279
+msgid " (dark: evening)"
+msgstr " (donker: avond)"
+
+#: config/settings/instellingen.py:282
+msgid "Screen lock"
+msgstr "Schermvergrendeling"
+
+#: config/settings/instellingen.py:283
+msgid "After this much time without keyboard/mouse input. Manually: Super+L or Lock in Quick Settings."
+msgstr "Na deze tijd zonder toetsenbord/muis. Handmatig: Super+L of Vergrendelen in Snelle instellingen."
+
+#: config/settings/instellingen.py:283
+msgid "Lock automatically"
+msgstr "Automatisch vergrendelen"
+
+#: config/settings/instellingen.py:284
+#, python-brace-format
+msgid "After {n} minutes"
+msgstr "Na {n} minuten"
+
+#: config/settings/instellingen.py:284
+msgid "Never"
+msgstr "Nooit"
+
+#: config/settings/instellingen.py:309
+msgid "Off: no more pop-ups appear."
+msgstr "Uit: er verschijnen geen pop-ups meer."
+
+#: config/settings/instellingen.py:309
+msgid "Show pop-ups"
+msgstr "Pop-ups weergeven"
+
+#: config/settings/instellingen.py:310
+msgid "Keep history when pop-ups are off"
+msgstr "Geschiedenis bewaren als pop-ups uit staan"
+
+#: config/settings/instellingen.py:310
+msgid "Notifications stay visible in Quick Settings."
+msgstr "Meldingen blijven zichtbaar in Snelle instellingen."
+
+#: config/settings/instellingen.py:314
+msgid "Same switch as in Quick Settings: pop-ups are suppressed, history is kept."
+msgstr "Zelfde schakelaar als in Snelle instellingen: pop-ups onderdrukt, geschiedenis blijft."
+
+#: config/settings/instellingen.py:315
+msgid "Applies to notifications that do not set their own duration."
+msgstr "Geldt voor meldingen die zelf geen duur opgeven."
+
+#: config/settings/instellingen.py:315
+msgid "Pop-up duration"
+msgstr "Duur van pop-ups"
+
+#: config/settings/instellingen.py:316
+#, python-brace-format
+msgid "{n} seconds"
+msgstr "{n} seconden"
+
+#: config/settings/instellingen.py:317
+msgid "Send test notification"
+msgstr "Testmelding sturen"
+
+#: config/settings/instellingen.py:318
+msgid "Test notification"
+msgstr "Testmelding"
+
+#: config/settings/instellingen.py:318
+msgid "This is what notifications look like."
+msgstr "Zo zien meldingen eruit."
+
+#: config/settings/instellingen.py:323
+msgid "Calendar subscriptions (iCal / ICS)"
+msgstr "Agenda-abonnementen (iCal / ICS)"
+
+#: config/settings/instellingen.py:324
+msgid "Add a public iCal link below (http, https or webcal)."
+msgstr "Voeg hieronder een openbare iCal-link toe (http, https of webcal)."
+
+#: config/settings/instellingen.py:324
+msgid "No calendars yet"
+msgstr "Nog geen agenda's"
+
+#: config/settings/instellingen.py:327
+#, python-brace-format
+msgid "Synced {p0} · {p1} items in feed"
+msgstr "Gesynchroniseerd {p0} · {p1} items in feed"
+
+#: config/settings/instellingen.py:328
+#, python-brace-format
+msgid " · last successful sync {p0}"
+msgstr " · laatste geslaagde sync {p0}"
+
+#: config/settings/instellingen.py:328
+#, python-brace-format
+msgid "Error on last attempt ({p0}): {p1}"
+msgstr "Fout bij laatste poging ({p0}): {p1}"
+
+#: config/settings/instellingen.py:329
+msgid "Not synced yet"
+msgstr "Nog niet gesynchroniseerd"
+
+#: config/settings/instellingen.py:336
+msgid "Add calendar"
+msgstr "Agenda toevoegen"
+
+#: config/settings/instellingen.py:338
+msgid "Name, e.g. Holidays"
+msgstr "Naam, bijv. Feestdagen"
+
+#: config/settings/instellingen.py:340 config/welcome/welkom.py:209
+msgid "Add"
+msgstr "Toevoegen"
+
+#: config/settings/instellingen.py:344
+msgid "Synchronization"
+msgstr "Synchronisatie"
+
+#: config/settings/instellingen.py:345
+msgid "Every hour"
+msgstr "Elk uur"
+
+#: config/settings/instellingen.py:345
+#, python-brace-format
+msgid "Every {m} minutes"
+msgstr "Elke {m} minuten"
+
+#: config/settings/instellingen.py:345
+#, python-brace-format
+msgid "Every {p0} hours"
+msgstr "Elke {p0} uur"
+
+#: config/settings/instellingen.py:345
+msgid "Refresh automatically"
+msgstr "Automatisch vernieuwen"
+
+#: config/settings/instellingen.py:348
+msgid "Refreshing…"
+msgstr "Bezig met vernieuwen…"
+
+#: config/settings/instellingen.py:349
+msgid "Fetches all calendars again right away."
+msgstr "Haalt alle agenda's direct opnieuw op."
+
+#: config/settings/instellingen.py:349 config/settings/instellingen.py:347
+msgid "Refresh now"
+msgstr "Nu vernieuwen"
+
+#: config/settings/instellingen.py:351
+msgid "Local calendar"
+msgstr "Lokale agenda"
+
+#: config/settings/instellingen.py:36 config/settings/instellingen.py:666
+#: config/settings/instellingen.py:660
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:284
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:291
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:314
+#: safeharbor/xdg/polder-safeharbor.desktop:3
+msgid "SafeHarbor"
+msgstr "SafeHarbor"
+
+#: config/settings/instellingen.py:377
+msgid "Changes apply immediately to connected keyboards."
+msgstr "Wijzigingen gelden direct voor aangesloten toetsenborden."
+
+#: config/settings/instellingen.py:38
+msgid "Blue"
+msgstr "Blauw"
+
+#: config/settings/instellingen.py:38
+msgid "Gray"
+msgstr "Grijs"
+
+#: config/settings/instellingen.py:38
+msgid "Green"
+msgstr "Groen"
+
+#: config/settings/instellingen.py:38
+msgid "Orange"
+msgstr "Oranje"
+
+#: config/settings/instellingen.py:38
+msgid "Purple"
+msgstr "Paars"
+
+#: config/settings/instellingen.py:38
+msgid "Red"
+msgstr "Rood"
+
+#: config/settings/instellingen.py:380 config/settings/instellingen.py:128
+msgid "Active: "
+msgstr "Actief: "
+
+#: config/settings/instellingen.py:386
+msgid "Type here to test the layout"
+msgstr "Typ hier om de indeling te testen"
+
+#: config/settings/instellingen.py:387
+msgid "Test field"
+msgstr "Testveld"
+
+#: config/settings/instellingen.py:389 config/shelf/shelf.py:122
+#: config/shelf/shelf.py:165 config/shortcuts/sneltoetsen.py:71
+#: config/shortcuts/sneltoetsen.py:83 shell/polder-shelf/src/main.rs:153
+#: shell/polder-shelf/src/main.rs:171
+msgid "Keyboard shortcuts"
+msgstr "Sneltoetsen"
+
+#: config/settings/instellingen.py:392
+msgid "Also with Ctrl+Alt+/."
+msgstr "Ook met Ctrl+Alt+/."
+
+#: config/settings/instellingen.py:392
+msgid "Overview of all keyboard shortcuts"
+msgstr "Overzicht van alle sneltoetsen"
+
+#: config/settings/instellingen.py:394
+msgid "Clipboard history"
+msgstr "Klembordgeschiedenis"
+
+#: config/settings/instellingen.py:394
+msgid "Super+V shows the last 10 copied items (text and images). Passwords from password managers are skipped."
+msgstr "Super+V toont de laatste 10 gekopieerde items (tekst en afbeeldingen). Wachtwoorden uit wachtwoordmanagers worden overgeslagen."
+
+#: config/settings/instellingen.py:396
+msgid "Clear history"
+msgstr "Geschiedenis wissen"
+
+#: config/settings/instellingen.py:398
+msgid "Clear clipboard history"
+msgstr "Klembordgeschiedenis wissen"
+
+#: config/settings/instellingen.py:398
+msgid "Removes all stored items."
+msgstr "Verwijdert alle opgeslagen items."
+
+#: config/settings/instellingen.py:404
+#, python-brace-format
+msgid "Follow system language ({name})"
+msgstr "Systeemtaal volgen ({name})"
+
+#: config/settings/instellingen.py:415
+msgid "Applies to all Polder OS components. By default Polder OS follows the system language."
+msgstr "Geldt voor alle Polder OS-onderdelen. Standaard volgt Polder OS de systeemtaal."
+
+#: config/settings/instellingen.py:415
+msgid "Language of Polder OS"
+msgstr "Taal van Polder OS"
+
+#: config/settings/instellingen.py:422
+msgid "Language changed"
+msgstr "Taal gewijzigd"
+
+#: config/settings/instellingen.py:422
+msgid "Shelf, launcher and notifications have been restarted in the new language. Apps that are already open use it after you reopen them."
+msgstr "Plank, launcher en meldingen zijn opnieuw gestart in de nieuwe taal. Apps die al open zijn gebruiken hem nadat je ze opnieuw opent."
+
+#: config/settings/instellingen.py:426
+msgid "Sign in again"
+msgstr "Opnieuw aanmelden"
+
+#: config/settings/instellingen.py:426
+msgid "Sign out and sign in again to use the new language everywhere."
+msgstr "Meld je af en weer aan om de nieuwe taal overal te gebruiken."
+
+#: config/settings/instellingen.py:427
+msgid "Set for the whole system"
+msgstr "Voor het hele systeem instellen"
+
+#: config/settings/instellingen.py:431
+msgid "Could not set the system language: "
+msgstr "Kon de systeemtaal niet instellen: "
+
+#: config/settings/instellingen.py:431
+msgid "System language set; the login screen and boot menu use it from the next start."
+msgstr "Systeemtaal ingesteld; het inlogscherm en het opstartmenu gebruiken hem vanaf de volgende start."
+
+#: config/settings/instellingen.py:434
+msgid "Also use this language for the login screen, the boot menu (SafeHarbor) and new users. Asks for your password."
+msgstr "Gebruik deze taal ook voor het inlogscherm, het opstartmenu (SafeHarbor) en nieuwe gebruikers. Vraagt om je wachtwoord."
+
+#: config/settings/instellingen.py:434
+msgid "Login screen and boot menu"
+msgstr "Inlogscherm en opstartmenu"
+
+#: config/settings/instellingen.py:439
+msgid "Current time"
+msgstr "Huidige tijd"
+
+#: config/settings/instellingen.py:439
+#, python-brace-format
+msgid "{p0} · time zone {tz} (system clock)"
+msgstr "{p0} · tijdzone {tz} (systeemklok)"
+
+#: config/settings/instellingen.py:440
+msgid "Shelf and calendar."
+msgstr "Plank en agenda."
+
+#: config/settings/instellingen.py:440
+msgid "Use 24-hour format"
+msgstr "24-uursnotatie gebruiken"
+
+#: config/settings/instellingen.py:441
+msgid "Show date on the shelf"
+msgstr "Datum op de plank tonen"
+
+#: config/settings/instellingen.py:441
+msgid "The date box opens the calendar."
+msgstr "Het datumvakje opent de agenda."
+
+#: config/settings/instellingen.py:447
+msgid " (default)"
+msgstr " (standaard)"
+
+#: config/settings/instellingen.py:449
+#, python-brace-format
+msgid "{p0}° {p1} · updated {p2}"
+msgstr "{p0}° {p1} · bijgewerkt {p2}"
+
+#: config/settings/instellingen.py:450
+msgid "No current data (offline or not fetched yet); the weather box on the shelf is hidden."
+msgstr "Geen actuele gegevens (offline of nog niet opgehaald); het weervakje op de plank is verborgen."
+
+#: config/settings/instellingen.py:451
+msgid " · source: Open-Meteo (KNMI/ECMWF), every 30 min"
+msgstr " · bron: Open-Meteo (KNMI/ECMWF), elke 30 min"
+
+#: config/settings/instellingen.py:451
+msgid "Location"
+msgstr "Locatie"
+
+#: config/settings/instellingen.py:451 config/settings/instellingen.py:581
+#: config/settings/instellingen.py:514
+msgid "Status"
+msgstr "Status"
+
+#: config/settings/instellingen.py:452
+msgid "Search"
+msgstr "Zoeken"
+
+#: config/settings/instellingen.py:452
+msgid "Search for a place, e.g. Utrecht"
+msgstr "Zoek een plaats, bijv. Utrecht"
+
+#: config/settings/instellingen.py:459
+msgid "Search failed"
+msgstr "Zoeken mislukt"
+
+#: config/settings/instellingen.py:460
+msgid "No places found"
+msgstr "Geen plaatsen gevonden"
+
+#: config/settings/instellingen.py:470
+msgid "Install website as app"
+msgstr "Website als app installeren"
+
+#: config/settings/instellingen.py:471
+msgid "Web address, e.g. music.youtube.com"
+msgstr "Webadres, bijv. music.youtube.com"
+
+#: config/settings/instellingen.py:472 config/settings/instellingen.py:646
+#: config/store/store.py:489
+msgid "Install"
+msgstr "Installeren"
+
+#: config/settings/instellingen.py:472
+msgid "Name (optional)"
+msgstr "Naam (optioneel)"
+
+#: config/settings/instellingen.py:475
+msgid "Opens in its own window with its own icon on the shelf. The icon comes from the website itself."
+msgstr "Opent in een eigen venster met eigen pictogram op de plank. Het pictogram komt van de website zelf."
+
+#: config/settings/instellingen.py:478
+msgid "Installing…"
+msgstr "Bezig met installeren…"
+
+#: config/settings/instellingen.py:480
+#, python-brace-format
+msgid "‘{p0}’ installed (icon: {p1})."
+msgstr "‘{p0}’ geïnstalleerd (pictogram: {p1})."
+
+#: config/settings/instellingen.py:481
+#, python-brace-format
+msgid "Installation failed: {ex}"
+msgstr "Installeren mislukt: {ex}"
+
+#: config/settings/instellingen.py:486
+msgid "Installed web apps"
+msgstr "Geïnstalleerde webapps"
+
+#: config/settings/instellingen.py:487
+msgid "No web apps yet"
+msgstr "Nog geen webapps"
+
+#: config/settings/instellingen.py:495
+#, python-brace-format
+msgid "‘{p0}’ removed."
+msgstr "‘{p0}’ verwijderd."
+
+#: config/settings/instellingen.py:504
+msgid "Install the kdeconnect package (included in the Polder OS ISO)."
+msgstr "Installeer het pakket kdeconnect (zit in de Polder OS ISO)."
+
+#: config/settings/instellingen.py:504
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:57
+msgid "KDE Connect is not installed"
+msgstr "KDE Connect is niet geïnstalleerd"
+
+#: config/settings/instellingen.py:507
+msgid "Install the \"KDE Connect\" app on your Android phone or iPhone and make sure both are on the same Wi‑Fi network."
+msgstr "Installeer de app \"KDE Connect\" op je Android-telefoon of iPhone en zorg dat beide op hetzelfde wifi-netwerk zitten."
+
+#: config/settings/instellingen.py:512
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:123
+msgid " (charging)"
+msgstr " (laadt op)"
+
+#: config/settings/instellingen.py:512
+#, python-brace-format
+msgid " · battery {p0}%"
+msgstr " · batterij {p0}%"
+
+#: config/settings/instellingen.py:513
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:173
+msgid "Unpair"
+msgstr "Ontkoppelen"
+
+#: config/settings/instellingen.py:519
+msgid "Ring"
+msgstr "Laten overgaan"
+
+#: config/settings/instellingen.py:520
+msgid "Your phone rings, even when it is on silent."
+msgstr "Je telefoon gaat over, ook als hij op stil staat."
+
+#: config/settings/instellingen.py:521
+msgid "Available devices"
+msgstr "Beschikbare apparaten"
+
+#: config/settings/instellingen.py:522
+msgid "Could not start kdeconnectd."
+msgstr "Kon kdeconnectd niet starten."
+
+#: config/settings/instellingen.py:522
+msgid "KDE Connect service is not running"
+msgstr "KDE Connect-dienst draait niet"
+
+#: config/settings/instellingen.py:523
+msgid "No devices found"
+msgstr "Geen apparaten gevonden"
+
+#: config/settings/instellingen.py:523
+msgid "Open KDE Connect on your phone. Firewall: ports 1714–1764 (TCP/UDP) must be open."
+msgstr "Open KDE Connect op je telefoon. Firewall: poorten 1714–1764 (TCP/UDP) moeten open staan."
+
+#: config/settings/instellingen.py:526
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:83
+msgid "Accept"
+msgstr "Accepteren"
+
+#: config/settings/instellingen.py:527
+msgid "Pairing request received"
+msgstr "Koppelverzoek ontvangen"
+
+#: config/settings/instellingen.py:527
+#, python-brace-format
+msgid "Pairing request · check that this code is also shown on your phone: {p0}"
+msgstr "Koppelverzoek · controleer dat deze code ook op je telefoon staat: {p0}"
+
+#: config/settings/instellingen.py:529
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:87
+msgid "Pair"
+msgstr "Koppelen"
+
+#: config/settings/instellingen.py:530
+#, python-brace-format
+msgid " · code {p0}"
+msgstr " · code {p0}"
+
+#: config/settings/instellingen.py:530
+msgid "Ready to pair"
+msgstr "Klaar om te koppelen"
+
+#: config/settings/instellingen.py:537
+msgid "Super+A. Local commands (theme, volume, Wi‑Fi, apps, weather, files…) always work, without a key and without internet."
+msgstr "Super+A. Lokale opdrachten (thema, volume, wifi, apps, weer, bestanden…) werken altijd, zonder sleutel en zonder internet."
+
+#: config/settings/instellingen.py:538
+msgid "AI service (optional)"
+msgstr "AI-dienst (optioneel)"
+
+#: config/settings/instellingen.py:539
+msgid "None (local only)"
+msgstr "Geen (alleen lokaal)"
+
+#: config/settings/instellingen.py:541
+msgid "Free-form questions go to this service; the AI can perform the same system actions (it asks first before locking or turning Wi‑Fi/Bluetooth off)."
+msgstr "Vrije vragen gaan naar deze dienst; de AI kan dezelfde systeemacties uitvoeren (vraagt eerst bij vergrendelen of wifi/bluetooth uit)."
+
+#: config/settings/instellingen.py:541
+msgid "Service"
+msgstr "Dienst"
+
+#: config/settings/instellingen.py:543
+msgid "A local model (e.g. via Ollama) is not supported yet."
+msgstr "Een lokaal model (bv. via Ollama) wordt nog niet ondersteund."
+
+#: config/settings/instellingen.py:543
+msgid "Local model"
+msgstr "Lokaal model"
+
+#: config/settings/instellingen.py:545
+msgid "Paste API key"
+msgstr "API-sleutel plakken"
+
+#: config/settings/instellingen.py:546
+msgid "GNOME keyring"
+msgstr "GNOME-sleutelbos"
+
+#: config/settings/instellingen.py:546
+msgid "~/.config/osb/assistant-keys (only you can read it)"
+msgstr "~/.config/osb/assistant-keys (alleen jij kunt het lezen)"
+
+#: config/settings/instellingen.py:547
+#, python-brace-format
+msgid " · stored in {where}"
+msgstr " · opgeslagen in {where}"
+
+#: config/settings/instellingen.py:547
+msgid "API key"
+msgstr "API-sleutel"
+
+#: config/settings/instellingen.py:547 config/settings/instellingen.py:641
+msgid "Not set yet"
+msgstr "Nog niet ingesteld"
+
+#: config/settings/instellingen.py:547 config/settings/instellingen.py:641
+msgid "Set"
+msgstr "Ingesteld"
+
+#: config/settings/instellingen.py:549
+#, python-brace-format
+msgid "Default: {p0}"
+msgstr "Standaard: {p0}"
+
+#: config/settings/instellingen.py:549
+msgid "Model"
+msgstr "Model"
+
+#: config/settings/instellingen.py:550 config/settings/instellingen.py:638
+msgid "Save"
+msgstr "Opslaan"
+
+#: config/settings/instellingen.py:551
+msgid "Test"
+msgstr "Testen"
+
+#: config/settings/instellingen.py:553
+msgid "Connection"
+msgstr "Verbinding"
+
+#: config/settings/instellingen.py:553
+msgid "Test makes one small real API call."
+msgstr "Test doet één kleine echte API-aanroep."
+
+#: config/settings/instellingen.py:557
+msgid "Key removed"
+msgstr "Sleutel verwijderd"
+
+#: config/settings/instellingen.py:557
+msgid "Key stored in "
+msgstr "Sleutel opgeslagen in "
+
+#: config/settings/instellingen.py:560
+msgid "Testing…"
+msgstr "Testen…"
+
+#: config/settings/instellingen.py:562
+msgid "No key entered."
+msgstr "Geen sleutel ingevuld."
+
+#: config/settings/instellingen.py:572
+msgid "Synchronize"
+msgstr "Synchroniseren"
+
+#: config/settings/instellingen.py:572
+msgid "Theme, accent, wallpaper, notifications, lock, clock, keyboard, pinned apps, web apps, weather location, calendar links, assistant service and Store apps. Never: API keys, passphrase, clipboard."
+msgstr "Thema, accent, achtergrond, meldingen, vergrendelen, klok, toetsenbord, vastgezette apps, webapps, weer-locatie, agenda-links, assistent-dienst en Store-apps. Nooit: API-sleutels, wachtzin, klembord."
+
+#: config/settings/instellingen.py:574
+msgid "Syncing…"
+msgstr "Bezig met synchroniseren…"
+
+#: config/settings/instellingen.py:575
+msgid "Error: "
+msgstr "Fout: "
+
+#: config/settings/instellingen.py:576
+#, python-brace-format
+msgid "Last: {p0} · {p1}"
+msgstr "Laatst: {p0} · {p1}"
+
+#: config/settings/instellingen.py:576
+msgid "Never synced"
+msgstr "Nog nooit gesynchroniseerd"
+
+#: config/settings/instellingen.py:578
+msgid "Sync now"
+msgstr "Nu synchroniseren"
+
+#: config/settings/instellingen.py:579
+msgid "Restore from another PC"
+msgstr "Herstel van andere pc"
+
+#: config/settings/instellingen.py:585
+msgid "Take over settings from your other PC?"
+msgstr "Instellingen van je andere pc overnemen?"
+
+#: config/settings/instellingen.py:586
+msgid "All synced settings will be replaced by the stored version. A backup is made first."
+msgstr "Alle gesynchroniseerde instellingen worden vervangen door de opgeslagen versie. Er wordt eerst een back-up gemaakt."
+
+#: config/settings/instellingen.py:597
+msgid "Storage"
+msgstr "Opslag"
+
+#: config/settings/instellingen.py:598
+msgid "A folder (Nextcloud, Dropbox, rclone mount, USB) or a private git repo (GitHub)."
+msgstr "Een map (Nextcloud, Dropbox, rclone-koppeling, USB) of een privé git-repo (GitHub)."
+
+#: config/settings/instellingen.py:598
+msgid "Where"
+msgstr "Waar"
+
+#: config/settings/instellingen.py:599
+msgid "Git / GitHub"
+msgstr "Git / GitHub"
+
+#: config/settings/instellingen.py:601
+msgid "Choose…"
+msgstr "Kiezen…"
+
+#: config/settings/instellingen.py:603
+msgid "Choose sync folder"
+msgstr "Sync-map kiezen"
+
+#: config/settings/instellingen.py:608
+msgid " · files go into the polder-sync/ subfolder"
+msgstr " · bestanden komen in de submap polder-sync/"
+
+#: config/settings/instellingen.py:608 config/settings/instellingen.py:599
+msgid "Folder"
+msgstr "Map"
+
+#: config/settings/instellingen.py:608
+#: shell/polder-shelf/src/bin/polder-sluis.rs:437
+msgid "No folder chosen yet"
+msgstr "Nog geen map gekozen"
+
+#: config/settings/instellingen.py:613
+msgid "Repository URL"
+msgstr "Repository-URL"
+
+#: config/settings/instellingen.py:613
+msgid "Use a PRIVATE repo. Enter = save."
+msgstr "Gebruik een PRIVÉ repo. Enter = opslaan."
+
+#: config/settings/instellingen.py:617
+msgid "Sign in to GitHub"
+msgstr "Inloggen bij GitHub"
+
+#: config/settings/instellingen.py:618
+msgid "GitHub sign-in"
+msgstr "GitHub inloggen"
+
+#: config/settings/instellingen.py:619
+msgid "Done, you can close this window."
+msgstr "Klaar, je kunt dit venster sluiten."
+
+#: config/settings/instellingen.py:620
+msgid "Create private repo"
+msgstr "Privé-repo maken"
+
+#: config/settings/instellingen.py:622
+msgid "Polder OS settings (Polder Sync)"
+msgstr "Polder OS instellingen (Polder Sync)"
+
+#: config/settings/instellingen.py:625
+msgid "Creating repo failed: "
+msgstr "Repo maken mislukt: "
+
+#: config/settings/instellingen.py:629
+msgid "GitHub CLI (gh) is not installed."
+msgstr "GitHub CLI (gh) is niet geïnstalleerd."
+
+#: config/settings/instellingen.py:629
+msgid "Sign in through your browser with a code (GitHub device login)."
+msgstr "Log in via je browser met een code (GitHub device-login)."
+
+#: config/settings/instellingen.py:629
+msgid "Signed in to GitHub (gh)."
+msgstr "Ingelogd bij GitHub (gh)."
+
+#: config/settings/instellingen.py:631
+msgid "GitHub"
+msgstr "GitHub"
+
+#: config/settings/instellingen.py:633
+msgid "Encryption"
+msgstr "Versleuteling"
+
+#: config/settings/instellingen.py:634
+msgid "Encrypt with passphrase"
+msgstr "Versleutelen met wachtzin"
+
+#: config/settings/instellingen.py:634
+msgid "Everything is encrypted on this PC (scrypt + AES/Fernet) before it reaches the folder or repo. Without the passphrase nobody can read it, not even you."
+msgstr "Alles wordt op deze pc versleuteld (scrypt + AES/Fernet) voordat het de map of repo bereikt. Zonder wachtzin kan niemand het lezen, ook jij niet."
+
+#: config/settings/instellingen.py:637 config/settings/instellingen.py:641
+msgid "Passphrase"
+msgstr "Wachtzin"
+
+#: config/settings/instellingen.py:641
+msgid " · use the same passphrase on every PC. It is never synced."
+msgstr " · gebruik op elke pc dezelfde wachtzin. Wordt nooit gesynchroniseerd."
+
+#: config/settings/instellingen.py:645
+msgid "Apps from your other PC"
+msgstr "Apps van je andere pc"
+
+#: config/settings/instellingen.py:649
+msgid "Restore apps"
+msgstr "Apps herstellen"
+
+#: config/settings/instellingen.py:650
+#, python-brace-format
+msgid "{p0} app(s) not installed yet"
+msgstr "{p0} app(s) nog niet geïnstalleerd"
+
+#: config/settings/instellingen.py:653
+msgid "Backups"
+msgstr "Back-ups"
+
+#: config/settings/instellingen.py:654
+msgid "Open folder"
+msgstr "Map openen"
+
+#: config/settings/instellingen.py:655
+msgid "Before every sync that overwrites something, your old state is kept (last 10). For each setting the newest change wins."
+msgstr "Voor elke synchronisatie die iets overschrijft, wordt je oude toestand bewaard (laatste 10). Per instelling wint de nieuwste wijziging."
+
+#: config/settings/instellingen.py:655
+#, python-brace-format
+msgid "{nb2} backup(s)"
+msgstr "{nb2} back-up(s)"
+
+#: config/settings/instellingen.py:660
+msgid "Getting status…"
+msgstr "Status ophalen…"
+
+#: config/settings/instellingen.py:662
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:41
+msgid "SafeHarbor is not installed on this system."
+msgstr "SafeHarbor is op dit systeem niet geïnstalleerd."
+
+#: config/settings/instellingen.py:670
+msgid "Not available"
+msgstr "Niet beschikbaar"
+
+#: config/settings/instellingen.py:671
+msgid "Polder OS automatically creates a restore point before every update, so you can go back with one click. For this, Polder OS must be installed on a btrfs disk with the SafeHarbor layout."
+msgstr "Polder OS maakt vóór elke update automatisch een herstelpunt, zodat je met één klik terug kunt. Daarvoor moet Polder OS op een btrfs-schijf met de SafeHarbor-indeling staan."
+
+#: config/settings/instellingen.py:671
+msgid "What is SafeHarbor?"
+msgstr "Wat is SafeHarbor?"
+
+#: config/settings/instellingen.py:675
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:315
+msgid "Open SafeHarbor to restore an earlier version."
+msgstr "Open SafeHarbor om een eerdere versie te herstellen."
+
+#: config/settings/instellingen.py:675
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:215
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:315
+msgid "The previous boot did not succeed"
+msgstr "Het vorige opstarten is niet gelukt"
+
+#: config/settings/instellingen.py:677
+msgid "Read-only. Open SafeHarbor to make it your permanent version."
+msgstr "Alleen-lezen. Open SafeHarbor om er je vaste versie van te maken."
+
+#: config/settings/instellingen.py:677
+#, python-brace-format
+msgid "You are using an earlier version (restore point {p0})"
+msgstr "Je gebruikt een eerdere versie (herstelpunt {p0})"
+
+#: config/settings/instellingen.py:678
+msgid "No restore points yet."
+msgstr "Nog geen herstelpunten."
+
+#: config/settings/instellingen.py:678
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:297
+msgid "Restore points"
+msgstr "Herstelpunten"
+
+#: config/settings/instellingen.py:678
+#, python-brace-format
+msgid "{p0} kept · latest: {p1} ({p2})"
+msgstr "{p0} bewaard · laatste: {p1} ({p2})"
+
+#: config/settings/instellingen.py:681
+msgid "Also for automatic updates and Polder updates."
+msgstr "Ook bij automatische updates en Polder-updates."
+
+#: config/settings/instellingen.py:681
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:266
+msgid "Restore point before every update"
+msgstr "Herstelpunt vóór elke update"
+
+#: config/settings/instellingen.py:686
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:274
+msgid "Number of restore points to keep"
+msgstr "Aantal herstelpunten bewaren"
+
+#: config/settings/instellingen.py:686
+msgid "Older points are cleaned up automatically."
+msgstr "Oudere punten worden automatisch opgeruimd."
+
+#: config/settings/instellingen.py:686
+#, python-brace-format
+msgid "{n} restore points"
+msgstr "{n} herstelpunten"
+
+#: config/settings/instellingen.py:706
+msgid "A ChromeOS-like Linux desktop, built on Debian"
+msgstr "Een ChromeOS-achtige Linux-desktop, gebouwd op Debian"
+
+#: config/settings/instellingen.py:708
+msgid "Base"
+msgstr "Basis"
+
+#: config/settings/instellingen.py:709
+msgid "Kernel"
+msgstr "Kernel"
+
+#: config/settings/instellingen.py:710
+msgid "Memory"
+msgstr "Geheugen"
+
+#: config/settings/instellingen.py:710
+#, python-brace-format
+msgid "{p0:.1f} GB total · {p1:.1f} GB available"
+msgstr "{p0:.1f} GB totaal · {p1:.1f} GB beschikbaar"
+
+#: config/settings/instellingen.py:711
+msgid "Display"
+msgstr "Scherm"
+
+#: config/settings/instellingen.py:713
+msgid "Watch the first-run tour again."
+msgstr "De rondleiding van de eerste keer opnieuw bekijken."
+
+#: config/settings/instellingen.py:718 config/store/store.py:182
+msgid "Updates"
+msgstr "Updates"
+
+#: config/settings/instellingen.py:720 config/settings/instellingen.py:726
+msgid "Automatic updates"
+msgstr "Automatische updates"
+
+#: config/settings/instellingen.py:720
+msgid "unattended-upgrades is not set up on this system (it is in the Polder OS ISO)."
+msgstr "unattended-upgrades is niet ingesteld op dit systeem (wel in de Polder OS ISO)."
+
+#: config/settings/instellingen.py:724
+msgid "Change failed (no permission)."
+msgstr "Wijzigen mislukt (geen toestemming)."
+
+#: config/settings/instellingen.py:726
+msgid "Install security and stable updates at night (unattended-upgrades) and update Flatpak apps daily."
+msgstr "Beveiligings- en stabiele updates 's nachts installeren (unattended-upgrades) en Flatpak-apps dagelijks bijwerken."
+
+#: config/settings/instellingen.py:728
+#, python-brace-format
+msgid " (source: {p0})"
+msgstr " (bron: {p0})"
+
+#: config/settings/instellingen.py:728
+msgid "Last updated"
+msgstr "Laatst bijgewerkt"
+
+#: config/settings/instellingen.py:728
+msgid "Never (no update history found)"
+msgstr "Nog nooit (geen updategeschiedenis gevonden)"
+
+#: config/settings/instellingen.py:730
+msgid "Restart required"
+msgstr "Opnieuw opstarten vereist"
+
+#: config/settings/instellingen.py:730
+msgid "Updates have been installed; restart to use them."
+msgstr "Updates zijn geïnstalleerd; start opnieuw op om ze te gebruiken."
+
+#: config/settings/instellingen.py:731
+msgid "Check now"
+msgstr "Nu controleren"
+
+#: config/settings/instellingen.py:736
+#, python-brace-format
+msgid "{p0} Debian update(s)"
+msgstr "{p0} Debian-update(s)"
+
+#: config/settings/instellingen.py:737
+#, python-brace-format
+msgid "{p0} Flatpak update(s)"
+msgstr "{p0} Flatpak-update(s)"
+
+#: config/settings/instellingen.py:738
+msgid "Check failed"
+msgstr "Controleren mislukt"
+
+#: config/settings/instellingen.py:743
+msgid "Check for updates"
+msgstr "Controleren op updates"
+
+#: config/settings/instellingen.py:743
+msgid "Via PackageKit (Debian) and Flatpak."
+msgstr "Via PackageKit (Debian) en Flatpak."
+
+#: config/settings/instellingen.py:745
+msgid "Updates in Polder Store"
+msgstr "Updates in Polder Store"
+
+#: config/settings/instellingen.py:745
+msgid "View and install available updates."
+msgstr "Bekijk en installeer beschikbare updates."
+
+#: config/settings/instellingen.py:77
+msgid "today %H:%M"
+msgstr "vandaag %H:%M"
+
+#: config/shelf/shelf.py:118 shell/polder-shelf/src/main.rs:167
+msgid "Wallpaper and style"
+msgstr "Achtergrond en stijl"
+
+#: config/shelf/shelf.py:119 shell/polder-shelf/src/main.rs:168
+msgid "Open files"
+msgstr "Bestanden openen"
+
+#: config/shelf/shelf.py:150 shell/polder-shelf/src/main.rs:102
+#: config/launcher.desktop:2
+msgid "Launcher"
+msgstr "Launcher"
+
+#: config/shelf/shelf.py:156
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:310
+#: shell/polder-shelf/src/main.rs:123
+msgid "Quick Settings"
+msgstr "Snelle instellingen"
+
+#: config/shelf/shelf.py:164
+#, python-brace-format
+msgid "Layout: {lay}"
+msgstr "Indeling: {lay}"
+
+#: config/shelf/shelf.py:220 shell/polder-shelf/src/main.rs:230
+#, python-brace-format, rust-format
+msgid "{month} {day}"
+msgstr "{day} {month}"
+
+#: config/shelf/shelf.py:234 shell/polder-shelf/src/main.rs:91
+msgid "Polder Shelf"
+msgstr "Polder Plank"
+
+#: config/shelf/shelf.py:254 shell/polder-shelf/src/main.rs:113
+msgid "Stop screen recording"
+msgstr "Schermopname stoppen"
+
+#: config/shelf/shelf.py:394 shell/polder-shelf/src/main.rs:360
+msgid "Unpin"
+msgstr "Losmaken"
+
+#: config/shelf/shelf.py:395 shell/polder-shelf/src/main.rs:360
+msgid "Pin"
+msgstr "Vastzetten"
+
+#: config/shelf/shelf.py:396 shell/polder-shelf/src/main.rs:362
+msgid "New window"
+msgstr "Nieuw venster"
+
+#: config/shelf/shelf.py:398
+#, python-brace-format
+msgid "Close ({p0} windows)"
+msgstr "Sluiten ({p0} vensters)"
+
+#: config/shelf/shelf.py:89 shell/polder-shelf/src/main.rs:129
+msgid "Polder Desktop"
+msgstr "Polder Bureaublad"
+
+#: config/shortcuts/sneltoetsen.py:119
+msgid "No keyboard shortcuts found"
+msgstr "Geen sneltoetsen gevonden"
+
+#: config/shortcuts/sneltoetsen.py:15
+msgid "Space"
+msgstr "Spatie"
+
+#: config/shortcuts/sneltoetsen.py:91
+msgid "Search keyboard shortcuts"
+msgstr "Sneltoetsen zoeken"
+
+#: config/sluis/polder-sluis.desktop:6
+msgid "Experiment in a copy of a folder and keep only what you want"
+msgstr "Experimenteer in een kopie van een map en neem alleen over wat je wilt houden"
+
+#: config/sluis/polder-sluis.desktop:8
+msgid "test polder;experiment;branch;copy;compare;merge;sluis;proefpolder;"
+msgstr "proefpolder;experiment;branch;kopie;vergelijken;samenvoegen;sluis;"
+
+#: config/sluis/polder-sluisd-autostart.desktop:3
+msgid "Polder Sluis service"
+msgstr "Polder Sluis-dienst"
+
+#: config/sluis/polder-sluisd-autostart.desktop:5
+msgid "Reports interrupted merges and disk use of test polders"
+msgstr "Meldt onderbroken overnames en ruimtegebruik van proefpolders"
+
+#: config/store/polder-store.desktop:11
+msgid "apps;software;install;store;shop;flatpak;updates;installeren;"
+msgstr "apps;software;installeren;store;winkel;flatpak;updates;"
+
+#: config/store/polder-store.desktop:3
+msgid "Software"
+msgstr "Software"
+
+#: config/store/polder-store.desktop:4
+msgid "Find, install and update apps (Debian and Flathub)"
+msgstr "Apps zoeken, installeren en bijwerken (Debian en Flathub)"
+
+#: config/store/store.py:116
+msgid "Working…"
+msgstr "Bezig…"
+
+#: config/store/store.py:127
+msgid "Downloading…"
+msgstr "Downloaden…"
+
+#: config/store/store.py:129
+msgid " failed"
+msgstr " mislukt"
+
+#: config/store/store.py:165 config/store/store.py:180
+#: config/store/store.py:521 config/store/store.py:510
+#: config/store/polder-store.desktop:2
+msgid "Polder Store"
+msgstr "Polder Store"
+
+#: config/store/store.py:182
+msgid "Discover"
+msgstr "Ontdekken"
+
+#: config/store/store.py:182 config/store/store.py:324
+msgid "Installed"
+msgstr "Geïnstalleerd"
+
+#: config/store/store.py:185
+msgid "Search apps"
+msgstr "Apps zoeken"
+
+#: config/store/store.py:191
+msgid "Try again"
+msgstr "Opnieuw proberen"
+
+#: config/store/store.py:198 config/store/store.py:297
+msgid "Loading apps…"
+msgstr "Apps laden…"
+
+#: config/store/store.py:21
+msgid "All"
+msgstr "Alles"
+
+#: config/store/store.py:21
+msgid "Audio and video"
+msgstr "Audio en video"
+
+#: config/store/store.py:21
+msgid "Games"
+msgstr "Spellen"
+
+#: config/store/store.py:21
+msgid "Graphics"
+msgstr "Grafisch"
+
+#: config/store/store.py:21
+msgid "Office"
+msgstr "Kantoor"
+
+#: config/store/store.py:22
+msgid "Development"
+msgstr "Ontwikkeling"
+
+#: config/store/store.py:22
+msgid "Education"
+msgstr "Onderwijs"
+
+#: config/store/store.py:22
+msgid "Utilities"
+msgstr "Hulpmiddelen"
+
+#: config/store/store.py:290
+msgid "The app catalog could not be read. We will try again automatically."
+msgstr "De appcatalogus kon niet worden gelezen. We proberen het automatisch opnieuw."
+
+#: config/store/store.py:291
+msgid " Your saved apps remain available."
+msgstr " Je opgeslagen apps blijven beschikbaar."
+
+#: config/store/store.py:297
+msgid "No app catalog available yet"
+msgstr "Nog geen appcatalogus beschikbaar"
+
+#: config/store/store.py:353
+msgid "Featured"
+msgstr "Uitgelicht"
+
+#: config/store/store.py:361
+msgid "Categories"
+msgstr "Categorieën"
+
+#: config/store/store.py:369
+msgid "All apps"
+msgstr "Alle apps"
+
+#: config/store/store.py:369
+#, python-brace-format
+msgid "{p0} · {p1} apps"
+msgstr "{p0} · {p1} apps"
+
+#: config/store/store.py:388
+#, python-brace-format
+msgid "No apps found for “{q}”"
+msgstr "Geen apps gevonden voor “{q}”"
+
+#: config/store/store.py:388
+#, python-brace-format
+msgid "Results for “{q}” · {p0}"
+msgstr "Resultaten voor “{q}” · {p0}"
+
+#: config/store/store.py:394
+#, python-brace-format
+msgid "Installed apps · {p0}"
+msgstr "Geïnstalleerde apps · {p0}"
+
+#: config/store/store.py:399
+msgid "Looking for updates…"
+msgstr "Updates zoeken…"
+
+#: config/store/store.py:409
+#, python-brace-format
+msgid "Error: {err}"
+msgstr "Fout: {err}"
+
+#: config/store/store.py:409
+msgid "Everything is up to date"
+msgstr "Alles is up-to-date"
+
+#: config/store/store.py:409
+#, python-brace-format
+msgid "{p0} updates available"
+msgstr "{p0} updates beschikbaar"
+
+#: config/store/store.py:411
+msgid "Update all"
+msgstr "Alles bijwerken"
+
+#: config/store/store.py:433
+msgid "Size: …"
+msgstr "Grootte: …"
+
+#: config/store/store.py:462
+msgid "About this app"
+msgstr "Over deze app"
+
+#: config/store/store.py:473
+msgid "download "
+msgstr "download "
+
+#: config/store/store.py:473
+msgid "installed "
+msgstr "geïnstalleerd "
+
+#: config/store/store.py:477
+#, python-brace-format
+msgid " · download {p0:.1f} MB"
+msgstr " · download {p0:.1f} MB"
+
+#: config/store/store.py:477
+#, python-brace-format
+msgid "{p0:.1f} MB installed"
+msgstr "{p0:.1f} MB geïnstalleerd"
+
+#: config/store/store.py:478
+msgid "Size: "
+msgstr "Grootte: "
+
+#: config/store/store.py:478 safeharbor/helper/polder-safeharbor-helper:63
+msgid "unknown"
+msgstr "onbekend"
+
+#: config/store/store.py:498
+msgid "Waiting for authorization…"
+msgstr "Wachten op autorisatie…"
+
+#: config/store/store.py:509 config/welcome/welkom.py:162
+msgid "Failed: "
+msgstr "Mislukt: "
+
+#: config/store/store.py:510
+msgid "Failed"
+msgstr "Mislukt"
+
+#: config/store/store.py:518
+#, python-brace-format
+msgid "{name} is installed"
+msgstr "{name} is geïnstalleerd"
+
+#: config/store/store.py:518
+#, python-brace-format
+msgid "{name} is removed"
+msgstr "{name} is verwijderd"
+
+#: config/store/store.py:519
+#, python-brace-format
+msgid "{name} installed"
+msgstr "{name} geïnstalleerd"
+
+#: config/store/store.py:519
+#, python-brace-format
+msgid "{name} removed"
+msgstr "{name} verwijderd"
+
+#: config/store/store.py:521
+#, python-brace-format
+msgid "Source: {source}"
+msgstr "Bron: {source}"
+
+#: config/store/store.py:531
+msgid "No launcher found"
+msgstr "Geen starter gevonden"
+
+#: config/store/store.py:96
+#, python-brace-format
+msgid "package {pkg} not found"
+msgstr "pakket {pkg} niet gevonden"
+
+#: config/store/store_catalog.py:100
+msgid "The app catalog is being prepared automatically. This can take a while on first start."
+msgstr "De appcatalogus wordt automatisch voorbereid. Dit kan even duren bij de eerste start."
+
+#: config/store/store_catalog.py:92
+msgid "The app catalog is being updated. You can keep browsing apps."
+msgstr "De appcatalogus wordt bijgewerkt. Je kunt apps blijven bekijken."
+
+#: config/store/store_catalog.py:93
+msgid "The app catalog is being prepared automatically…"
+msgstr "De appcatalogus wordt automatisch voorbereid…"
+
+#: config/store/store_catalog.py:96
+msgid "Another package manager is busy. We will try again automatically."
+msgstr "Een andere pakketbeheerder is bezig. We proberen het automatisch opnieuw."
+
+#: config/store/store_catalog.py:97
+msgid "Updating is not possible right now. Your saved app catalog remains available."
+msgstr "Bijwerken lukt nu niet. Je opgeslagen appcatalogus blijft beschikbaar."
+
+#: config/store/store_catalog.py:98
+msgid "The app catalog is not available yet. We will try again automatically as soon as a connection is available."
+msgstr "De appcatalogus is nog niet beschikbaar. We proberen het automatisch opnieuw zodra de verbinding beschikbaar is."
+
+#: config/sync/polder_sync.py:116
+msgid "Choose a folder first."
+msgstr "Kies eerst een map."
+
+#: config/sync/polder_sync.py:117
+#, python-brace-format
+msgid "Folder does not exist (not mounted?): {path}"
+msgstr "Map bestaat niet (niet gekoppeld?): {path}"
+
+#: config/sync/polder_sync.py:132
+msgid "Enter a git URL first (or create a private GitHub repo)."
+msgstr "Vul eerst een git-URL in (of maak een privé GitHub-repo)."
+
+#: config/sync/polder_sync.py:137
+#, python-brace-format
+msgid "git {p0} failed: "
+msgstr "git {p0} mislukt: "
+
+#: config/sync/polder_sync.py:145
+msgid "git clone failed: "
+msgstr "git clone mislukt: "
+
+#: config/sync/polder_sync.py:163
+#, python-brace-format
+msgid "Polder Sync from {p0} {p1}"
+msgstr "Polder Sync van {p0} {p1}"
+
+#: config/sync/polder_sync.py:166
+msgid "git push rejected (another PC was faster); try again."
+msgstr "git push geweigerd (andere pc was sneller); probeer opnieuw."
+
+#: config/sync/polder_sync.py:175
+msgid "Encryption is on but no passphrase is set."
+msgstr "Versleuteling staat aan maar er is geen wachtzin ingesteld."
+
+#: config/sync/polder_sync.py:199
+#, python-brace-format
+msgid "{p0} received, {p1} sent"
+msgstr "{p0} opgehaald, {p1} verstuurd"
+
+#: config/sync/polder_sync.py:60
+msgid "The data is encrypted: enter your sync passphrase."
+msgstr "De gegevens zijn versleuteld: vul je sync-wachtzin in."
+
+#: config/sync/polder_sync.py:63
+msgid "Wrong sync passphrase (cannot decrypt the data)."
+msgstr "Verkeerde sync-wachtzin (kan de gegevens niet ontsleutelen)."
+
+#: config/weather/weather.py:50
+msgid "Clear"
+msgstr "Helder"
+
+#: config/weather/weather.py:51
+msgid "Mostly cloudy"
+msgstr "Half bewolkt"
+
+#: config/weather/weather.py:51
+msgid "Partly cloudy"
+msgstr "Licht bewolkt"
+
+#: config/weather/weather.py:52
+msgid "Cloudy"
+msgstr "Bewolkt"
+
+#: config/weather/weather.py:53
+msgid "Fog"
+msgstr "Mist"
+
+#: config/weather/weather.py:54
+msgid "Drizzle"
+msgstr "Motregen"
+
+#: config/weather/weather.py:55
+msgid "Light rain"
+msgstr "Lichte regen"
+
+#: config/weather/weather.py:55
+msgid "Rain"
+msgstr "Regen"
+
+#: config/weather/weather.py:56
+msgid "Showers"
+msgstr "Buien"
+
+#: config/weather/weather.py:57
+msgid "Snow"
+msgstr "Sneeuw"
+
+#: config/weather/weather.py:58
+msgid "Thunderstorm"
+msgstr "Onweer"
+
+#: config/weather/weather.py:59
+msgid "Unknown"
+msgstr "Onbekend"
+
+#: config/weather/wxcard.py:32
+msgid "Weather not available (offline or no recent data)."
+msgstr "Weer niet beschikbaar (offline of geen recente gegevens)."
+
+#: config/weather/wxcard.py:41
+#, python-brace-format
+msgid "Feels like {p0}° · Wind {p1} Bft {p2}"
+msgstr "Voelt als {p0}° · Wind {p1} Bft {p2}"
+
+#: config/weather/wxcard.py:42
+#, python-brace-format
+msgid " · Chance of rain {rain}%"
+msgstr " · Regenkans {rain}%"
+
+#: config/weather/wxcard.py:46
+msgid "Dry for the next 2 hours"
+msgstr "Droog de komende 2 uur"
+
+#: config/weather/wxcard.py:51
+#, python-brace-format
+msgid "Precipitation next 2 hours (max {p0:.1f} mm/15 min)"
+msgstr "Neerslag komende 2 uur (max {p0:.1f} mm/15 min)"
+
+#: config/webapps/webapps.py:22
+msgid "Invalid web address"
+msgstr "Ongeldig webadres"
+
+#: config/webapps/webapps.py:74
+msgid "No icon found on the website"
+msgstr "Geen pictogram gevonden op de website"
+
+#: config/welcome/welkom.py:121
+msgid "A ChromeOS-like desktop on Debian. In a few steps we will set everything up for you."
+msgstr "Een ChromeOS-achtige desktop op Debian. In een paar stappen zetten we alles voor je klaar."
+
+#: config/welcome/welkom.py:126
+msgid "Restore from another PC…"
+msgstr "Herstel van andere pc…"
+
+#: config/welcome/welkom.py:127
+msgid "Take over settings, pinned apps and web apps via Polder Sync"
+msgstr "Instellingen, vastgezette apps en webapps overnemen via Polder Sync"
+
+#: config/welcome/welkom.py:134
+msgid "Choose a network. You can change this later in Quick Settings."
+msgstr "Kies een netwerk. Je kunt dit later wijzigen via Snelle instellingen."
+
+#: config/welcome/welkom.py:134
+msgid "Connect to Wi‑Fi"
+msgstr "Verbinding maken met wifi"
+
+#: config/welcome/welkom.py:140
+msgid "NetworkManager (nmcli) is not installed."
+msgstr "NetworkManager (nmcli) is niet geïnstalleerd."
+
+#: config/welcome/welkom.py:140
+msgid "NetworkManager does not see a Wi‑Fi device."
+msgstr "NetworkManager ziet geen wifi-apparaat."
+
+#: config/welcome/welkom.py:142
+msgid " A wired connection works automatically; you can skip this step."
+msgstr " Een kabelverbinding werkt automatisch; je kunt deze stap overslaan."
+
+#: config/welcome/welkom.py:142
+msgid "No Wi‑Fi adapter found"
+msgstr "Geen wifi-adapter gevonden"
+
+#: config/welcome/welkom.py:154
+msgid "Connect"
+msgstr "Verbinden"
+
+#: config/welcome/welkom.py:157
+msgid "Choose a network first."
+msgstr "Kies eerst een netwerk."
+
+#: config/welcome/welkom.py:158
+#, python-brace-format
+msgid "Connecting to {ssid}…"
+msgstr "Verbinden met {ssid}…"
+
+#: config/welcome/welkom.py:162
+msgid "Connected to "
+msgstr "Verbonden met "
+
+#: config/welcome/welkom.py:166
+msgid "No networks found nearby."
+msgstr "Geen netwerken in de buurt gevonden."
+
+#: config/welcome/welkom.py:179
+msgid "Choose your style"
+msgstr "Kies je stijl"
+
+#: config/welcome/welkom.py:179
+msgid "Light, dark or automatic (light from 07:00 to 19:00). You see it right away on your whole desktop."
+msgstr "Licht, donker of automatisch (licht van 07:00 tot 19:00). Je ziet het meteen op je hele bureaublad."
+
+#: config/welcome/welkom.py:195
+msgid "Choose a wallpaper"
+msgstr "Kies een achtergrond"
+
+#: config/welcome/welkom.py:195
+msgid "Polderheuvel automatically gets its evening variant in the dark theme."
+msgstr "Polderheuvel krijgt in het donkere thema automatisch de avondvariant."
+
+#: config/welcome/welkom.py:207
+msgid "Link a calendar (optional)"
+msgstr "Agenda koppelen (optioneel)"
+
+#: config/welcome/welkom.py:207
+msgid "Paste an iCal link (https:// or webcal://), for example from Google Calendar, Outlook or a holiday calendar. The events appear in the calendar when you click the date on the shelf."
+msgstr "Plak een iCal-link (https:// of webcal://), bijvoorbeeld van Google Agenda, Outlook of een feestdagenkalender. De afspraken verschijnen in de kalender als je op de datum op de plank klikt."
+
+#: config/welcome/welkom.py:208
+msgid "Name (e.g. Holidays)"
+msgstr "Naam (bijv. Feestdagen)"
+
+#: config/welcome/welkom.py:214
+#, python-brace-format
+msgid "Already linked: {n} calendar(s). Manage them in Settings › Calendar."
+msgstr "Al gekoppeld: {n} agenda('s). Beheer ze in Instellingen › Agenda."
+
+#: config/welcome/welkom.py:221
+msgid "Fetching…"
+msgstr "Ophalen…"
+
+#: config/welcome/welkom.py:226
+#, python-brace-format
+msgid " from ‘{p0}’"
+msgstr " uit ‘{p0}’"
+
+#: config/welcome/welkom.py:226
+#, python-brace-format
+msgid "Linked: {p0} events"
+msgstr "Gekoppeld: {p0} evenementen"
+
+#: config/welcome/welkom.py:229
+msgid " (listed in Settings › Calendar)"
+msgstr " (staat in Instellingen › Agenda)"
+
+#: config/welcome/welkom.py:229
+msgid "Sync failed: "
+msgstr "Synchroniseren mislukt: "
+
+#: config/welcome/welkom.py:235
+msgid "Handy keyboard shortcuts"
+msgstr "Handige sneltoetsen"
+
+#: config/welcome/welkom.py:235
+msgid "See all keyboard shortcuts with Ctrl + Alt + /."
+msgstr "Alle sneltoetsen zie je met Ctrl + Alt + /."
+
+#: config/welcome/welkom.py:236 config/wm/shortcut_table.py:52
+#: config/wm/shortcut_table.py:11 config/wm/shortcut_table.py:12
+#: config/wm/shortcut_table.py:13 config/wm/shortcut_table.py:23
+#: config/wm/shortcut_table.py:24 config/wm/shortcut_table.py:26
+#: config/wm/shortcut_table.py:27 config/wm/shortcut_table.py:28
+msgid "Popular"
+msgstr "Populair"
+
+#: config/welcome/welkom.py:250
+msgid "You're all set!"
+msgstr "Je bent klaar!"
+
+#: config/welcome/welkom.py:251
+msgid "Press Super or click the Polder OS logo at the bottom left to open apps. You can find new apps in the Polder Store. This tour is available in Settings › About."
+msgstr "Tik op Super of klik op het Polder OS-logo linksonder om apps te openen. Nieuwe apps vind je in de Polder Store. Deze rondleiding staat in Instellingen › Over."
+
+#: config/welcome/welkom.py:53
+msgid "Polder Welcome"
+msgstr "Polder Welkom"
+
+#: config/welcome/welkom.py:65
+msgid "Back"
+msgstr "Terug"
+
+#: config/welcome/welkom.py:66
+msgid "Skip"
+msgstr "Overslaan"
+
+#: config/welcome/welkom.py:83
+msgid "Get started"
+msgstr "Aan de slag"
+
+#: config/wm/overview.py:102
+msgid "No windows on this desk"
+msgstr "Geen vensters op dit bureau"
+
+#: config/wm/overview.py:117
+#, python-brace-format
+msgid "Desk {p0}"
+msgstr "Bureau {p0}"
+
+#: config/wm/overview.py:120
+msgid "Remove desk"
+msgstr "Bureau verwijderen"
+
+#: config/wm/overview.py:127
+msgid "+  New desk"
+msgstr "+  Nieuw bureau"
+
+#: config/wm/overview.py:304
+msgid "Choose a window for this half"
+msgstr "Kies een venster voor deze helft"
+
+#: config/wm/shortcut_table.py:11
+msgid "Open or close the launcher (tap Super)"
+msgstr "Launcher openen of sluiten (Super tikken)"
+
+#: config/wm/shortcut_table.py:12
+msgid "Overview: all windows and desks"
+msgstr "Overzicht: alle vensters en bureaus"
+
+#: config/wm/shortcut_table.py:13
+msgid "Switch between windows (hold Alt)"
+msgstr "Wisselen tussen vensters (Alt ingedrukt houden)"
+
+#: config/wm/shortcut_table.py:14
+msgid "Switch between windows, backwards"
+msgstr "Wisselen tussen vensters, achteruit"
+
+#: config/wm/shortcut_table.py:15
+msgid "Snap window left (split screen)"
+msgstr "Venster links vastzetten (gesplitst scherm)"
+
+#: config/wm/shortcut_table.py:16
+msgid "Snap window right (split screen)"
+msgstr "Venster rechts vastzetten (gesplitst scherm)"
+
+#: config/wm/shortcut_table.py:17
+msgid "Maximize / restore window"
+msgstr "Venster maximaliseren / herstellen"
+
+#: config/wm/shortcut_table.py:18
+msgid "Minimize window"
+msgstr "Venster minimaliseren"
+
+#: config/wm/shortcut_table.py:23
+msgid "Lock screen"
+msgstr "Scherm vergrendelen"
+
+#: config/wm/shortcut_table.py:24
+msgid "Screen capture (or stop recording)"
+msgstr "Schermopname (of opname stoppen)"
+
+#: config/wm/shortcut_table.py:25
+msgid "Screen capture (ChromeOS key)"
+msgstr "Schermopname (ChromeOS-toets)"
+
+#: config/wm/shortcut_table.py:26
+msgid "Open Polder Assistant"
+msgstr "Polder Assistent openen"
+
+#: config/wm/shortcut_table.py:27
+msgid "Open clipboard history"
+msgstr "Klembordgeschiedenis openen"
+
+#: config/wm/shortcut_table.py:28
+msgid "This keyboard shortcut overview"
+msgstr "Dit overzicht met sneltoetsen"
+
+#: config/wm/shortcut_table.py:31
+msgid "Close window"
+msgstr "Venster sluiten"
+
+#: config/wm/shortcut_table.py:32
+msgid "Maximize window (xfwm4)"
+msgstr "Venster maximaliseren (xfwm4)"
+
+#: config/wm/shortcut_table.py:33
+msgid "Toggle full screen"
+msgstr "Volledig scherm aan/uit"
+
+#: config/wm/shortcut_table.py:34
+msgid "Hide window"
+msgstr "Venster verbergen"
+
+#: config/wm/shortcut_table.py:35
+msgid "Open window menu"
+msgstr "Venstermenu openen"
+
+#: config/wm/shortcut_table.py:36 config/wm/shortcut_table.py:19
+msgid "To previous desk"
+msgstr "Naar vorig bureau"
+
+#: config/wm/shortcut_table.py:37 config/wm/shortcut_table.py:20
+msgid "To next desk"
+msgstr "Naar volgend bureau"
+
+#: config/wm/shortcut_table.py:38 config/wm/shortcut_table.py:21
+msgid "Move window to previous desk"
+msgstr "Venster naar vorig bureau"
+
+#: config/wm/shortcut_table.py:39 config/wm/shortcut_table.py:22
+msgid "Move window to next desk"
+msgstr "Venster naar volgend bureau"
+
+#: config/wm/shortcut_table.py:40
+msgid "To Desk 1"
+msgstr "Naar Bureau 1"
+
+#: config/wm/shortcut_table.py:41
+msgid "To Desk 2"
+msgstr "Naar Bureau 2"
+
+#: config/wm/shortcut_table.py:42
+msgid "Show desktop"
+msgstr "Bureaublad tonen"
+
+#: config/wm/shortcut_table.py:45
+msgid "Close launcher, Quick Settings, calendar, clipboard or screen capture"
+msgstr "Launcher, Snelle instellingen, agenda, klembord of schermopname sluiten"
+
+#: config/wm/shortcut_table.py:46
+msgid "Browse search results in the launcher"
+msgstr "Door zoekresultaten in de launcher bladeren"
+
+#: config/wm/shortcut_table.py:47
+msgid "Open selected search result (copy calculation result)"
+msgstr "Geselecteerd zoekresultaat openen (rekenresultaat kopiëren)"
+
+#: config/wm/shortcut_table.py:48
+msgid "In clipboard history: paste item 1–9 directly"
+msgstr "In klembordgeschiedenis: item 1–9 direct plakken"
+
+#: config/wm/shortcut_table.py:49
+msgid "In clipboard history: delete selected item"
+msgstr "In klembordgeschiedenis: geselecteerd item verwijderen"
+
+#: config/wm/shortcut_table.py:50
+msgid "Screen capture: capture / start recording"
+msgstr "Schermopname: vastleggen / opname starten"
+
+#: config/wm/shortcut_table.py:52 config/wm/shortcut_table.py:28
+#: config/wm/shortcut_table.py:45 config/wm/shortcut_table.py:46
+#: config/wm/shortcut_table.py:47
+msgid "Navigation"
+msgstr "Navigatie"
+
+#: config/wm/shortcut_table.py:52 config/wm/shortcut_table.py:27
+#: config/wm/shortcut_table.py:48 config/wm/shortcut_table.py:49
+msgid "Text/clipboard"
+msgstr "Tekst/klembord"
+
+#: config/wm/shortcut_table.py:52 config/wm/shortcut_table.py:31
+#: config/wm/shortcut_table.py:32 config/wm/shortcut_table.py:33
+#: config/wm/shortcut_table.py:34 config/wm/shortcut_table.py:35
+#: config/wm/shortcut_table.py:36 config/wm/shortcut_table.py:37
+#: config/wm/shortcut_table.py:38 config/wm/shortcut_table.py:39
+#: config/wm/shortcut_table.py:40 config/wm/shortcut_table.py:41
+#: config/wm/shortcut_table.py:42 config/wm/shortcut_table.py:12
+#: config/wm/shortcut_table.py:13 config/wm/shortcut_table.py:14
+#: config/wm/shortcut_table.py:15 config/wm/shortcut_table.py:16
+#: config/wm/shortcut_table.py:17 config/wm/shortcut_table.py:18
+#: config/wm/shortcut_table.py:19 config/wm/shortcut_table.py:20
+#: config/wm/shortcut_table.py:21 config/wm/shortcut_table.py:22
+msgid "Windows and desks"
+msgstr "Vensters en bureaus"
+
+#: iso/src/rootfs/usr/share/polkit-1/actions/nl.polderos.autoupdate.policy:5
+msgid "Turn automatic updates on or off"
+msgstr "Automatische updates aan- of uitzetten"
+
+#: iso/src/rootfs/usr/share/polkit-1/actions/nl.polderos.autoupdate.policy:7
+msgid "Authentication is required to change automatic updates"
+msgstr "Authenticatie is vereist om automatische updates te wijzigen"
+
+#: safeharbor/helper/polder-safeharbor-helper:145
+#, python-brace-format
+msgid "restore point {n} does not exist"
+msgstr "herstelpunt {n} bestaat niet"
+
+#: safeharbor/helper/polder-safeharbor-helper:171
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:229
+msgid "Manual restore point"
+msgstr "Handmatig herstelpunt"
+
+#: safeharbor/helper/polder-safeharbor-helper:63
+#, python-brace-format
+msgid "The system is not running from btrfs ({fs}), for example the live version."
+msgstr "Het systeem draait niet vanaf btrfs ({fs}), bijvoorbeeld de live-versie."
+
+#: safeharbor/helper/polder-safeharbor-helper:64
+msgid "snapper is not installed."
+msgstr "snapper is niet geïnstalleerd."
+
+#: safeharbor/helper/polder-safeharbor-helper:65
+msgid "There is no snapper configuration for the system (root) yet."
+msgstr "Er is nog geen snapper-configuratie voor het systeem (root)."
+
+#: safeharbor/helper/polder-safeharbor-helper:67
+msgid "The system is not in subvolume @ (see docs/safeharbor.md)."
+msgstr "Het systeem staat niet in subvolume @ (zie docs/safeharbor.md)."
+
+#: safeharbor/polkit/org.polderos.safeharbor.policy:6
+msgid "Manage system restore points"
+msgstr "Herstelpunten van het systeem beheren"
+
+#: safeharbor/polkit/org.polderos.safeharbor.policy:8
+msgid "Authentication is required to change the system version"
+msgstr "Voer je wachtwoord in om herstelpunten te beheren of het systeem te herstellen"
+
+#: safeharbor/xdg/polder-safeharbor-check.desktop:3
+msgid "Polder SafeHarbor check"
+msgstr "Polder SafeHarbor controle"
+
+#: safeharbor/xdg/polder-safeharbor-check.desktop:5
+msgid "Reports a failed boot or a boot from an earlier version"
+msgstr "Meldt een mislukte start of een opstart vanaf een eerdere versie"
+
+#: safeharbor/xdg/polder-safeharbor.desktop:11
+msgid "restore;restore point;snapshot;rollback;update;safeharbor;herstel;herstelpunt;"
+msgstr "herstel;herstelpunt;snapshot;terugzetten;rollback;update;safeharbor;"
+
+#: safeharbor/xdg/polder-safeharbor.desktop:4
+msgid "System restore"
+msgstr "Systeemherstel"
+
+#: safeharbor/xdg/polder-safeharbor.desktop:6
+msgid "Restore your system to an earlier version"
+msgstr "Herstel je systeem naar een eerdere versie"
+
+#: shell/polder-shelf/src/bin/polder-launcher.rs:247
+#, rust-format
+msgid "{}  ·  Enter installs"
+msgstr "{}  ·  Enter installeert"
+
+#: shell/polder-shelf/src/bin/polder-launcher.rs:248
+#, rust-format
+msgid "Install {url} as an app"
+msgstr "{url} als app installeren"
+
+#: shell/polder-shelf/src/bin/polder-launcher.rs:330
+#, rust-format
+msgid "{n} is now in the launcher"
+msgstr "{n} staat nu in de launcher"
+
+#: shell/polder-shelf/src/bin/polder-launcher.rs:332
+msgid "unknown error"
+msgstr "onbekende fout"
+
+#: shell/polder-shelf/src/bin/polder-notifyd.rs:197
+msgid "Polder notification"
+msgstr "Polder melding"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:127
+msgid "Your phone is paired but not nearby or not on the same network."
+msgstr "Je telefoon is gekoppeld maar niet in de buurt of niet op hetzelfde netwerk."
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:137
+msgid "Your phone is ringing"
+msgstr "Je telefoon gaat over"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:141
+msgid "Send file"
+msgstr "Bestand sturen"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:153
+msgid "Clipboard is shared"
+msgstr "Klembord wordt gedeeld"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:153
+msgid "Clipboard sharing off"
+msgstr "Klembord delen uit"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:157
+msgid "Photos and files"
+msgstr "Foto's en bestanden"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:166
+#, rust-format
+msgid "Notifications from your phone ({})"
+msgstr "Meldingen van je telefoon ({})"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:167
+msgid "No notifications"
+msgstr "Geen meldingen"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:174
+msgid "Unpaired"
+msgstr "Ontkoppeld"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:186
+msgid "Recent photos"
+msgstr "Recente foto's"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:197
+msgid "No photos found"
+msgstr "Geen foto's gevonden"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:200
+msgid "All files"
+msgstr "Alle bestanden"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:211
+msgid "Dismiss"
+msgstr "Wegvegen"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:213
+msgid "Notification dismissed"
+msgstr "Melding weggeveegd"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:219
+msgid "Reply…"
+msgstr "Antwoorden…"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:220
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:235
+msgid "Send"
+msgstr "Sturen"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:223
+msgid "Reply sent"
+msgstr "Antwoord verstuurd"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:234
+msgid "Send file to phone"
+msgstr "Bestand naar telefoon sturen"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:246
+#, rust-format
+msgid "{} file(s) sent"
+msgstr "{} bestand(en) verstuurd"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:58
+msgid "Install the kdeconnect package to pair your phone (your phone also needs the KDE Connect app)."
+msgstr "Installeer het pakket kdeconnect om je telefoon te koppelen (ook nodig op je telefoon: de app KDE Connect)."
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:61
+msgid "KDE Connect is off"
+msgstr "KDE Connect staat uit"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:62
+msgid "Start the connection service to find your phone."
+msgstr "Start de verbindingsdienst om je telefoon te vinden."
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:63
+msgid "Start"
+msgstr "Starten"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:64
+msgid "Starting KDE Connect…"
+msgstr "KDE Connect wordt gestart…"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:64
+msgid "Starting failed"
+msgstr "Starten is mislukt"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:70
+msgid "Open KDE Connect on your phone. Your phone and this computer must be on the same Wi‑Fi network."
+msgstr "Open KDE Connect op je telefoon. Je telefoon en deze computer moeten op hetzelfde wifi-netwerk zitten."
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:83
+msgid "Decline"
+msgstr "Weigeren"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:83
+msgid "Declined"
+msgstr "Geweigerd"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:83
+msgid "Paired"
+msgstr "Gekoppeld"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:86
+msgid "Cancelled"
+msgstr "Geannuleerd"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:87
+msgid "Pairing request sent"
+msgstr "Koppelverzoek verstuurd"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:90
+msgid "Search again"
+msgstr "Opnieuw zoeken"
+
+#: shell/polder-shelf/src/bin/polder-phonehub.rs:91
+msgid "Searching…"
+msgstr "Zoeken…"
+
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:225
+#, rust-format
+msgid "Notifications ({})"
+msgstr "Meldingen ({})"
+
+#: shell/polder-shelf/src/bin/polder-quicksettings.rs:280
+msgid "Power"
+msgstr "Aan/uit"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:127
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:136
+msgid "helper crashed"
+msgstr "helper gecrasht"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:158
+msgid "Restart?"
+msgstr "Opnieuw opstarten?"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:158
+#, rust-format
+msgid "{what} Restart the computer to use the restored version. Your current version is kept as a backup."
+msgstr "{what} Start de computer opnieuw op om de herstelde versie te gebruiken. Je huidige versie wordt bewaard als reservekopie."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:164
+msgid "Make this version permanent?"
+msgstr "Deze versie vast maken?"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:164
+#, rust-format
+msgid "The version you are using now (restore point {n}: {desc}) becomes your normal system after a restart. Your personal files stay unchanged."
+msgstr "De versie die je nu gebruikt (herstelpunt {n}: {desc}) wordt na een herstart je normale systeem. Je persoonlijke bestanden blijven ongewijzigd."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:166
+msgid "Restore to this version?"
+msgstr "Herstellen naar deze versie?"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:166
+#, rust-format
+msgid "The system goes back to restore point {n}: {desc}. Apps and system settings are restored; your personal files stay unchanged. The current version is kept as a backup."
+msgstr "Het systeem gaat terug naar herstelpunt {n}: {desc}. Apps en systeeminstellingen worden teruggezet; je persoonlijke bestanden blijven ongewijzigd. De huidige versie wordt bewaard als reservekopie."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:168
+msgid "Make permanent"
+msgstr "Vast maken"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:170
+#, rust-format
+msgid "Restore point {n} is ready."
+msgstr "Herstelpunt {n} is klaargezet."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:196
+msgid "SafeHarbor is not available here"
+msgstr "SafeHarbor is hier niet beschikbaar"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:197
+msgid "Restore points work once Polder OS is installed on a btrfs disk with the SafeHarbor layout."
+msgstr "Herstelpunten werken zodra Polder OS is geïnstalleerd op een btrfs-schijf met de SafeHarbor-indeling."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:201
+msgid "Settings are only available when SafeHarbor is active."
+msgstr "Instellingen zijn pas beschikbaar als SafeHarbor actief is."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:209
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:317
+#, rust-format
+msgid "You are using an earlier version (restore point {n})"
+msgstr "Je gebruikt een eerdere versie (herstelpunt {n})"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:210
+msgid "This version is read-only: changes disappear on restart. Does everything work again? Then make it your permanent version."
+msgstr "Deze versie is alleen-lezen: wijzigingen verdwijnen bij een herstart. Werkt alles weer? Maak er dan je vaste versie van."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:211
+msgid "Make this the permanent version"
+msgstr "Maak dit de vaste versie"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:216
+msgid "Polder OS did not start up completely last time. Restore an earlier version below, or choose ‘earlier versions’ in the boot menu."
+msgstr "Polder OS is de vorige keer niet volledig opgestart. Herstel hieronder een eerdere versie, of kies bij het opstarten ‘eerdere versies’ in het menu."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:217
+msgid "Got it"
+msgstr "Begrepen"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:223
+#, rust-format
+msgid "{d}. The previous version is kept as a backup."
+msgstr "{d}. De vorige versie is bewaard als reservekopie."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:227
+#, rust-format
+msgid "{} restore points"
+msgstr "{} herstelpunten"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:228
+msgid "Create restore point now"
+msgstr "Nu herstelpunt maken"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:230
+#, rust-format
+msgid "Restore point {} created"
+msgstr "Herstelpunt {} gemaakt"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:233
+msgid "No restore points yet. One is created automatically before every software update."
+msgstr "Nog geen herstelpunten. Vóór elke software-update wordt er automatisch een gemaakt."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:238
+msgid "Restore point"
+msgstr "Herstelpunt"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:244
+msgid "In use now"
+msgstr "Nu in gebruik"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:245
+msgid "Restored"
+msgstr "Hersteld"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:246
+msgid "Polder update"
+msgstr "Polder-update"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:25
+msgid "no helper configured"
+msgstr "geen helper ingesteld"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:252
+msgid "Restore to this version"
+msgstr "Herstel naar deze versie"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:264
+msgid "Automatic restore points are off"
+msgstr "Automatische herstelpunten staan uit"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:264
+msgid "Automatic restore points are on"
+msgstr "Automatische herstelpunten staan aan"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:266
+msgid "Also for automatic updates and Polder updates, with a second point afterwards."
+msgstr "Ook bij automatische updates en Polder-updates, met een tweede punt erna."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:272
+#, rust-format
+msgid "Keep at most {n} restore points"
+msgstr "Maximaal {n} herstelpunten bewaren"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:274
+#, rust-format
+msgid "Older points are cleaned up automatically; points before Polder updates: at most {}."
+msgstr "Oudere punten worden automatisch opgeruimd; punten vóór Polder-updates: maximaal {}."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:276
+msgid "Every restore point is also listed in the boot menu under ‘Polder OS - earlier versions (SafeHarbor)’. Computer no longer starts properly? Choose an earlier version there."
+msgstr "Elk herstelpunt staat ook in het opstartmenu onder ‘Polder OS - eerdere versies (SafeHarbor)’. Start de computer niet meer goed op? Kies daar een eerdere versie."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:277
+msgid "Your home folder (@home) is never restored: restoring only touches the system."
+msgstr "Je thuismap (@home) wordt nooit teruggezet: herstellen raakt alleen het systeem."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:291
+msgid "Restore points of your system. Did something go wrong after an update? Put back an earlier version."
+msgstr "Herstelpunten van je systeem. Ging er iets mis na een update? Zet een eerdere versie terug."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:317
+msgid "Read-only. Open SafeHarbor and choose ‘Make this the permanent version’ if everything works."
+msgstr "Alleen-lezen. Open SafeHarbor en kies ‘Maak dit de vaste versie’ als alles werkt."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:32
+msgid "Permission not granted."
+msgstr "Geen toestemming gegeven."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:321
+#, rust-format
+msgid "Restored to restore point {}"
+msgstr "Hersteld naar herstelpunt {}"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:33
+#: shell/polder-shelf/src/bin/polder-sluis.rs:24
+msgid "Something went wrong."
+msgstr "Er ging iets mis."
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:69
+msgid "Before Polder update"
+msgstr "Voor Polder-update"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:69
+msgid "Before automatic Polder update"
+msgstr "Voor automatische Polder-update"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:70
+msgid "Before automatic update"
+msgstr "Voor automatische update"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:70
+msgid "Before update"
+msgstr "Voor update"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:71
+msgid "Before automatic installation"
+msgstr "Voor automatische installatie"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:71
+msgid "Before installation"
+msgstr "Voor installatie"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:72
+msgid "Before automatic removal"
+msgstr "Voor automatische verwijderen"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:72
+msgid "Before removal"
+msgstr "Voor verwijderen"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:73
+msgid "Before automatic change"
+msgstr "Voor automatische wijziging"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:73
+msgid "Before change"
+msgstr "Voor wijziging"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:74
+msgid "{} package"
+msgid_plural "{} packages"
+msgstr[0] "{} pakket"
+msgstr[1] "{} pakketten"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:78
+msgid "Automatic update"
+msgstr "Automatische update"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:79
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:82
+msgid "Software change"
+msgstr "Software-wijziging"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:80
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:83
+msgid "Manual"
+msgstr "Handmatig"
+
+#: shell/polder-shelf/src/bin/polder-safeharbor.rs:83
+msgid "Timeline"
+msgstr "Tijdlijn"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:140
+msgid "No test polders yet"
+msgstr "Nog geen proefpolders"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:141
+msgid "A test polder is a copy of a project folder where you can experiment freely. Your original folder, the mainland, stays untouched until you let changes through the lock."
+msgstr "Een proefpolder is een kopie van een projectmap waarin je vrij kunt experimenteren. Je originele map, het vasteland, blijft onaangeroerd tot jij wijzigingen door de sluis laat."
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:143
+#: shell/polder-shelf/src/bin/polder-sluis.rs:430
+#: shell/polder-shelf/src/bin/polder-sluis.rs:433
+#: shell/polder-shelf/src/bin/polder-sluis.rs:485
+msgid "New test polder"
+msgstr "Nieuwe proefpolder"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:147
+msgid "Active"
+msgstr "Actief"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:147
+msgid "Archived"
+msgstr "Gearchiveerd"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:147
+#: shell/polder-shelf/src/bin/polder-sluis.rs:251
+msgid "Conflict"
+msgstr "Conflict"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:147
+msgid "Ready to merge"
+msgstr "Klaar om over te nemen"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:174
+msgid "Terminal in the polder"
+msgstr "Terminal in de polder"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:177
+msgid "Terminal starts in the test polder"
+msgstr "Terminal start in de proefpolder"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:184
+msgid "Internet is off in this test polder"
+msgstr "Internet staat uit in deze proefpolder"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:185
+msgid "With internet, programs in the test polder can send data, download or do things online. Sluis cannot undo that: only files in your project folder stay in the polder. Only turn it on for programs you trust."
+msgstr "Met internet kunnen programma's in de proefpolder gegevens versturen, downloaden of iets online doen. Dat kan Sluis niet terugdraaien: alleen bestanden in je projectmap blijven in de polder. Zet het alleen aan voor programma's die je vertrouwt."
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:188
+msgid "Turn on internet"
+msgstr "Internet aanzetten"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:188
+msgid "Turn on internet in this test polder?"
+msgstr "Internet aanzetten in deze proefpolder?"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:189
+msgid "Internet is on for new programs in this test polder"
+msgstr "Internet staat aan voor nieuwe programma's in deze proefpolder"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:196
+msgid "Archive"
+msgstr "Archiveren"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:196
+msgid "Unarchive"
+msgstr "Uit archief halen"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:199
+msgid "Test polder archived"
+msgstr "Proefpolder gearchiveerd"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:199
+msgid "Test polder is active again"
+msgstr "Proefpolder is weer actief"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:201
+#: shell/polder-shelf/src/bin/polder-sluis.rs:206
+msgid "Discard"
+msgstr "Weggooien"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:204
+#, rust-format
+msgid "All changes in ‘{name}’ that you have not merged will be lost. Your original folder stays as it is."
+msgstr "Alle wijzigingen in ‘{name}’ die je niet hebt overgenomen gaan verloren. Je originele map blijft zoals hij is."
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:206
+msgid "Discard test polder?"
+msgstr "Proefpolder weggooien?"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:207
+msgid "Test polder discarded"
+msgstr "Proefpolder weggegooid"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:215
+msgid "An earlier merge was not finished (for example because of a crash or power failure). Finish it or roll everything back; until then you cannot merge anything else."
+msgstr "Een eerdere overname is niet afgemaakt (bijvoorbeeld door een crash of stroomstoring). Maak hem af of draai alles terug; tot die tijd kun je niets anders overnemen."
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:215
+msgid "Merge was interrupted"
+msgstr "Overnemen is onderbroken"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:217
+msgid "Finish"
+msgstr "Afmaken"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:217
+msgid "Roll back"
+msgstr "Terugdraaien"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:221
+msgid "Finished"
+msgstr "Afgemaakt"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:221
+msgid "Rolled back"
+msgstr "Teruggedraaid"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:221
+#, rust-format
+msgid "{}: {} file(s), {} failed"
+msgstr "{}: {} bestand(en), {} mislukt"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:227
+msgid "Programs in the polder can only change your project folder inside the polder; the rest of your home folder is a throwaway copy there. It is not a secured virtual machine: what happens via the internet or devices cannot be undone."
+msgstr "Programma's in de polder kunnen je projectmap alleen in de polder wijzigen; de rest van je thuismap is er een wegwerpkopie. Het is geen beveiligde virtuele machine: wat via internet of apparaten gebeurt, kan niet worden teruggedraaid."
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:237
+#, rust-format
+msgid ", {n_conf} conflict(s)"
+msgstr ", {n_conf} conflict(en)"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:238
+msgid "All without conflict"
+msgstr "Alles zonder conflict"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:254
+#: shell/polder-shelf/src/sluis.rs:260
+msgid "changes permissions"
+msgstr "wijzigt rechten"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:254
+#: shell/polder-shelf/src/sluis.rs:257
+#, rust-format
+msgid "symlink points outside the folder: {target}"
+msgstr "symlink wijst buiten de map: {target}"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:265
+msgid "No changes yet. Open a terminal in the polder and go ahead."
+msgstr "Nog geen wijzigingen. Open een terminal in de polder en ga je gang."
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:265
+msgid "No changes."
+msgstr "Geen wijzigingen."
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:272
+msgid "Choose a change to compare."
+msgstr "Kies een wijziging om te vergelijken."
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:282
+msgid "Nothing reaches the mainland without your permission. You first see exactly what will happen."
+msgstr "Niets komt op het vasteland zonder jouw toestemming. Je ziet eerst precies wat er gebeurt."
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:283
+msgid "Merge selected…"
+msgstr "Geselecteerde overnemen…"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:315
+#, rust-format
+msgid ""
+"file · {} · permissions {:o}\n"
+"sha256 {}…"
+msgstr ""
+"bestand · {} · rechten {:o}\n"
+"sha256 {}…"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:318
+msgid "does not exist"
+msgstr "bestaat niet"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:32
+msgid "Deleted"
+msgstr "Verwijderd"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:32
+msgid "Modified"
+msgstr "Gewijzigd"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:32
+msgid "New"
+msgstr "Nieuw"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:32
+msgid "Permissions"
+msgstr "Rechten"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:32
+msgid "Renamed"
+msgstr "Hernoemd"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:32
+msgid "Type changed"
+msgstr "Ander type"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:329
+msgid "Conflict: this file was also changed on the mainland since the polder was created. Merging replaces that change."
+msgstr "Conflict: dit bestand is sinds het maken van de polder ook op het vasteland gewijzigd. Overnemen vervangt die wijziging."
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:330
+msgid "Choose the polder version anyway (replace the mainland version)"
+msgstr "Toch de polderversie kiezen (vasteland-versie vervangen)"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:338
+msgid "Mainland (now)"
+msgstr "Vasteland (nu)"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:338
+#: shell/polder-shelf/src/bin/polder-sluis.rs:458
+msgid "Test polder"
+msgstr "Proefpolder"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:356
+msgid "(too large to compare line by line)"
+msgstr "(te groot om regel voor regel te vergelijken)"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:370
+msgid "Open both versions"
+msgstr "Beide versies openen"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:392
+msgid "Select one or more changes first"
+msgstr "Selecteer eerst een of meer wijzigingen"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:399
+msgid "Dry run: this is how your original folder will change. Nothing has been changed yet."
+msgstr "Proefdraaien: zo verandert je originele map. Er is nog niets gewijzigd."
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:402
+msgid "There is nothing to merge."
+msgstr "Er valt niets over te nemen."
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:409
+msgid "Nothing to merge"
+msgstr "Niets over te nemen"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:411
+msgid "Merge"
+msgstr "Overnemen"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:411
+#, rust-format
+msgid "Merge {} change(s)?"
+msgstr "{} wijziging(en) overnemen?"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:417
+#, rust-format
+msgid "{} change(s) merged to the mainland"
+msgstr "{} wijziging(en) overgenomen naar het vasteland"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:434
+msgid "Sluis pumps a new polder dry next to your folder: you experiment freely in it, your original folder stays untouched."
+msgstr "Sluis pompt een nieuwe polder droog naast je map: daarin experimenteer je vrij, je originele map blijft onaangeroerd."
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:435
+msgid "Name, for example New design"
+msgstr "Naam, bijvoorbeeld Nieuw ontwerp"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:436
+msgid "Description (optional)"
+msgstr "Omschrijving (optioneel)"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:438
+msgid "Choose folder…"
+msgstr "Map kiezen…"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:440
+msgid "Folder (the mainland)"
+msgstr "Map (het vasteland)"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:440
+msgid "Name"
+msgstr "Naam"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:441
+#, rust-format
+msgid "{} – experiment"
+msgstr "{} – experiment"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:445
+msgid "Choose a project folder"
+msgstr "Kies een projectmap"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:452
+msgid "Create polder"
+msgstr "Polder maken"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:457
+msgid "Choose a folder first"
+msgstr "Kies eerst een map"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:459
+msgid "Pumping dry…"
+msgstr "Bezig met droogpompen…"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:465
+msgid "Test polder ready. Open a terminal to get started."
+msgstr "Proefpolder klaar. Open een terminal om te beginnen."
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:476
+#: shell/polder-shelf/src/bin/polder-sluis.rs:483
+#: config/sluis/polder-sluis.desktop:3
+msgid "Sluis"
+msgstr "Sluis"
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:483
+#: config/sluis/polder-sluis.desktop:4
+msgid "Test polders"
+msgstr "Proefpolders"
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:100
+msgid "Merge partly succeeded"
+msgstr "Overnemen deels gelukt"
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:100
+#, rust-format
+msgid "{} succeeded, {} did not (see Sluis)."
+msgstr "{} gelukt, {} niet (zie Sluis)."
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:109
+msgid "Merge rolled back"
+msgstr "Overname teruggedraaid"
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:109
+#, rust-format
+msgid "{} file(s) restored on the mainland."
+msgstr "{} bestand(en) teruggezet op het vasteland."
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:15
+msgid "Polder Sluis"
+msgstr "Polder Sluis"
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:39
+msgid "This test polder is archived; unarchive it first."
+msgstr "Deze proefpolder is gearchiveerd; haal hem eerst uit het archief."
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:43
+#, rust-format
+msgid "[Test polder: {}] Terminal"
+msgstr "[Proefpolder: {}] Terminal"
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:62
+msgid "Merge interrupted"
+msgstr "Overnemen onderbroken"
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:62
+#, rust-format
+msgid "Test polder ‘{}’: open Sluis to finish or roll back."
+msgstr "Proefpolder ‘{}’: open Sluis om af te maken of terug te draaien."
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:66
+msgid "Test polder takes up a lot of space"
+msgstr "Proefpolder neemt veel ruimte in"
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:66
+#, rust-format
+msgid "‘{}’ uses {:.1} GB. Discard or archive?"
+msgstr "‘{}’ gebruikt {:.1} GB. Weggooien of archiveren?"
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:71
+msgid "Disk almost full"
+msgstr "Schijf bijna vol"
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:71
+msgid "Test polders use space on your disk. Clean up old polders in Sluis."
+msgstr "Proefpolders gebruiken ruimte op je schijf. Ruim oude polders op in Sluis."
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:84
+msgid "usage: create <name> <folder> [description]"
+msgstr "gebruik: create <naam> <map> [omschrijving]"
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:96
+msgid "no paths chosen: give the paths you want to merge (see `changes`)"
+msgstr "geen paden gekozen: geef de paden die je wilt overnemen (zie `changes`)"
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:99
+msgid "Changes merged"
+msgstr "Wijzigingen overgenomen"
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:99
+#, rust-format
+msgid "{} change(s) from ‘{name}’ are now on the mainland."
+msgstr "{} wijziging(en) uit ‘{name}’ staan nu op het vasteland."
+
+#: shell/polder-shelf/src/kdc.rs:107
+msgid "Linking the files failed"
+msgstr "Koppelen van de bestanden is mislukt"
+
+#: shell/polder-shelf/src/main.rs:310
+#, rust-format
+msgid "Terminal in test polder ‘{pid}’ (Polder Sluis)"
+msgstr "Terminal in proefpolder ‘{pid}’ (Polder Sluis)"
+
+#: shell/polder-shelf/src/main.rs:366
+#, rust-format
+msgid "Close ({} windows)"
+msgstr "Sluiten ({} vensters)"
+
+#: shell/polder-shelf/src/menu.rs:18
+msgid "Polder menu"
+msgstr "Polder menu"
+
+#: shell/polder-shelf/src/sluis.rs:137
+msgid "Choose a folder."
+msgstr "Kies een map."
+
+#: shell/polder-shelf/src/sluis.rs:139 shell/polder-shelf/src/sluis.rs:146
+#: shell/polder-shelf/src/sluis.rs:366
+msgid "create folder"
+msgstr "map maken"
+
+#: shell/polder-shelf/src/sluis.rs:141
+msgid "A test polder of your whole home folder or the whole system is not possible; choose a project folder."
+msgstr "Een proefpolder van je hele thuismap of het hele systeem kan niet; kies een projectmap."
+
+#: shell/polder-shelf/src/sluis.rs:142
+msgid "This folder contains Sluis's own storage."
+msgstr "Deze map bevat de opslag van Sluis zelf."
+
+#: shell/polder-shelf/src/sluis.rs:163
+msgid "There is an interrupted merge; finish or undo it first."
+msgstr "Er is een onderbroken overname; herstel of maak die eerst ongedaan."
+
+#: shell/polder-shelf/src/sluis.rs:259
+msgid "deletes a file on the mainland"
+msgstr "verwijdert een bestand op het vasteland"
+
+#: shell/polder-shelf/src/sluis.rs:262
+msgid "overwrites a file on the mainland"
+msgstr "overschrijft een bestand op het vasteland"
+
+#: shell/polder-shelf/src/sluis.rs:263
+msgid "also changed on the mainland"
+msgstr "ook gewijzigd op het vasteland"
+
+#: shell/polder-shelf/src/sluis.rs:302
+msgid "already identical on the mainland"
+msgstr "al gelijk op het vasteland"
+
+#: shell/polder-shelf/src/sluis.rs:303
+msgid "conflict: also changed on the mainland"
+msgstr "conflict: ook gewijzigd op het vasteland"
+
+#: shell/polder-shelf/src/sluis.rs:366 shell/polder-shelf/src/sluis.rs:367
+#: shell/polder-shelf/src/sluis.rs:378 shell/polder-shelf/src/sluis.rs:463
+#: shell/polder-shelf/src/sluis.rs:464
+msgid "permissions"
+msgstr "rechten"
+
+#: shell/polder-shelf/src/sluis.rs:368 shell/polder-shelf/src/sluis.rs:462
+msgid "delete"
+msgstr "verwijderen"
+
+#: shell/polder-shelf/src/sluis.rs:369
+#, rust-format
+msgid "folder is not empty on the mainland (it contains files the polder does not know): {x}"
+msgstr "map is niet leeg op het vasteland (er staan bestanden die de polder niet kent): {x}"
+
+#: shell/polder-shelf/src/sluis.rs:375
+msgid "no source"
+msgstr "geen bron"
+
+#: shell/polder-shelf/src/sluis.rs:376 shell/polder-shelf/src/sluis.rs:377
+msgid "copy"
+msgstr "kopiëren"
+
+#: shell/polder-shelf/src/sluis.rs:379
+msgid "the file in the polder has changed meanwhile; review the changes again"
+msgstr "bestand in de polder is intussen veranderd; bekijk de wijzigingen opnieuw"
+
+#: shell/polder-shelf/src/sluis.rs:381
+msgid "unknown operation"
+msgstr "onbekende bewerking"
+
+#: shell/polder-shelf/src/sluis.rs:383
+msgid "replace folder"
+msgstr "map vervangen"
+
+#: shell/polder-shelf/src/sluis.rs:384
+msgid "replace"
+msgstr "vervangen"
+
+#: shell/polder-shelf/src/sluis.rs:397
+#, rust-format
+msgid "interrupted merge {p} must be finished or rolled back first"
+msgstr "onderbroken overname {p} moet eerst hersteld of teruggedraaid worden"
+
+#: shell/polder-shelf/src/sluis.rs:417
+msgid "the mainland has changed meanwhile; not touched"
+msgstr "vasteland is intussen gewijzigd; niet aangeraakt"
+
+#: shell/polder-shelf/src/sluis.rs:442 shell/polder-shelf/src/sluis.rs:449
+msgid "no interrupted merge"
+msgstr "geen onderbroken overname"
+
+#: shell/polder-shelf/src/sluis.rs:459
+msgid "changed after the merge; not restored"
+msgstr "gewijzigd na de overname; niet teruggezet"
+
+#: shell/polder-shelf/src/sluis.rs:462
+msgid "remove folder"
+msgstr "map verwijderen"
+
+#: shell/polder-shelf/src/sluis.rs:466
+#, rust-format
+msgid "restoring backup: {x}"
+msgstr "reservekopie terugzetten: {x}"
+
+#: shell/polder-shelf/src/sluis.rs:486
+msgid "This test polder is archived."
+msgstr "Deze proefpolder is gearchiveerd."
+
+#: shell/polder-shelf/src/sluis.rs:63
+msgid "open"
+msgstr "openen"
+
+#: shell/polder-shelf/src/sluis.rs:64
+msgid "no sha256"
+msgstr "geen sha256"
+
+#: shell/polder-shelf/src/sluis.rs:75
+#, rust-format
+msgid "{}: unsupported file type (device/fifo/socket)"
+msgstr "{}: niet ondersteund bestandstype (apparaat/fifo/socket)"

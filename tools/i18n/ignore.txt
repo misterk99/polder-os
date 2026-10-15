@@ -1,0 +1,8 @@
+# check.py: literals that look Dutch but are identifiers, file names, commands or non-UI text (regex on "file:literal")
+:[\w/]*instellingen(\.py)?$
+:(bestanden|bestand|meldingen|map|verwijderd|nieuw|klaar|de|en|Klaar om over te nemen)$
+config/assistant/llm\.py:Je bent Polder Assistent
+config/assistant/actions\.py:app name, e\.g\.
+config/capture/capture\.py:(a=\$\(timeout|Map State:)
+config/osb/apply\.py:# GENERATED
+config/shortcuts/sneltoetsen\.py:niet getoond

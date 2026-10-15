@@ -78,7 +78,7 @@ lb config --distribution trixie --architectures "$ARCH" --linux-flavours "$ARCH"
   --mirror-binary http://deb.debian.org/debian --mirror-chroot http://deb.debian.org/debian --mirror-chroot-security http://deb.debian.org/debian-security --mirror-binary-security http://deb.debian.org/debian-security --security true --updates true \
   --apt-recommends false --apt-options "--yes -o Acquire::Retries=10" \
   --debian-installer none --firmware-chroot false --firmware-binary false --build-with-chroot "$BUILD_WITH_CHROOT" \
-  --bootappend-live "boot=live components quiet splash locales=nl_NL.UTF-8 keyboard-layouts=us timezone=Europe/Amsterdam username=polder user-fullname=Polder hostname=polderos" \
+  --bootappend-live "boot=live components quiet splash locales=nl_NL.UTF-8,en_US.UTF-8 keyboard-layouts=us timezone=Europe/Amsterdam username=polder user-fullname=Polder hostname=polderos" \
   --iso-application "Polder OS" --iso-volume "POLDEROS_${VER//./_}_${ARCH^^}" --iso-publisher "Polder OS" \
   --bootloaders "$BOOTLOADERS" --image-name "$IMAGE_NAME" --memtest none --cache true
 cp "$ISO/src/polderos.list.chroot" config/package-lists/
@@ -96,6 +96,7 @@ if [ "$PACKAGED" = 1 ]; then
   fi
 else
   mkdir -p "$R/usr/share/polderos"
+  python3 "$P/tools/i18n/compile.py" >/dev/null   # po/ -> config/locale/*/LC_MESSAGES/polder.mo
   rsync -a --delete --exclude __pycache__ --exclude spotify-run.sh --exclude 'osb-desk-*' "$P/config/" "$R/usr/share/polderos/config/"
   echo "$VER" > "$R/usr/share/polderos/VERSION"
   install -m755 "$ISO/src/polderos-session" "$R/usr/share/polderos/polderos-session"

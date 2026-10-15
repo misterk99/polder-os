@@ -5,6 +5,8 @@
 //! `polder-safeharbor --check` (session autostart) only sends notifications: failed previous boot, running from a
 //! read-only snapshot, finished rollback. On non-btrfs systems (live ISO) the window shows a "niet beschikbaar" state.
 //! `--settings` opens the Instellingen tab, `--status` prints the helper status JSON.
+#[path = "../i18n.rs"] #[macro_use] mod i18n;
+#[allow(unused_imports)] use i18n::tr;
 #[path = "../theme.rs"] mod theme;
 use gtk::{gio, glib, prelude::*};
 use serde_json::Value;
@@ -20,15 +22,15 @@ fn helper_argv() -> Vec<String> {
 /// Run the helper; Ok(json stdout) or Err(message).
 fn helper(args: &[String]) -> Result<Value, String> {
     let mut a = helper_argv(); a.extend(args.iter().cloned());
-    let Some((cmd, rest)) = a.split_first() else { return Err("geen helper ingesteld".into()) };
+    let Some((cmd, rest)) = a.split_first() else { return Err(tr("no helper configured").into()) };
     match std::process::Command::new(cmd).args(rest).output() {
         Err(e) => Err(format!("helper niet gevonden: {e}")),
         Ok(o) if o.status.success() => serde_json::from_slice(&o.stdout).map_err(|e| format!("onleesbaar antwoord: {e}")),
         Ok(o) => {
             let e = String::from_utf8_lossy(&o.stderr).trim().to_string();
             Err(match o.status.code() {
-                Some(126) | Some(127) if e.is_empty() || e.contains("dismissed") || e.contains("Not authorized") => "Geen toestemming gegeven.".into(),
-                _ => if e.is_empty() { "Er ging iets mis.".into() } else { e.lines().last().unwrap_or("").to_string() },
+                Some(126) | Some(127) if e.is_empty() || e.contains("dismissed") || e.contains("Not authorized") => tr("Permission not granted.").into(),
+                _ => if e.is_empty() { tr("Something went wrong.").into() } else { e.lines().last().unwrap_or("").to_string() },
             })
         }
     }
@@ -36,7 +38,7 @@ fn helper(args: &[String]) -> Result<Value, String> {
 fn unavailable(reason: &str) -> Value { serde_json::json!({"available": false, "reason": reason, "snapshots": []}) }
 fn status() -> Value {
     if std::env::var("POLDER_SAFEHARBOR_HELPER").is_err() && !std::path::Path::new(HELPER).exists() {
-        return unavailable("SafeHarbor is op dit systeem niet geïnstalleerd.");
+        return unavailable(tr("SafeHarbor is not installed on this system."));
     }
     helper(&["status".into()]).unwrap_or_else(|e| unavailable(&e))
 }
@@ -57,14 +59,28 @@ fn nl_date(s: &str) -> String {
     format!("{} {} {}, {hm}", p[2], MONTHS[(p[1] as usize).clamp(1, 12) - 1], p[0])
 }
 fn ud<'a>(s: &'a Value, k: &str) -> &'a str { s["userdata"][k].as_str().unwrap_or("") }
+/// Snapshot descriptions written by the apt hook are stored in Dutch; rebuild them from the userdata in the UI language.
+fn desc_label(s: &Value) -> String {
+    let d = s["description"].as_str().unwrap_or("").to_string();
+    if ud(s, "polder") != "apt" { return d; }
+    let num = |k: &str| ud(s, k).parse::<u64>().unwrap_or(0);
+    let (n, i, u, r) = (num("packages"), num("installed"), num("upgraded"), num("removed"));
+    let (auto, pol) = (ud(s, "trigger") == "unattended-upgrades", ud(s, "important") == "yes");
+    let what = if u > 0 { match (auto, pol) { (true, true) => tr("Before automatic Polder update"), (false, true) => tr("Before Polder update"),
+                                              (true, false) => tr("Before automatic update"), _ => tr("Before update") } }
+        else if i > 0 && r == 0 { if auto { tr("Before automatic installation") } else { tr("Before installation") } }
+        else if r > 0 && i == 0 { if auto { tr("Before automatic removal") } else { tr("Before removal") } }
+        else if auto { tr("Before automatic change") } else { tr("Before change") };
+    format!("{what}: {}", i18n::fmt(i18n::trn("{} package", "{} packages", n), &[&n], &[]))
+}
 fn origin(s: &Value) -> &'static str {
     match (ud(s, "polder"), ud(s, "trigger")) {
-        ("apt", "unattended-upgrades") => "Automatische update",
-        ("apt", _) => "Software-wijziging",
-        ("manual", _) => "Handmatig",
+        ("apt", "unattended-upgrades") => tr("Automatic update"),
+        ("apt", _) => tr("Software change"),
+        ("manual", _) => tr("Manual"),
         _ => match s["type"].as_str() {
-            Some("pre") | Some("post") => "Software-wijziging",
-            _ => if s["cleanup"].as_str() == Some("timeline") { "Tijdlijn" } else { "Handmatig" },
+            Some("pre") | Some("post") => tr("Software change"),
+            _ => if s["cleanup"].as_str() == Some("timeline") { tr("Timeline") } else { tr("Manual") },
         },
     }
 }
@@ -108,7 +124,7 @@ fn act(a: &A, args: Vec<String>, done: impl FnOnce(&A, Result<Value, String>) + 
     if a.borrow().busy { return; } a.borrow_mut().busy = true;
     let a = a.clone();
     glib::spawn_future_local(async move {
-        let r = gio::spawn_blocking(move || helper(&args)).await.unwrap_or_else(|_| Err("helper gecrasht".into()));
+        let r = gio::spawn_blocking(move || helper(&args)).await.unwrap_or_else(|_| Err(tr("helper crashed").into()));
         a.borrow_mut().busy = false;
         done(&a, r);
         refresh(&a);
@@ -117,7 +133,7 @@ fn act(a: &A, args: Vec<String>, done: impl FnOnce(&A, Result<Value, String>) + 
 fn refresh(a: &A) {
     let a = a.clone();
     glib::spawn_future_local(async move {
-        let st = gio::spawn_blocking(status).await.unwrap_or_else(|_| unavailable("helper gecrasht"));
+        let st = gio::spawn_blocking(status).await.unwrap_or_else(|_| unavailable(tr("helper crashed")));
         a.borrow_mut().st = st; render(&a);
     });
 }
@@ -130,7 +146,7 @@ fn dialog(a: &A, title: &str, body: &str, ok: &str, on_ok: impl Fn() + 'static) 
     v.append(&lbl(title, "title"));
     let b = lbl(body, "sub"); b.set_max_width_chars(50); v.append(&b);
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 8); row.set_halign(gtk::Align::End); row.set_margin_top(8);
-    let c = gtk::Button::with_label("Annuleren"); c.add_css_class("flat2");
+    let c = gtk::Button::with_label(tr("Cancel")); c.add_css_class("flat2");
     let o = gtk::Button::with_label(ok); o.add_css_class("pill");
     row.append(&c); row.append(&o); v.append(&row); d.set_child(Some(&v));
     let d1 = d.clone(); c.connect_clicked(move |_| d1.close());
@@ -139,19 +155,19 @@ fn dialog(a: &A, title: &str, body: &str, ok: &str, on_ok: impl Fn() + 'static) 
 }
 fn reboot_prompt(a: &A, what: &str) {
     let a2 = a.clone();
-    dialog(a, "Opnieuw opstarten?", &format!("{what} Start de computer opnieuw op om de herstelde versie te gebruiken. Je huidige versie wordt bewaard als reservekopie."),
-           "Nu opnieuw opstarten", move || act(&a2, vec!["reboot".into()], |a, r| if let Err(e) = r { toast(a, &e) }));
+    dialog(a, tr("Restart?"), &tf!("{what} Restart the computer to use the restored version. Your current version is kept as a backup." ; what),
+           tr("Restart now"), move || act(&a2, vec!["reboot".into()], |a, r| if let Err(e) = r { toast(a, &e) }));
 }
 fn rollback(a: &A, n: i64, desc: String, permanent: bool) {
     let a2 = a.clone();
     let (title, body) = if permanent {
-        ("Deze versie vast maken?".to_string(), format!("De versie die je nu gebruikt (herstelpunt {n}: {desc}) wordt na een herstart je normale systeem. Je persoonlijke bestanden blijven ongewijzigd."))
+        (tr("Make this version permanent?").to_string(), tf!("The version you are using now (restore point {n}: {desc}) becomes your normal system after a restart. Your personal files stay unchanged." ; n, desc))
     } else {
-        ("Herstellen naar deze versie?".to_string(), format!("Het systeem gaat terug naar herstelpunt {n}: {desc}. Apps en systeeminstellingen worden teruggezet; je persoonlijke bestanden blijven ongewijzigd. De huidige versie wordt bewaard als reservekopie."))
+        (tr("Restore to this version?").to_string(), tf!("The system goes back to restore point {n}: {desc}. Apps and system settings are restored; your personal files stay unchanged. The current version is kept as a backup." ; n, desc))
     };
-    dialog(a, &title, &body, if permanent { "Vast maken" } else { "Herstellen" }, move || {
+    dialog(a, &title, &body, if permanent { tr("Make permanent") } else { tr("Restore") }, move || {
         act(&a2, vec!["rollback".into(), n.to_string()], move |a, r| match r {
-            Ok(_) => reboot_prompt(a, &format!("Herstelpunt {n} is klaargezet.")),
+            Ok(_) => reboot_prompt(a, &tf!("Restore point {n} is ready." ; n)),
             Err(e) => toast(a, &format!("Herstellen mislukt: {e}")),
         });
     });
@@ -177,63 +193,63 @@ fn render(a: &A) {
     if !st["available"].as_bool().unwrap_or(false) {
         let v = gtk::Box::new(gtk::Orientation::Vertical, 10); v.set_valign(gtk::Align::Center); v.set_vexpand(true); v.add_css_class("empty");
         let i = gtk::Image::from_icon_name("drive-harddisk-symbolic"); i.set_pixel_size(64); v.append(&i);
-        for (t, c) in [("SafeHarbor is hier niet beschikbaar", "title"), (st["reason"].as_str().unwrap_or(""), "sub"),
-                       ("Herstelpunten werken zodra Polder OS is geïnstalleerd op een btrfs-schijf met de SafeHarbor-indeling.", "sub")] {
+        for (t, c) in [(tr("SafeHarbor is not available here"), "title"), (st["reason"].as_str().unwrap_or(""), "sub"),
+                       (tr("Restore points work once Polder OS is installed on a btrfs disk with the SafeHarbor layout."), "sub")] {
             let l = lbl(t, c); l.set_xalign(0.5); l.set_justify(gtk::Justification::Center); l.set_max_width_chars(56); v.append(&l);
         }
         snaps.append(&v);
-        settings.append(&lbl("Instellingen zijn pas beschikbaar als SafeHarbor actief is.", "sub"));
+        settings.append(&lbl(tr("Settings are only available when SafeHarbor is active."), "sub"));
         return;
     }
     let list = st["snapshots"].as_array().cloned().unwrap_or_default();
     let booted = st["booted_snapshot"].as_i64();
     if let Some(n) = booted {
-        let desc = list.iter().find(|s| s["number"].as_i64() == Some(n)).and_then(|s| s["description"].as_str()).unwrap_or("").to_string();
+        let desc = list.iter().find(|s| s["number"].as_i64() == Some(n)).map(desc_label).unwrap_or_default();
         let a2 = a.clone();
-        banners.append(&banner(&format!("Je gebruikt een eerdere versie (herstelpunt {n})"),
-            "Deze versie is alleen-lezen: wijzigingen verdwijnen bij een herstart. Werkt alles weer? Maak er dan je vaste versie van.", false,
-            Some(("Maak dit de vaste versie", Box::new(move || rollback(&a2, n, desc.clone(), true))))));
+        banners.append(&banner(&tf!("You are using an earlier version (restore point {n})" ; n),
+            tr("This version is read-only: changes disappear on restart. Does everything work again? Then make it your permanent version."), false,
+            Some((tr("Make this the permanent version"), Box::new(move || rollback(&a2, n, desc.clone(), true))))));
     }
     if st["failed_boot"].is_object() {
         let a2 = a.clone();
-        banners.append(&banner("Het vorige opstarten is niet gelukt",
-            "Polder OS is de vorige keer niet volledig opgestart. Herstel hieronder een eerdere versie, of kies bij het opstarten ‘eerdere versies’ in het menu.", true,
-            Some(("Begrepen", Box::new(move || act(&a2, vec!["ack-failed-boot".into()], |_, _| {}))))));
+        banners.append(&banner(tr("The previous boot did not succeed"),
+            tr("Polder OS did not start up completely last time. Restore an earlier version below, or choose ‘earlier versions’ in the boot menu."), true,
+            Some((tr("Got it"), Box::new(move || act(&a2, vec!["ack-failed-boot".into()], |_, _| {}))))));
     }
     let fresh = st["rolled_back"]["time"].as_f64().map(|t| glib::real_time() as f64 / 1e6 - t < 3.0 * 86400.0).unwrap_or(false);
     if let (Some(rb), None, true) = (st["rolled_back"].as_object(), booted, fresh) {   // shown for 3 days after a rollback
         let n = rb.get("number").and_then(|v| v.as_i64()).unwrap_or(0);
         let d = rb.get("description").and_then(|v| v.as_str()).unwrap_or("");
-        banners.append(&banner(&format!("Hersteld naar herstelpunt {n}"), &format!("{d}. De vorige versie is bewaard als reservekopie."), false, None));
+        banners.append(&banner(&format!("Hersteld naar herstelpunt {n}"), &tf!("{d}. The previous version is kept as a backup." ; d), false, None));
     }
     // ---- Herstelpunten
     let head = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    let ht = lbl(&format!("{} herstelpunten", list.len()), "sub"); ht.set_hexpand(true); head.append(&ht);
-    let mk = gtk::Button::with_label("Nu herstelpunt maken"); mk.add_css_class("flat2");
-    let a2 = a.clone(); mk.connect_clicked(move |_| act(&a2, vec!["create".into(), "Handmatig herstelpunt".into()], |a, r| match r {
-        Ok(v) => toast(a, &format!("Herstelpunt {} gemaakt", v["number"])), Err(e) => toast(a, &e) }));
+    let ht = lbl(&tf!("{} restore points", list.len()), "sub"); ht.set_hexpand(true); head.append(&ht);
+    let mk = gtk::Button::with_label(tr("Create restore point now")); mk.add_css_class("flat2");
+    let a2 = a.clone(); mk.connect_clicked(move |_| act(&a2, vec!["create".into(), tr("Manual restore point").into()], |a, r| match r {
+        Ok(v) => toast(a, &tf!("Restore point {} created", v["number"])), Err(e) => toast(a, &e) }));
     if booted.is_some() { mk.set_sensitive(false); }
     head.append(&mk); snaps.append(&head);
-    if list.is_empty() { snaps.append(&lbl("Nog geen herstelpunten. Vóór elke software-update wordt er automatisch een gemaakt.", "empty")); }
+    if list.is_empty() { snaps.append(&lbl(tr("No restore points yet. One is created automatically before every software update."), "empty")); }
     let card = gtk::ListBox::new(); card.add_css_class("card"); card.set_selection_mode(gtk::SelectionMode::None);
     let rolled = st["rolled_back"]["number"].as_i64();
     for s in list.iter().rev() {
         let n = s["number"].as_i64().unwrap_or(0);
-        let desc = s["description"].as_str().filter(|d| !d.is_empty()).unwrap_or("Herstelpunt").to_string();
+        let desc = Some(desc_label(s)).filter(|d| !d.is_empty()).unwrap_or(tr("Restore point").to_string());
         let row = gtk::ListBoxRow::new(); row.add_css_class("snap"); row.set_activatable(false);
         let h = gtk::Box::new(gtk::Orientation::Horizontal, 12);
         let v = gtk::Box::new(gtk::Orientation::Vertical, 3); v.set_hexpand(true);
         let top = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         top.append(&lbl(&desc, "sdesc"));
-        if booted == Some(n) { let c = lbl("Nu in gebruik", "chip"); c.add_css_class("cur"); top.append(&c); }
-        else if booted.is_none() && rolled == Some(n) { top.append(&lbl("Hersteld", "chip")); }
-        if ud(s, "important") == "yes" { top.append(&lbl("Polder-update", "chip")); }
+        if booted == Some(n) { let c = lbl(tr("In use now"), "chip"); c.add_css_class("cur"); top.append(&c); }
+        else if booted.is_none() && rolled == Some(n) { top.append(&lbl(tr("Restored"), "chip")); }
+        if ud(s, "important") == "yes" { top.append(&lbl(tr("Polder update"), "chip")); }
         v.append(&top);
         let meta = format!("{}  ·  {}  ·  #{n}", nl_date(s["date"].as_str().unwrap_or("")), origin(s));
         let m = lbl(&meta, "smeta"); m.set_wrap(false); m.set_ellipsize(gtk::pango::EllipsizeMode::End); v.append(&m);
         h.append(&v);
         if booted != Some(n) {
-            let b = gtk::Button::with_label("Herstel naar deze versie"); b.add_css_class("flat2"); b.set_valign(gtk::Align::Center);
+            let b = gtk::Button::with_label(tr("Restore to this version")); b.add_css_class("flat2"); b.set_valign(gtk::Align::Center);
             let a2 = a.clone(); b.connect_clicked(move |_| rollback(&a2, n, desc.clone(), false));
             h.append(&b);
         }
@@ -245,40 +261,40 @@ fn render(a: &A) {
     let sw = gtk::Switch::new(); sw.set_active(st["auto"].as_bool().unwrap_or(true));
     let a2 = a.clone(); sw.connect_state_set(move |_, on| {
         act(&a2, vec!["set-auto".into(), if on { "on" } else { "off" }.into()], move |a, r| match r {
-            Ok(_) => toast(a, if on { "Automatische herstelpunten staan aan" } else { "Automatische herstelpunten staan uit" }), Err(e) => toast(a, &e) });
+            Ok(_) => toast(a, if on { tr("Automatic restore points are on") } else { tr("Automatic restore points are off") }), Err(e) => toast(a, &e) });
         glib::Propagation::Proceed });
-    card.append(&setting_row("Herstelpunt vóór elke update", "Ook bij automatische updates en Polder-updates, met een tweede punt erna.", sw.upcast_ref()));
+    card.append(&setting_row(tr("Restore point before every update"), tr("Also for automatic updates and Polder updates, with a second point afterwards."), sw.upcast_ref()));
     let ret = st["retention"].as_i64().unwrap_or(10);
     let sp = gtk::SpinButton::with_range(2.0, 50.0, 1.0); sp.set_value(ret as f64);
     let a2 = a.clone(); sp.connect_value_changed(move |s| {
         let n = s.value_as_int(); let a3 = a2.clone(); let s2 = s.clone();
         glib::timeout_add_local_once(std::time::Duration::from_millis(700), move || if s2.value_as_int() == n {
-            act(&a3, vec!["set-retention".into(), n.to_string()], move |a, r| match r { Ok(_) => toast(a, &format!("Maximaal {n} herstelpunten bewaren")), Err(e) => toast(a, &e) }) });
+            act(&a3, vec!["set-retention".into(), n.to_string()], move |a, r| match r { Ok(_) => toast(a, &tf!("Keep at most {n} restore points" ; n)), Err(e) => toast(a, &e) }) });
     });
-    card.append(&setting_row("Aantal herstelpunten bewaren", &format!("Oudere punten worden automatisch opgeruimd; punten vóór Polder-updates: maximaal {}.", (ret / 2).max(2)), sp.upcast_ref()));
+    card.append(&setting_row(tr("Number of restore points to keep"), &tf!("Older points are cleaned up automatically; points before Polder updates: at most {}.", (ret / 2).max(2)), sp.upcast_ref()));
     settings.append(&card);
-    settings.append(&lbl("Elk herstelpunt staat ook in het opstartmenu onder ‘Polder OS - eerdere versies (SafeHarbor)’. Start de computer niet meer goed op? Kies daar een eerdere versie.", "smeta"));
-    settings.append(&lbl("Je thuismap (@home) wordt nooit teruggezet: herstellen raakt alleen het systeem.", "smeta"));
+    settings.append(&lbl(tr("Every restore point is also listed in the boot menu under ‘Polder OS - earlier versions (SafeHarbor)’. Computer no longer starts properly? Choose an earlier version there."), "smeta"));
+    settings.append(&lbl(tr("Your home folder (@home) is never restored: restoring only touches the system."), "smeta"));
 }
 
 fn build(app: &gtk::Application, page: &str) -> A {
     let prov = gtk::CssProvider::new();
     #[allow(deprecated)] prov.load_from_data(&css(&theme::palette()));
     gtk::style_context_add_provider_for_display(&gtk::gdk::Display::default().unwrap(), &prov, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
-    let win = gtk::ApplicationWindow::builder().application(app).title("SafeHarbor").default_width(780).default_height(540).build();
+    let win = gtk::ApplicationWindow::builder().application(app).title(tr("SafeHarbor")).default_width(780).default_height(540).build();
     win.add_css_class("sh");
     let ov = gtk::Overlay::new();
     let root = gtk::Box::new(gtk::Orientation::Vertical, 14); root.set_margin_top(20); root.set_margin_bottom(16); root.set_margin_start(24); root.set_margin_end(24);
     let hd = gtk::Box::new(gtk::Orientation::Horizontal, 12);
     let ic = gtk::Image::from_icon_name("document-revert-symbolic"); ic.set_pixel_size(32); hd.append(&ic);
     let tv = gtk::Box::new(gtk::Orientation::Vertical, 0); tv.set_hexpand(true);
-    tv.append(&lbl("SafeHarbor", "title")); tv.append(&lbl("Herstelpunten van je systeem. Ging er iets mis na een update? Zet een eerdere versie terug.", "sub"));
+    tv.append(&lbl(tr("SafeHarbor"), "title")); tv.append(&lbl(tr("Restore points of your system. Did something go wrong after an update? Put back an earlier version."), "sub"));
     hd.append(&tv); root.append(&hd);
     let banners = gtk::Box::new(gtk::Orientation::Vertical, 8); root.append(&banners);
     let stack = gtk::Stack::new(); stack.set_vexpand(true);
     let snaps = gtk::Box::new(gtk::Orientation::Vertical, 10);
     let settings = gtk::Box::new(gtk::Orientation::Vertical, 12);
-    stack.add_titled(&snaps, Some("snapshots"), "Herstelpunten"); stack.add_titled(&settings, Some("settings"), "Instellingen");
+    stack.add_titled(&snaps, Some("snapshots"), tr("Restore points")); stack.add_titled(&settings, Some("settings"), tr("Settings"));
     let ss = gtk::StackSwitcher::new(); ss.set_stack(Some(&stack)); ss.set_halign(gtk::Align::Start);
     root.append(&ss); root.append(&stack);
     if page == "settings" { stack.set_visible_child_name("settings"); }
@@ -295,14 +311,14 @@ fn build(app: &gtk::Application, page: &str) -> A {
 fn check() {
     let st = status();
     if !st["available"].as_bool().unwrap_or(false) { return; }
-    let note = |t: &str, b: &str| { let _ = std::process::Command::new("notify-send").args(["-a", "SafeHarbor", "-i", "document-revert-symbolic", t, b]).status(); };
-    if st["failed_boot"].is_object() { note("Het vorige opstarten is niet gelukt", "Open SafeHarbor om een eerdere versie te herstellen."); }
+    let note = |t: &str, b: &str| { let _ = std::process::Command::new("notify-send").args(["-a", tr("SafeHarbor"), "-i", "document-revert-symbolic", t, b]).status(); };
+    if st["failed_boot"].is_object() { note(tr("The previous boot did not succeed"), tr("Open SafeHarbor to restore an earlier version.")); }
     if let Some(n) = st["booted_snapshot"].as_i64() {
-        note(&format!("Je gebruikt een eerdere versie (herstelpunt {n})"), "Alleen-lezen. Open SafeHarbor en kies ‘Maak dit de vaste versie’ als alles werkt.");
+        note(&tf!("You are using an earlier version (restore point {n})" ; n), tr("Read-only. Open SafeHarbor and choose ‘Make this the permanent version’ if everything works."));
     } else if let Some(t) = st["rolled_back"]["time"].as_f64() {
         let seen = std::path::PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".cache/osb/safeharbor-seen");
         if std::fs::read_to_string(&seen).ok().and_then(|s| s.trim().parse::<f64>().ok()) != Some(t) {
-            note(&format!("Hersteld naar herstelpunt {}", st["rolled_back"]["number"]), st["rolled_back"]["description"].as_str().unwrap_or(""));
+            note(&tf!("Restored to restore point {}", st["rolled_back"]["number"]), st["rolled_back"]["description"].as_str().unwrap_or(""));
             if let Some(d) = seen.parent() { let _ = std::fs::create_dir_all(d); }
             let _ = std::fs::write(&seen, t.to_string());
         }

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """ChromeOS-style Quick Settings panel (GTK3). Toggle: run again -> closes existing (pidfile)."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, signal, shutil, subprocess, datetime
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'notify'))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
@@ -43,8 +44,8 @@ def battery():
 def wifi_state():
     if have('nmcli'):
         o = subprocess.run(['nmcli', 'radio', 'wifi'], capture_output=True, text=True).stdout.strip()
-        return o == 'enabled', 'Verbonden' if o == 'enabled' else 'Uit', False
-    return True, 'Thuisnetwerk (demo)', True
+        return o == 'enabled', _('Connected') if o == 'enabled' else _('Off'), False
+    return True, _('Home network (demo)'), True
 
 sys.path.insert(0, os.path.join(HERE, '..', 'osb')); import osbsettings as OSBS, mpris
 SET = OSBS.load()
@@ -53,16 +54,16 @@ def kbd_name():
     return next((n for l, v, n in OSBS.LAYOUTS if l == SET['kbd_layout'] and v == SET.get('kbd_variant', '')), SET['kbd_layout'].upper())
 # tiles: (key, icon, title, subtitle, active, wide) -- only tiles that really do something in this session
 TILES = []
-if have('nmcli'): TILES.append(('wifi', 'network-wireless-signal-excellent-symbolic', 'Wifi', None, True, True))
-if have('bluetoothctl'): TILES.append(('bt', 'bluetooth-active-symbolic', 'Bluetooth', None, False, True))
+if have('nmcli'): TILES.append(('wifi', 'network-wireless-signal-excellent-symbolic', _('Wi‑Fi'), None, True, True))
+if have('bluetoothctl'): TILES.append(('bt', 'bluetooth-active-symbolic', _('Bluetooth'), None, False, True))
 if not WAYLAND:
-    TILES.append(('night', 'daytime-sunset-symbolic', 'Nachtlicht', 'Aan' if SET['night_light'] else 'Uit', SET['night_light'], True))
+    TILES.append(('night', 'daytime-sunset-symbolic', _('Night light'), _('On') if SET['night_light'] else _('Off'), SET['night_light'], True))
 TILES += [
-    ('dark', 'weather-clear-night-symbolic', 'Donker thema', {'auto': 'Automatisch', 'dark': 'Aan', 'light': 'Uit'}[SET['theme']], OSBS.effective_theme(SET) == 'dark', True),
-    ('dyn', 'preferences-desktop-wallpaper-symbolic', 'Kleuren uit achtergrond', 'Aan' if SET.get('color_source') == 'wallpaper' else 'Uit', SET.get('color_source') == 'wallpaper', True),
-    ('kbd', 'input-keyboard-symbolic', 'Toetsenbord', kbd_name(), False, True),
-    ('cap', 'camera-photo-symbolic', 'Schermopname', 'Screenshot of video', False, True),
-    ('dnd', 'notifications-disabled-symbolic', 'Niet storen', None, N.load().get('dnd', False), True),
+    ('dark', 'weather-clear-night-symbolic', _('Dark theme'), {'auto': _('Automatic'), 'dark': _('On'), 'light': _('Off')}[SET['theme']], OSBS.effective_theme(SET) == 'dark', True),
+    ('dyn', 'preferences-desktop-wallpaper-symbolic', _('Colors from wallpaper'), _('On') if SET.get('color_source') == 'wallpaper' else _('Off'), SET.get('color_source') == 'wallpaper', True),
+    ('kbd', 'input-keyboard-symbolic', _('Keyboard'), kbd_name(), False, True),
+    ('cap', 'camera-photo-symbolic', _('Screen capture'), _('Screenshot or video'), False, True),
+    ('dnd', 'notifications-disabled-symbolic', _('Do not disturb'), None, N.load().get('dnd', False), True),
 ]
 # Revision 28: 'Telefoon' tile only when a phone is paired (KDE Connect); battery % from the daemon, never invented
 try:
@@ -72,9 +73,9 @@ except Exception: _ph = None
 if not _ph and shutil.which('polder-phonehub'):   # hub handles pairing / not-running states itself
     try: _avail = PH.available() or PH.running()
     except Exception: _avail = False
-    if _avail: TILES.append(('phone', 'phone-symbolic', 'Telefoon', 'Niet gekoppeld' if PH.running() else 'Uit', False, True))
+    if _avail: TILES.append(('phone', 'phone-symbolic', _('Phone'), _('Not paired') if PH.running() else _('Off'), False, True))
 if _ph:
-    TILES.append(('phone', 'phone-symbolic', _ph['name'], (f"{_ph['battery']}%" if _ph['reachable'] and _ph['battery'] not in (None, -1) else ('Verbonden' if _ph['reachable'] else 'Niet bereikbaar')), _ph['reachable'], True))
+    TILES.append(('phone', 'phone-symbolic', _ph['name'], (f"{_ph['battery']}%" if _ph['reachable'] and _ph['battery'] not in (None, -1) else (_('Connected') if _ph['reachable'] else _('Unreachable'))), _ph['reachable'], True))
 PAGES = [TILES]
 
 class QS(Gtk.Window):
@@ -103,12 +104,12 @@ class QS(Gtk.Window):
         self.col.pack_start(panel, False, False, 0)
         # header
         hdr = Gtk.Box(spacing=8)
-        d = datetime.date.today(); dn = ['ma','di','wo','do','vr','za','zo'][d.weekday()]
-        mn = ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'][d.month-1]
-        hdr.pack_start(self.pill(f'{dn} {d.day} {mn}', 'x-office-calendar-symbolic'), False, False, 0)
+        d = datetime.date.today(); dn = _('Mon Tue Wed Thu Fri Sat Sun').split()[d.weekday()]
+        mn = _('Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec').split()[d.month-1]
+        hdr.pack_start(self.pill(_('{weekday} {month} {day}').format(weekday=dn, day=d.day, month=mn), 'x-office-calendar-symbolic'), False, False, 0)
         hdr.pack_end(self.pill(OSBS.VERSION, None), False, False, 0)
         if os.path.exists('/tmp/osb-update.json'):   # Revision 26: ChromeOS 'Update' pill -> reboot (ISO) after confirmation via notification action
-            up = self.pill('Update', 'go-up-symbolic'); up.get_style_context().add_class('active'); up.set_tooltip_text('Opnieuw opstarten om bij te werken')
+            up = self.pill(_('Update'), 'go-up-symbolic'); up.get_style_context().add_class('active'); up.set_tooltip_text(_('Restart to update'))
             up.connect('clicked', lambda *a: (subprocess.Popen(['systemctl', 'reboot']) if os.environ.get('POLDEROS_ISO') else print('update pill: reboot (prototype: skipped)', flush=True)))
             hdr.pack_end(up, False, False, 0)
         panel.pack_start(hdr, False, False, 0)
@@ -194,7 +195,7 @@ class QS(Gtk.Window):
 
     def tile(self, key, icon, title, sub, active, wide):
         if key == 'wifi':
-            active, sub, _ = wifi_state()
+            active, sub, _x = wifi_state()
         b = Gtk.ToggleButton(); b.set_active(active); sc = b.get_style_context(); sc.add_class('tile')
         if not wide: sc.add_class('small')
         bx = Gtk.Box(spacing=10)
@@ -216,9 +217,9 @@ class QS(Gtk.Window):
         if self.histdata:
             card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8); card.set_name('histcard')
             hdr = Gtk.Box()
-            l = Gtk.Label(label=f'Meldingen ({len(self.histdata)})', xalign=0); l.get_style_context().add_class('histtitle')
+            l = Gtk.Label(label=_('Notifications ({p0})').format(p0=len(self.histdata)), xalign=0); l.get_style_context().add_class('histtitle')
             hdr.pack_start(l, True, True, 0)
-            cb = Gtk.Button(label='Alles wissen'); cb.get_style_context().add_class('pill'); cb.connect('clicked', self.clear_all)
+            cb = Gtk.Button(label=_('Clear all')); cb.get_style_context().add_class('pill'); cb.connect('clicked', self.clear_all)
             hdr.pack_end(cb, False, False, 0); card.pack_start(hdr, False, False, 0)
             lst = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
             for n in self.histdata: lst.pack_start(ND.build_card(n, self.dismiss, self.activate, inner=True), False, False, 0)
@@ -318,9 +319,9 @@ class QS(Gtk.Window):
 
     def power_menu(self, *a):
         d = Gtk.MessageDialog(transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION,
-                              buttons=Gtk.ButtonsType.NONE, text='Wat wil je doen?')
-        d.add_buttons('Annuleren', 0, 'Afmelden', 1, 'Opnieuw opstarten', 2, 'Uitschakelen', 3)
-        if WAYLAND: d.add_button('Slaapstand', 4)
+                              buttons=Gtk.ButtonsType.NONE, text=_('What do you want to do?'))
+        d.add_buttons(_('Cancel'), 0, _('Sign out'), 1, _('Restart'), 2, _('Shut down'), 3)
+        if WAYLAND: d.add_button(_('Sleep'), 4)
         self.dialog_open = True; r = d.run(); d.destroy(); self.dialog_open = False; self.grab()
         # SAFETY: prototype never really powers off the box; ISO version maps to systemctl.
         if r in (1, 2, 3): print('would run:', {1: 'logout', 2: 'systemctl reboot', 3: 'systemctl poweroff'}[r])
@@ -328,8 +329,8 @@ class QS(Gtk.Window):
             subprocess.Popen({1: ['sh', '-c', 'loginctl terminate-session "$XDG_SESSION_ID"'], 2: ['systemctl', 'reboot'], 3: ['systemctl', 'poweroff']}[r])
         elif r == 4 and os.environ.get('POLDEROS_ISO'):
             # Run independently so closing the panel cannot interrupt lock acknowledgement.
-            run('sh', '-c', '"$1" || notify-send "Slaapstand niet gestart" "Vergrendelen of slaapstand is mislukt. Probeer het opnieuw."',
-                'polder-suspend', os.path.join(HERE, '..', 'lock', 'suspend-now.sh'))
+            run('sh', '-c', '"$1" || notify-send "$2" "$3"',
+                'polder-suspend', os.path.join(HERE, '..', 'lock', 'suspend-now.sh'), _('Sleep did not start'), _('Locking or sleep failed. Please try again.'))
             self.quit()
 
     def grab(self):
@@ -357,15 +358,15 @@ class QS(Gtk.Window):
                 art = Gtk.Image.new_from_icon_name('audio-x-generic-symbolic', Gtk.IconSize.LARGE_TOOLBAR); art.get_style_context().add_class('mart')
             card.pack_start(art, False, False, 0)
             tb = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER)
-            for txt, cls in ((m['title'] or 'Onbekende titel', 'mtitle'), (' · '.join(x for x in (m['artist'], m['app']) if x), 'msub')):
+            for txt, cls in ((m['title'] or _('Unknown title'), 'mtitle'), (' · '.join(x for x in (m['artist'], m['app']) if x), 'msub')):
                 l = Gtk.Label(label=txt, xalign=0); l.set_ellipsize(3); l.set_max_width_chars(20); l.get_style_context().add_class(cls); tb.pack_start(l, False, False, 0)
             card.pack_start(tb, True, True, 0)
             for icon, meth, ok in (('media-skip-backward-symbolic', 'Previous', m['can_prev']),
                                    ('media-playback-pause-symbolic' if m['status'] == 'Playing' else 'media-playback-start-symbolic', 'PlayPause', True),
                                    ('media-skip-forward-symbolic', 'Next', m['can_next'])):
                 b = Gtk.Button(); b.add(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU)); b.get_style_context().add_class('mbtn')
-                if meth == 'PlayPause': b.get_style_context().add_class('pp'); b.set_tooltip_text('Pauzeren' if m['status'] == 'Playing' else 'Afspelen')
-                else: b.set_tooltip_text('Vorige' if meth == 'Previous' else 'Volgende')
+                if meth == 'PlayPause': b.get_style_context().add_class('pp'); b.set_tooltip_text(_('Pause') if m['status'] == 'Playing' else _('Play'))
+                else: b.set_tooltip_text(_('Previous') if meth == 'Previous' else _('Next'))
                 b.set_sensitive(ok); b.set_valign(Gtk.Align.CENTER)
                 b.connect('clicked', lambda _b, meth=meth: (mpris.control(m['name'], meth), GLib.timeout_add(250, self.refresh_media)))
                 card.pack_start(b, False, False, 0)

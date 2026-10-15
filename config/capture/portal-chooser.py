@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Explicit monitor consent for xdg-desktop-portal-wlr's dmenu chooser."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import sys
 
 
@@ -10,7 +11,7 @@ def choose(outputs):
     available = list(dict.fromkeys(line.strip() for line in outputs if line.strip()))
     if not available:
         return None
-    dialog = Gtk.Dialog(title='Scherm delen', modal=True)
+    dialog = Gtk.Dialog(title=_('Share screen'), modal=True)
     dialog.set_default_size(460, -1)
     dialog.set_resizable(False)
     dialog.set_position(Gtk.WindowPosition.CENTER)
@@ -21,7 +22,7 @@ def choose(outputs):
     box = dialog.get_content_area()
     box.set_border_width(20)
     box.set_spacing(16)
-    label = Gtk.Label(label='Kies het scherm dat je wilt delen.\nAlles op dit scherm is zichtbaar voor de app.')
+    label = Gtk.Label(label=_('Choose the screen you want to share.\nEverything on this screen is visible to the app.'))
     label.set_line_wrap(True)
     label.set_xalign(0)
     box.add(label)

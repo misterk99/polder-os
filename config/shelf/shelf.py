@@ -2,6 +2,7 @@
 """Polder OS app shelf (centre of the plank): pinned apps + running unpinned apps, running dot, active highlight,
 right-click rounded menu (Losmaken/Vastzetten, Nieuw venster, Sluiten). Replaces tint2-shelf-apps.rc because tint2
 has no per-icon context menus. Pinned list = settings.json 'pinned' (desktop ids); reloads live on change."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, subprocess, shlex
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in ('osb', 'notify', 'capture'): sys.path.insert(0, os.path.join(C, d))
@@ -85,7 +86,7 @@ class Desktop(Gtk.Window):
     """Revision 20: a _NET_WM_WINDOW_TYPE_DESKTOP window showing the wallpaper, so right-clicks on the empty desktop
     reach us (xfwm4 owns ButtonPress on the root window). Lives in the shelf process: no extra daemon."""
     def __init__(self, sw, sh):
-        super().__init__(type=Gtk.WindowType.TOPLEVEL, title='Polder Bureaublad')
+        super().__init__(type=Gtk.WindowType.TOPLEVEL, title=_('Polder Desktop'))
         self.set_name('desk'); self.set_decorated(False); self.set_type_hint(Gdk.WindowTypeHint.DESKTOP)
         self.stick(); self.set_skip_taskbar_hint(True); self.set_skip_pager_hint(True)
         if not LSH.setup(self, 'polder-desktop', layer='background', anchors=('left', 'right', 'top', 'bottom'), exclusive=-1):
@@ -114,11 +115,11 @@ class Desktop(Gtk.Window):
         if e.button != 3: return False
         run = lambda *a: subprocess.Popen(list(a), start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         settings = os.path.join(C, 'settings', 'instellingen.py')
-        items = [('preferences-desktop-wallpaper-symbolic', 'Achtergrond en stijl', lambda: run('python3', settings, 'personalisatie')),
-                 ('system-file-manager-symbolic', 'Bestanden openen', lambda: run(os.path.join(C, 'files', 'run-files.sh'))),
+        items = [('preferences-desktop-wallpaper-symbolic', _('Wallpaper and style'), lambda: run('python3', settings, 'personalisatie')),
+                 ('system-file-manager-symbolic', _('Open files'), lambda: run(os.path.join(C, 'files', 'run-files.sh'))),
                  None,
-                 ('emblem-system-symbolic', 'Instellingen', lambda: run('python3', settings)),
-                 ('input-keyboard-symbolic', 'Sneltoetsen', lambda: run('python3', os.path.join(C, 'shortcuts', 'sneltoetsen.py')))]
+                 ('emblem-system-symbolic', _('Settings'), lambda: run('python3', settings)),
+                 ('input-keyboard-symbolic', _('Keyboard shortcuts'), lambda: run('python3', os.path.join(C, 'shortcuts', 'sneltoetsen.py')))]
         self.menu = popmenu.PopMenu(items, int(e.x_root), int(e.y_root), anchor='below')
         return True
 
@@ -146,13 +147,13 @@ class Status:
             from gi.repository import GdkPixbuf
             self.launcher.add(Gtk.Image.new_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_size(os.path.join(C, 'launcher-icon.png'), 32, 32)))
         except Exception: self.launcher.add(Gtk.Image.new_from_icon_name('view-app-grid-symbolic', Gtk.IconSize.LARGE_TOOLBAR))
-        self.launcher.set_tooltip_text('Launcher'); self.launcher.connect('clicked', lambda *a: run(os.path.join(C, 'launcher', 'launcher-toggle.sh')))
+        self.launcher.set_tooltip_text(_('Launcher')); self.launcher.connect('clicked', lambda *a: run(os.path.join(C, 'launcher', 'launcher-toggle.sh')))
         self.right = Gtk.Box(spacing=6, valign=Gtk.Align.CENTER)
         self.shelf = shelf
-        self.kb = self.pill(self.kb_menu, 'Toetsenbordindeling')
-        self.wx = self.pill(lambda b: run('python3', os.path.join(C, 'calendar', 'cal.py'), '--weather', self.right_of(b)), 'Weer')
-        self.date = self.pill(lambda b: run('python3', os.path.join(C, 'calendar', 'cal.py'), self.right_of(b)), 'Agenda')
-        self.tray = self.pill(lambda *a: run(*qs_cmd()), 'Snelle instellingen')
+        self.kb = self.pill(self.kb_menu, _('Keyboard layout'))
+        self.wx = self.pill(lambda b: run('python3', os.path.join(C, 'calendar', 'cal.py'), '--weather', self.right_of(b)), _('Weather'))
+        self.date = self.pill(lambda b: run('python3', os.path.join(C, 'calendar', 'cal.py'), self.right_of(b)), _('Calendar'))
+        self.tray = self.pill(lambda *a: run(*qs_cmd()), _('Quick Settings'))
         for p in (self.kb, self.wx, self.date, self.tray): self.right.pack_start(p, False, False, 0)
         self.key = None; self.slow = 0; self.wxtext = ''; self.right.show_all(); self.wx.set_no_show_all(True); self.wx.hide()
     def layout(self):
@@ -160,9 +161,9 @@ class Status:
         return (os.environ.get('XKB_DEFAULT_LAYOUT') or 'us').split(',')[0]
     def kb_menu(self, b):
         x = b.translate_coordinates(self.shelf, 0, 0)[0]; lay = self.layout(); v = os.environ.get('XKB_DEFAULT_VARIANT', '')
-        items = [('input-keyboard-symbolic', f'Indeling: {lay}' + (f' ({v})' if v else ''), lambda: None),
-                 ('input-keyboard-symbolic', 'Sneltoetsen', lambda: run('python3', os.path.join(C, 'shortcuts', 'sneltoetsen.py')))]
-        self.shelf.menu = popmenu.PopMenu(items, x, self.shelf.sh - H - 6, anchor='above', title='Toetsenbord')
+        items = [('input-keyboard-symbolic', _('Layout: {lay}').format(lay=lay) + (f' ({v})' if v else ''), lambda: None),
+                 ('input-keyboard-symbolic', _('Keyboard shortcuts'), lambda: run('python3', os.path.join(C, 'shortcuts', 'sneltoetsen.py')))]
+        self.shelf.menu = popmenu.PopMenu(items, x, self.shelf.sh - H - 6, anchor='above', title=_('Keyboard'))
     def right_of(self, b):
         """--right=<px from the screen's right edge to the pill's right edge> so the panel opens right above the pill."""
         x = b.translate_coordinates(self.shelf, 0, 0)[0] + b.get_allocated_width()
@@ -210,13 +211,13 @@ class Status:
         try: ns = json.load(open('/tmp/osb-notify/state.json'))
         except Exception: ns = {}
         tf = '%H:%M' if sets.get('clock24', True) else '%-I:%M'
-        M = 'jan feb mrt apr mei jun jul aug sep okt nov dec'.split(); t = time.localtime()
+        M = _('Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec').split(); t = time.localtime()
         key = (time.strftime(tf), sets.get('show_date', True), ns.get('unread', 0), ns.get('dnd', False), tuple(sorted(self.st.items())), N.palette()['THEME'])
         if key == self.key: return
         self.key = key
         self.fill(self.kb, [Gtk.Label(label=self.layout().upper())])
         self.date.set_visible(bool(sets.get('show_date', True)))
-        self.fill(self.date, [Gtk.Label(label=f'{t.tm_mday} {M[t.tm_mon - 1]}')])
+        self.fill(self.date, [Gtk.Label(label=_('{month} {day}').format(day=t.tm_mday, month=M[t.tm_mon - 1]))])
         parts = [Gtk.Label(label=key[0])]
         if ns.get('dnd'): parts.append(self.icon('notifications-disabled'))
         elif ns.get('unread'): b = Gtk.Label(label=str(ns['unread'])); b.get_style_context().add_class('badge'); parts.append(b)
@@ -230,7 +231,7 @@ class Status:
 
 class Shelf(Gtk.Window):
     def __init__(self):
-        super().__init__(type=Gtk.WindowType.TOPLEVEL, title='Polder Plank')
+        super().__init__(type=Gtk.WindowType.TOPLEVEL, title=_('Polder Shelf'))
         self.set_name('shelf'); self.set_decorated(False); self.set_type_hint(Gdk.WindowTypeHint.DOCK)
         self.set_keep_above(True); self.stick(); self.set_skip_taskbar_hint(True); self.set_skip_pager_hint(True); self.set_resizable(False)
         scr = Gdk.Screen.get_default(); self.sw, self.sh = scr.get_width(), scr.get_height()
@@ -250,7 +251,7 @@ class Shelf(Gtk.Window):
         self.rec = Gtk.Button(); self.rec.get_style_context().add_class('recpill'); rb = Gtk.Box(spacing=6)
         rb.pack_start(Gtk.Image.new_from_icon_name('media-playback-stop-symbolic', Gtk.IconSize.MENU), False, False, 0)
         self.reclabel = Gtk.Label(label='0:00'); rb.pack_start(self.reclabel, False, False, 0); self.rec.add(rb)
-        self.rec.set_tooltip_text('Schermopname stoppen'); self.rec.connect('clicked', self.stop_rec); self.rec.set_no_show_all(True); rb.show_all()
+        self.rec.set_tooltip_text(_('Stop screen recording')); self.rec.connect('clicked', self.stop_rec); self.rec.set_no_show_all(True); rb.show_all()
         self.media = Gtk.Button(); self.media.get_style_context().add_class('mediapill'); mb = Gtk.Box(spacing=6)
         self.mediaicon = Gtk.Image.new_from_icon_name('media-playback-pause-symbolic', Gtk.IconSize.MENU); mb.pack_start(self.mediaicon, False, False, 0)
         self.medialabel = Gtk.Label(); self.medialabel.set_max_width_chars(18); self.medialabel.set_ellipsize(3); mb.pack_start(self.medialabel, False, False, 0)
@@ -390,11 +391,11 @@ class Shelf(Gtk.Window):
     def context(self, b, app):
         ai = self.db.apps.get(app); ws = self.app_windows(app); items = []
         if ai:
-            items.append(('view-pin-symbolic', 'Losmaken', lambda: self.set_pin(app, False)) if app in self.pinned
-                         else ('view-pin-symbolic', 'Vastzetten', lambda: self.set_pin(app, True)))
-            items.append(('window-new-symbolic', 'Nieuw venster', lambda: self.launch(app)))
+            items.append(('view-pin-symbolic', _('Unpin'), lambda: self.set_pin(app, False)) if app in self.pinned
+                         else ('view-pin-symbolic', _('Pin'), lambda: self.set_pin(app, True)))
+            items.append(('window-new-symbolic', _('New window'), lambda: self.launch(app)))
         if ws:
-            items.append(None); items.append(('window-close-symbolic', 'Sluiten' if len(ws) == 1 else f'Sluiten ({len(ws)} vensters)',
+            items.append(None); items.append(('window-close-symbolic', _('Close') if len(ws) == 1 else _('Close ({p0} windows)').format(p0=len(ws)),
                                               lambda: [self.wl.send('close', w[0]) if self.wl else subprocess.run(['wmctrl', '-i', '-c', hex(w[0])], timeout=3) for w in ws]))
         ox, oy = self.get_window().get_origin()[1:]; bx = b.translate_coordinates(self, 0, 0)[0]
         if LSH.active(self): ox, oy = (0 if self.full else (self.sw - self.get_allocated_width()) // 2), self.sh - H   # layer surface: origin is ours to compute

@@ -1,6 +1,7 @@
 # /usr/share/xgreeters/polderos-greeter.desktop
 [Desktop Entry]
 Name=Polder OS Greeter
-Comment=ChromeOS-stijl inlogscherm voor Polder OS
+Comment=ChromeOS-style login screen for Polder OS
+Comment[nl]=ChromeOS-stijl inlogscherm voor Polder OS
 Exec=python3 /usr/share/polderos/lock/polderos-greeter.py
 Type=Application

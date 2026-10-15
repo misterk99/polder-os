@@ -4,6 +4,8 @@
 //! ~/.cache/osb/clipboard/history.json, same format as clipd.py), skips content flagged by password managers
 //! (x-kde-passwordManagerHint). SIGUSR1 toggles the popup, SIGUSR2 clears. Choosing an item puts it on the clipboard
 //! (wl-copy keeps serving it), focus returns to the previous window and Ctrl+V (Ctrl+Shift+V in terminals) is typed.
+#[path = "../i18n.rs"] #[macro_use] mod i18n;
+#[allow(unused_imports)] use i18n::tr;
 #[path = "../theme.rs"] mod theme;
 use gtk::{gdk, gdk_pixbuf, glib, pango, prelude::*};
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
@@ -115,7 +117,7 @@ fn show_c(r: &R) {
       if m != c.palm { c.palm = m; #[allow(deprecated)] c.prov.load_from_data(&css(&theme::palette())); } }
     { let prev = r.borrow().prev.clone(); *prev.lock().unwrap() = None; std::thread::spawn(move || { let a = active_app(); *prev.lock().unwrap() = a; }); }
     // a fresh layer surface per opening: polder-comp closes on-demand overlay panels when they lose focus
-    let w = gtk::Window::builder().title("Klembord").decorated(false).resizable(false).build(); w.set_widget_name("cwin");
+    let w = gtk::Window::builder().title(tr("Clipboard")).decorated(false).resizable(false).build(); w.set_widget_name("cwin");
     if gtk4_layer_shell::is_supported() {
         w.init_layer_shell(); w.set_namespace("polder-clipboard"); w.set_layer(Layer::Overlay);
         w.set_anchor(Edge::Bottom, true); w.set_margin(Edge::Bottom, 70); w.set_exclusive_zone(0); w.set_keyboard_mode(KeyboardMode::OnDemand);
@@ -144,13 +146,13 @@ fn build(r: &R) {
     let card = gtk::Box::new(gtk::Orientation::Vertical, 4); card.set_widget_name("ccard"); card.set_size_request(W, -1);
     let hist = r.borrow().hist.clone();
     let hd = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    let l = gtk::Label::builder().label("Klembord").xalign(0.0).hexpand(true).build(); l.add_css_class("chead"); hd.append(&l);
-    if !hist.is_empty() { let b = gtk::Button::with_label("Alles wissen"); b.add_css_class("clear"); let r2 = r.clone(); b.connect_clicked(move |_| clear(&r2)); hd.append(&b); }
+    let l = gtk::Label::builder().label(tr("Clipboard")).xalign(0.0).hexpand(true).build(); l.add_css_class("chead"); hd.append(&l);
+    if !hist.is_empty() { let b = gtk::Button::with_label(tr("Clear all")); b.add_css_class("clear"); let r2 = r.clone(); b.connect_clicked(move |_| clear(&r2)); hd.append(&b); }
     card.append(&hd);
     let list = gtk::ListBox::new(); { let r2 = r.clone(); list.connect_row_activated(move |_, row| { let i = row.index() as usize; let r3 = r2.clone(); glib::idle_add_local_once(move || choose(&r3, i)); }); }
     card.append(&list);
     if hist.is_empty() {
-        let e = gtk::Label::new(Some("Nog niets gekopieerd.\nKopieer tekst of een afbeelding om die hier terug te vinden.")); e.set_justify(gtk::Justification::Center);
+        let e = gtk::Label::new(Some(tr("Nothing copied yet.\nCopy text or an image to find it here again."))); e.set_justify(gtk::Justification::Center);
         e.add_css_class("cempty"); card.append(&e);
     }
     for (i, h) in hist.iter().enumerate() {
@@ -167,7 +169,7 @@ fn build(r: &R) {
             let t = h["text"].as_str().unwrap_or("").split_whitespace().collect::<Vec<_>>().join(" ");
             let l = gtk::Label::builder().label(t).xalign(0.0).ellipsize(pango::EllipsizeMode::End).max_width_chars(34).hexpand(true).build(); l.add_css_class("ctext"); bx.append(&l);
         }
-        let d = gtk::Button::from_icon_name("window-close-symbolic"); d.add_css_class("cdel"); d.set_tooltip_text(Some("Verwijderen"));
+        let d = gtk::Button::from_icon_name("window-close-symbolic"); d.add_css_class("cdel"); d.set_tooltip_text(Some(tr("Remove")));
         { let r2 = r.clone(); d.connect_clicked(move |_| { let r3 = r2.clone(); glib::idle_add_local_once(move || delete(&r3, i)); }); }
         bx.append(&d); row.set_child(Some(&bx)); list.append(&row);
     }

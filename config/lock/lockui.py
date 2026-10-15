@@ -1,6 +1,7 @@
 """Shared ChromeOS-style lock/login UI for Polder OS (used by lock.py and the LightDM greeter).
 Fullscreen window: blurred+dimmed wallpaper, centred round avatar(s), name, borderless pill password field
 with arrow, caps-lock hint, error shake, bottom-left power buttons, bottom-right status (time, badge)."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, subprocess, hashlib, datetime, json
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in ('osb', 'notify'): sys.path.insert(0, os.path.join(C, d))
@@ -72,10 +73,10 @@ def avatar(name, face=None, small=False):
 
 class LockUI(Gtk.Window):
     """Base fullscreen UI. Subclasses implement authenticate(user, password, done_cb) and power(action)."""
-    POWER = [('system-shutdown-symbolic', 'Uitschakelen', 'shutdown'), ('system-log-out-symbolic', 'Afmelden', 'logout')]
+    POWER = [('system-shutdown-symbolic', _('Shut down'), 'shutdown'), ('system-log-out-symbolic', _('Sign out'), 'logout')]
 
     def __init__(self, users, hint=None, popup=True):
-        super().__init__(type=Gtk.WindowType.POPUP if popup else Gtk.WindowType.TOPLEVEL, title='Polder OS vergrendeld')
+        super().__init__(type=Gtk.WindowType.POPUP if popup else Gtk.WindowType.TOPLEVEL, title=_('Polder OS locked'))
         self.set_name('lockwin'); self.users = users; self.sel = 0
         scr = Gdk.Screen.get_default(); self.sw, self.sh = scr.get_width(), scr.get_height()
         self.move(0, 0); self.set_default_size(self.sw, self.sh); self.set_size_request(self.sw, self.sh)
@@ -89,14 +90,14 @@ class LockUI(Gtk.Window):
         self.build_pods()
         if hint: h = Gtk.Label(label=hint); h.get_style_context().add_class('hint'); self.col.pack_start(h, False, False, 0)
         self.pwrow = Gtk.Box(spacing=6); self.pwrow.get_style_context().add_class('pwbox'); self.pwrow.set_size_request(300, -1)
-        self.entry = Gtk.Entry(); self.entry.set_visibility(False); self.entry.set_placeholder_text('Wachtwoord'); self.entry.set_hexpand(True)
+        self.entry = Gtk.Entry(); self.entry.set_visibility(False); self.entry.set_placeholder_text(_('Password')); self.entry.set_hexpand(True)
         self.entry.connect('activate', self.submit); self.entry.connect('changed', lambda *a: self.go.set_sensitive(bool(self.entry.get_text())))
         self.go = Gtk.Button(); self.go.add(Gtk.Image.new_from_icon_name('go-next-symbolic', Gtk.IconSize.MENU)); self.go.get_style_context().add_class('go')
         self.go.set_sensitive(False); self.go.connect('clicked', self.submit)
         self.pwrow.pack_start(self.entry, True, True, 0); self.pwrow.pack_start(self.go, False, False, 0)
         self.pwwrap = Gtk.Box(halign=Gtk.Align.CENTER); self.pwwrap.pack_start(self.pwrow, False, False, 0); self.col.pack_start(self.pwwrap, False, False, 0)
         self.msg = Gtk.Label(); self.msg.get_style_context().add_class('err'); self.col.pack_start(self.msg, False, False, 0)
-        self.caps = Gtk.Label(label='Caps Lock staat aan'); self.caps.get_style_context().add_class('caps'); self.caps.set_no_show_all(True); self.col.pack_start(self.caps, False, False, 0)
+        self.caps = Gtk.Label(label=_('Caps Lock is on')); self.caps.get_style_context().add_class('caps'); self.caps.set_no_show_all(True); self.col.pack_start(self.caps, False, False, 0)
         ov.add_overlay(self.col)
         # bottom-left power, bottom-right status
         bl = Gtk.Box(spacing=8, halign=Gtk.Align.START, valign=Gtk.Align.END); bl.set_margin_start(14); bl.set_margin_bottom(12)
@@ -169,13 +170,13 @@ class LockUI(Gtk.Window):
     def submit(self, *a):
         pw = self.entry.get_text()
         if not pw: return
-        self.entry.set_sensitive(False); self.go.set_sensitive(False); self.msg.set_text('Controleren…')
+        self.entry.set_sensitive(False); self.go.set_sensitive(False); self.msg.set_text(_('Checking…'))
         self.authenticate(self.users[self.sel], pw, self.auth_done)
 
     def auth_done(self, ok, reason=''):
         self.entry.set_sensitive(True); self.entry.set_text('')
         if ok: self.msg.set_text(''); self.unlocked(); return
-        self.msg.set_text('Onjuist wachtwoord' if not reason else reason); self.entry.grab_focus(); self.shake()
+        self.msg.set_text(_('Incorrect password') if not reason else reason); self.entry.grab_focus(); self.shake()
 
     def shake(self):
         steps = [12, -12, 9, -9, 5, -5, 0]
@@ -187,7 +188,7 @@ class LockUI(Gtk.Window):
     def ask(self, action, label):
         for c in self.confirm.get_children(): c.destroy()
         self.confirm.pack_start(Gtk.Label(label=f'{label}?'), False, False, 0)
-        no = Gtk.Button(label='Annuleren'); no.get_style_context().add_class('shelfbtn'); no.connect('clicked', lambda *a: self.hide_confirm())
+        no = Gtk.Button(label=_('Cancel')); no.get_style_context().add_class('shelfbtn'); no.connect('clicked', lambda *a: self.hide_confirm())
         yes = Gtk.Button(label=label); yes.get_style_context().add_class('danger'); yes.connect('clicked', lambda *a: (self.hide_confirm(), self.power(action)))
         self.confirm.pack_start(no, False, False, 0); self.confirm.pack_start(yes, False, False, 0); self.confirm.set_no_show_all(False); self.confirm.show_all()
 

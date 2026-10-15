@@ -2,6 +2,7 @@
 """'Welkom bij Polder OS' first-run tour (Revision 24). Runs on first login (settings 'welcome_done' false) and on demand
 (Instellingen > Over, launcher 'welkom'). All changes go through the same code paths as Instellingen:
 osbsettings.update() (osb-settingsd applies them live), feeds.valid_url/add/sync, shortcut_table.KEYD."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, threading, subprocess, shutil
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in ('osb', 'notify', 'calendar', 'wm'): sys.path.insert(0, os.path.join(C, d))
@@ -49,7 +50,7 @@ def label(text, cls=None, wrap=True, xalign=0.0):
 
 class Welkom(Gtk.Window):
     def __init__(self):
-        super().__init__(title='Welkom bij Polder OS'); self.set_name('win'); self.set_wmclass('polder-welkom', 'Polder Welkom')
+        super().__init__(title=_('Welcome to Polder OS')); self.set_name('win'); self.set_wmclass('polder-welkom', _('Polder Welcome'))
         self.set_default_size(780, 540); self.set_resizable(False); self.set_decorated(False); self.set_position(Gtk.WindowPosition.CENTER)
         self.prov = Gtk.CssProvider(); Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), self.prov, 900)
         self.pal_m = None; self.restyle(); GLib.timeout_add(400, self.restyle)   # live preview: follow palette.env
@@ -58,11 +59,11 @@ class Welkom(Gtk.Window):
         for st in STEPS: self.stack.add_named(getattr(self, 'p_' + st)(), st)
         bar = Gtk.Box(spacing=8); v.pack_end(bar, False, False, 0)
         self.dots = []
-        for _ in STEPS:
+        for _x in STEPS:
             d = Gtk.Box(); d.get_style_context().add_class('dot'); d.set_valign(Gtk.Align.CENTER); self.dots.append(d); bar.pack_start(d, False, False, 0)
-        self.next = Gtk.Button(label='Volgende'); self.next.get_style_context().add_class('primary'); self.next.connect('clicked', lambda *a: self.go(1))
-        self.back = Gtk.Button(label='Terug'); self.back.get_style_context().add_class('text'); self.back.connect('clicked', lambda *a: self.go(-1))
-        self.skip = Gtk.Button(label='Overslaan'); self.skip.get_style_context().add_class('text'); self.skip.connect('clicked', lambda *a: self.finish())
+        self.next = Gtk.Button(label=_('Next')); self.next.get_style_context().add_class('primary'); self.next.connect('clicked', lambda *a: self.go(1))
+        self.back = Gtk.Button(label=_('Back')); self.back.get_style_context().add_class('text'); self.back.connect('clicked', lambda *a: self.go(-1))
+        self.skip = Gtk.Button(label=_('Skip')); self.skip.get_style_context().add_class('text'); self.skip.connect('clicked', lambda *a: self.finish())
         bar.pack_end(self.next, False, False, 0); bar.pack_end(self.back, False, False, 0); bar.pack_end(self.skip, False, False, 0)
         self.i = 0; self.connect('key-press-event', self.on_key); self.connect('destroy', self.quit)
         self.show_all(); self.go(0)
@@ -79,7 +80,7 @@ class Welkom(Gtk.Window):
         for k, dot in enumerate(self.dots):
             (dot.get_style_context().add_class if k == self.i else dot.get_style_context().remove_class)('on')
         last = self.i == len(STEPS) - 1
-        self.next.set_label('Aan de slag' if last else 'Volgende'); self.back.set_visible(self.i > 0); self.skip.set_visible(not last)
+        self.next.set_label(_('Get started') if last else _('Next')); self.back.set_visible(self.i > 0); self.skip.set_visible(not last)
 
     def on_key(self, w, e):
         if e.keyval == Gdk.KEY_Escape: self.finish()
@@ -92,6 +93,13 @@ class Welkom(Gtk.Window):
         except OSError: pass
         Gtk.main_quit()
 
+    def set_lang(self, code):
+        import polder_i18n as I
+        I.set_language(code); I.restart_components()
+        try: os.remove(PID)
+        except OSError: pass
+        os.execv(sys.executable, [sys.executable, os.path.abspath(__file__)] + [a for a in sys.argv[1:] if a != '--first-run'])
+
     def page(self, title, lead):
         b = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         b.pack_start(label(title, 'h1'), False, False, 0); b.pack_start(label(lead, 'lead'), False, False, 0)
@@ -100,30 +108,38 @@ class Welkom(Gtk.Window):
     # 1 -------------------------------------------------------------------------------------------
     def p_welkom(self):
         b = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14, valign=Gtk.Align.CENTER)
+        # language first (Polder OS i18n): language names in their own language; switching rebuilds the tour
+        import polder_i18n as I
+        lb = Gtk.Box(spacing=0, halign=Gtk.Align.CENTER); first = None
+        for code, name, _l in I.LANGUAGES:
+            t = Gtk.RadioButton.new_with_label_from_widget(first, name); t.set_mode(False); t.get_style_context().add_class('seg')
+            first = first or t; t.set_active(code == I.LANG); lb.pack_start(t, False, False, 2)
+            t.connect('toggled', lambda w, c=code: w.get_active() and c != I.LANG and self.set_lang(c))
+        b.pack_start(lb, False, False, 0)
         b.pack_start(Gtk.Image.new_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_scale(os.path.join(C, 'brand', 'polderos-logo.png'), 72, 72, True)), False, False, 0)
-        b.pack_start(label('Welkom bij Polder OS', 'h1', xalign=0.5), False, False, 0)
-        b.pack_start(label('Een ChromeOS-achtige desktop op Debian. In een paar stappen zetten we alles voor je klaar.', 'lead', xalign=0.5), False, False, 0)
+        b.pack_start(label(_('Welcome to Polder OS'), 'h1', xalign=0.5), False, False, 0)
+        b.pack_start(label(_('A ChromeOS-like desktop on Debian. In a few steps we will set everything up for you.'), 'lead', xalign=0.5), False, False, 0)
         th = S.wallpaper_thumb('polderheuvel', 400, 225)
         if th:
             pb = GdkPixbuf.Pixbuf.new_from_file(th); img = Gtk.Image.new_from_pixbuf(pb); b.pack_start(img, False, False, 6)
         # Rev 30: Polder Sync restore -> Instellingen › Sync (map of GitHub kiezen, wachtzin, 'Herstel van andere pc')
-        rb = Gtk.Button(label='Herstel van andere pc…'); rb.set_halign(Gtk.Align.CENTER); rb.get_style_context().add_class('text')
-        rb.set_tooltip_text('Instellingen, vastgezette apps en webapps overnemen via Polder Sync')
+        rb = Gtk.Button(label=_('Restore from another PC…')); rb.set_halign(Gtk.Align.CENTER); rb.get_style_context().add_class('text')
+        rb.set_tooltip_text(_('Take over settings, pinned apps and web apps via Polder Sync'))
         rb.connect('clicked', lambda *a: subprocess.Popen([sys.executable, os.path.join(C, 'settings', 'instellingen.py'), 'sync']))
         b.pack_start(rb, False, False, 0)
         return b
 
     # 2 -------------------------------------------------------------------------------------------
     def p_wifi(self):
-        b = self.page('Verbinding maken met wifi', 'Kies een netwerk. Je kunt dit later wijzigen via Snelle instellingen.')
+        b = self.page(_('Connect to Wi‑Fi'), _('Choose a network. You can change this later in Quick Settings.'))
         dev = None
         if shutil.which('nmcli'):
             out = subprocess.run(['nmcli', '-t', '-f', 'DEVICE,TYPE', 'device'], capture_output=True, text=True, timeout=10).stdout
             dev = next((l.split(':')[0] for l in out.splitlines() if l.split(':')[1:2] == ['wifi']), None)
         if not dev:
-            why = 'NetworkManager (nmcli) is niet geïnstalleerd.' if not shutil.which('nmcli') else 'NetworkManager ziet geen wifi-apparaat.'
+            why = _('NetworkManager (nmcli) is not installed.') if not shutil.which('nmcli') else _('NetworkManager does not see a Wi‑Fi device.')
             c = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4); c.get_style_context().add_class('card')
-            c.pack_start(label('Geen wifi-adapter gevonden'), False, False, 0); c.pack_start(label(why + ' Een kabelverbinding werkt automatisch; je kunt deze stap overslaan.', 'sub'), False, False, 0)
+            c.pack_start(label(_('No Wi‑Fi adapter found')), False, False, 0); c.pack_start(label(why + _(' A wired connection works automatically; you can skip this step.'), 'sub'), False, False, 0)
             b.pack_start(c, False, False, 8); return b
         self.wdev = dev
         lb = Gtk.ListBox(); sw = Gtk.ScrolledWindow(); sw.set_min_content_height(220); sw.add(lb); b.pack_start(sw, True, True, 4)
@@ -134,20 +150,20 @@ class Welkom(Gtk.Window):
             if len(p) < 4 or not p[1] or p[1] in seen: continue
             seen.add(p[1]); r = Gtk.Box(spacing=10); r.ssid = p[1]
             r.pack_start(label(('✓ ' if p[0] == '*' else '') + p[1]), True, True, 0); r.pack_start(label(f'{p[2]}% · {p[3] or "open"}', 'sub'), False, False, 0); lb.add(r)
-        pw = Gtk.Entry(placeholder_text='Wachtwoord', visibility=False); msg = label('', 'sub')
-        cb = Gtk.Button(label='Verbinden'); cb.get_style_context().add_class('primary')
+        pw = Gtk.Entry(placeholder_text=_('Password'), visibility=False); msg = label('', 'sub')
+        cb = Gtk.Button(label=_('Connect')); cb.get_style_context().add_class('primary')
         def connect(*a):
             row = lb.get_selected_row()
-            if not row: msg.set_text('Kies eerst een netwerk.'); return
-            ssid = row.get_child().ssid; msg.set_text(f'Verbinden met {ssid}…')
+            if not row: msg.set_text(_('Choose a network first.')); return
+            ssid = row.get_child().ssid; msg.set_text(_('Connecting to {ssid}…').format(ssid=ssid))
             def work():
                 cmd = ['nmcli', 'dev', 'wifi', 'connect', ssid, 'ifname', dev] + (['password', pw.get_text()] if pw.get_text() else [])
                 r = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
-                GLib.idle_add(msg.set_text, 'Verbonden met ' + ssid if r.returncode == 0 else 'Mislukt: ' + (r.stderr or r.stdout).strip()[:120])
+                GLib.idle_add(msg.set_text, _('Connected to ') + ssid if r.returncode == 0 else _('Failed: ') + (r.stderr or r.stdout).strip()[:120])
             threading.Thread(target=work, daemon=True).start()
         cb.connect('clicked', connect)
         h = Gtk.Box(spacing=8); h.pack_start(pw, True, True, 0); h.pack_start(cb, False, False, 0); b.pack_start(h, False, False, 0); b.pack_start(msg, False, False, 0)
-        if not seen: b.pack_start(label('Geen netwerken in de buurt gevonden.', 'sub'), False, False, 0)
+        if not seen: b.pack_start(label(_('No networks found nearby.'), 'sub'), False, False, 0)
         return b
 
     # 3 -------------------------------------------------------------------------------------------
@@ -160,23 +176,23 @@ class Welkom(Gtk.Window):
         self._busy = False; return True
 
     def p_thema(self):
-        b = self.page('Kies je stijl', 'Licht, donker of automatisch (licht van 07:00 tot 19:00). Je ziet het meteen op je hele bureaublad.')
+        b = self.page(_('Choose your style'), _('Light, dark or automatic (light from 07:00 to 19:00). You see it right away on your whole desktop.'))
         s = S.load(); seg = Gtk.Box(spacing=8); g = []
-        for k, lab in (('light', 'Licht'), ('dark', 'Donker'), ('auto', 'Automatisch')):
+        for k, lab in (('light', _('Light')), ('dark', _('Dark')), ('auto', _('Automatic'))):
             t = Gtk.ToggleButton(label=lab); t.get_style_context().add_class('seg'); t.set_active(s['theme'] == k)
             t.connect('toggled', lambda w, k=k: self.exclusive(w, g) and S.update(theme=k)); g.append(t); seg.pack_start(t, False, False, 0)
-        b.pack_start(label('Thema', 'sub'), False, False, 8); b.pack_start(seg, False, False, 0)
+        b.pack_start(label(_('Theme'), 'sub'), False, False, 8); b.pack_start(seg, False, False, 0)
         sw = Gtk.Box(spacing=10); ag = []
         for name in S.ACCENTS:
             t = Gtk.ToggleButton(); t.set_tooltip_text(name.capitalize()); t.get_style_context().add_class('swatch')
             cp = Gtk.CssProvider(); cp.load_from_data(f'.swatch {{ background: {S.ACCENTS[name][0]}; }}'.encode()); t.get_style_context().add_provider(cp, 950)
             t.set_active(s['accent'] == name); t.connect('toggled', lambda w, n=name: self.exclusive(w, ag) and S.update(accent=n)); ag.append(t); sw.pack_start(t, False, False, 0)
-        b.pack_start(label('Accentkleur', 'sub'), False, False, 12); b.pack_start(sw, False, False, 0)
+        b.pack_start(label(_('Accent color'), 'sub'), False, False, 12); b.pack_start(sw, False, False, 0)
         return b
 
     # 4 -------------------------------------------------------------------------------------------
     def p_achtergrond(self):
-        b = self.page('Kies een achtergrond', 'Polderheuvel krijgt in het donkere thema automatisch de avondvariant.')
+        b = self.page(_('Choose a wallpaper'), _('Polderheuvel automatically gets its evening variant in the dark theme.'))
         fb = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=3, column_spacing=6, row_spacing=6); g = []; s = S.load()
         for name in S.WALLPAPERS:
             th = S.wallpaper_thumb(name)
@@ -188,37 +204,36 @@ class Welkom(Gtk.Window):
 
     # 5 -------------------------------------------------------------------------------------------
     def p_agenda(self):
-        b = self.page('Agenda koppelen (optioneel)', 'Plak een iCal-link (https:// of webcal://), bijvoorbeeld van Google Agenda, Outlook of een feestdagenkalender. '
-                      'De afspraken verschijnen in de kalender als je op de datum op de plank klikt.')
-        self.a_name = Gtk.Entry(placeholder_text='Naam (bijv. Feestdagen)'); self.a_url = Gtk.Entry(placeholder_text='https://… of webcal://….ics')
-        add = Gtk.Button(label='Toevoegen'); add.get_style_context().add_class('primary'); self.a_msg = label('', 'sub')
+        b = self.page(_('Link a calendar (optional)'), _('Paste an iCal link (https:// or webcal://), for example from Google Calendar, Outlook or a holiday calendar. The events appear in the calendar when you click the date on the shelf.'))
+        self.a_name = Gtk.Entry(placeholder_text=_('Name (e.g. Holidays)')); self.a_url = Gtk.Entry(placeholder_text='https://… of webcal://….ics')
+        add = Gtk.Button(label=_('Add')); add.get_style_context().add_class('primary'); self.a_msg = label('', 'sub')
         add.connect('clicked', self.add_feed); self.a_url.connect('activate', self.add_feed)
         h = Gtk.Box(spacing=8); h.pack_start(self.a_url, True, True, 0); h.pack_start(add, False, False, 0)
         b.pack_start(self.a_name, False, False, 6); b.pack_start(h, False, False, 0); b.pack_start(self.a_msg, False, False, 4)
         n = len(S.load()['feeds'])
-        if n: b.pack_start(label(f'Al gekoppeld: {n} agenda(\'s). Beheer ze in Instellingen › Agenda.', 'sub'), False, False, 0)
+        if n: b.pack_start(label(_('Already linked: {n} calendar(s). Manage them in Settings › Calendar.').format(n=n), 'sub'), False, False, 0)
         return b
 
     def add_feed(self, *a):
         url = self.a_url.get_text().strip(); err = feeds.valid_url(url)
         ctx = self.a_msg.get_style_context(); ctx.remove_class('ok'); ctx.remove_class('err')
         if err: ctx.add_class('err'); self.a_msg.set_text(err); return
-        f = feeds.add(self.a_name.get_text().strip() or 'Agenda', url); self.a_msg.set_text('Ophalen…')
+        f = feeds.add(self.a_name.get_text().strip() or _('Calendar'), url); self.a_msg.set_text(_('Fetching…'))
         def work():
             st = feeds.sync(f)
             def done():
                 if st.get('ok'):
-                    ctx.add_class('ok'); self.a_msg.set_text(f"Gekoppeld: {st.get('events', 0)} evenementen" + (f" uit ‘{st['calname']}’" if st.get('calname') else ''))
+                    ctx.add_class('ok'); self.a_msg.set_text(_('Linked: {p0} events').format(p0=st.get('events', 0)) + (_(' from ‘{p0}’').format(p0=st['calname']) if st.get('calname') else ''))
                     self.a_url.set_text('')
                 else:   # keep honest: the feed stays in settings so the user can fix it in Instellingen
-                    ctx.add_class('err'); self.a_msg.set_text('Synchroniseren mislukt: ' + str(st.get('error')) + ' (staat in Instellingen › Agenda)')
+                    ctx.add_class('err'); self.a_msg.set_text(_('Sync failed: ') + str(st.get('error')) + _(' (listed in Settings › Calendar)'))
             GLib.idle_add(done)
         threading.Thread(target=work, daemon=True).start()
 
     # 6 -------------------------------------------------------------------------------------------
     def p_sneltoetsen(self):
-        b = self.page('Handige sneltoetsen', 'Alle sneltoetsen zie je met Ctrl + Alt + /.')
-        pop = [sc for sc in T.KEYD if sc['group'] == 'Populair' or 'Populair' in sc.get('also', ())][:6]
+        b = self.page(_('Handy keyboard shortcuts'), _('See all keyboard shortcuts with Ctrl + Alt + /.'))
+        pop = [sc for sc in T.KEYD if sc['group'] == _('Popular') or _('Popular') in sc.get('also', ())][:6]
         grid = Gtk.Grid(column_spacing=16, row_spacing=8); grid.set_margin_top(8)
         for r, sc in enumerate(pop):
             grid.attach(label(sc['desc']), 0, r, 1, 1)
@@ -232,9 +247,8 @@ class Welkom(Gtk.Window):
     def p_klaar(self):
         b = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, valign=Gtk.Align.CENTER)
         b.pack_start(Gtk.Image.new_from_icon_name('emblem-ok-symbolic', Gtk.IconSize.DIALOG), False, False, 0)
-        b.pack_start(label('Je bent klaar!', 'h1', xalign=0.5), False, False, 0)
-        b.pack_start(label('Tik op Super of klik op het Polder OS-logo linksonder om apps te openen. '
-                           'Nieuwe apps vind je in de Polder Store. Deze rondleiding staat in Instellingen › Over.', 'lead', xalign=0.5), False, False, 0)
+        b.pack_start(label(_("You're all set!"), 'h1', xalign=0.5), False, False, 0)
+        b.pack_start(label(_('Press Super or click the Polder OS logo at the bottom left to open apps. You can find new apps in the Polder Store. This tour is available in Settings › About.'), 'lead', xalign=0.5), False, False, 0)
         return b
 
 if __name__ == '__main__':

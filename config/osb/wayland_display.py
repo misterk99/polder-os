@@ -1,4 +1,5 @@
 """Native output configuration with a separate, crash-resistant preview watchdog."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import contextlib
 import fcntl
 import json
@@ -19,7 +20,7 @@ def runtime():
 def outputs():
     result = subprocess.run(['wlr-randr', '--json'], capture_output=True, text=True, timeout=5)
     if result.returncode:
-        raise RuntimeError(result.stderr.strip() or 'Beeldschermen konden niet worden gelezen.')
+        raise RuntimeError(result.stderr.strip() or _('Displays could not be read.'))
     return json.loads(result.stdout)
 
 
@@ -53,13 +54,13 @@ def arguments(profiles):
 
 def apply(profiles):
     if not any(p['enabled'] for p in profiles):
-        raise RuntimeError('Laat minstens één beeldscherm ingeschakeld.')
+        raise RuntimeError(_('Keep at least one display enabled.'))
     args = arguments(profiles)
     for dryrun in (True, False):
         result = subprocess.run(['wlr-randr'] + (['--dryrun'] if dryrun else []) + args,
                                 capture_output=True, text=True, timeout=5)
         if result.returncode:
-            raise RuntimeError(result.stderr.strip() or 'Deze beeldscherminstellingen worden niet ondersteund.')
+            raise RuntimeError(result.stderr.strip() or _('These display settings are not supported.'))
 
 
 @contextlib.contextmanager
@@ -92,7 +93,7 @@ def begin_preview(proposed, seconds=15):
             subprocess.Popen([sys.executable, __file__, '--guard', token], pass_fds=(lock.fileno(),),
                              start_new_session=True, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
     except BlockingIOError:
-        raise RuntimeError('Bevestig eerst de vorige beeldschermwijziging.')
+        raise RuntimeError(_('Confirm the previous display change first.'))
     finally:
         lock.close()  # The watchdog owns the preview lock, even if Settings crashes.
     try:
@@ -112,9 +113,9 @@ def decide(token, keep):
     with state_lock():
         state = read_state()
         if state['token'] != token or state['status'] != 'preview':
-            raise RuntimeError('De vorige beeldscherminstellingen zijn al hersteld.')
+            raise RuntimeError(_('The previous display settings have already been restored.'))
         if keep and time.monotonic() >= state['deadline']:
-            raise RuntimeError('De bevestigingstijd is verstreken.')
+            raise RuntimeError(_('The confirmation time has expired.'))
         if keep:
             import osbsettings as S
             saved = S.load().get('displays', {})

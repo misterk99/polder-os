@@ -8,6 +8,7 @@
 //! holds exactly the polder's changes: regular files/symlinks/dirs, whiteouts (char 0:0) for deletions, and
 //! "opaque" dirs (xattr user.overlay.opaque=y) that hide everything below them in the lower dir.
 #![allow(dead_code)]
+#[allow(unused_imports)] use crate::i18n::tr;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -59,8 +60,8 @@ pub fn pdir(id: &str) -> PathBuf { data_dir().join("polders").join(id) }
 
 // ---------------------------------------------------------------- hashing / state
 pub fn hash_file(p: &Path) -> Res<String> {
-    let mut f = fs::File::open(p).map_err(e("openen"))?;
-    let mut c = glib::Checksum::new(glib::ChecksumType::Sha256).ok_or("geen sha256")?;
+    let mut f = fs::File::open(p).map_err(e(tr("open")))?;
+    let mut c = glib::Checksum::new(glib::ChecksumType::Sha256).ok_or(tr("no sha256"))?;
     let mut buf = vec![0u8; 1 << 16];
     loop { let n = f.read(&mut buf).map_err(e("lezen"))?; if n == 0 { break; } c.update(&buf[..n]); }
     Ok(c.string().map(|s| s.to_string()).unwrap_or_default())
@@ -71,7 +72,7 @@ pub fn state_of(p: &Path) -> Res<St> {
     Ok(if ft.is_symlink() { St::Link { target: fs::read_link(p).map_err(e("readlink"))?.to_string_lossy().into() } }
        else if ft.is_dir() { St::Dir { mode: m.mode() & 0o7777 } }
        else if ft.is_file() { St::File { mode: m.mode() & 0o7777, size: m.len(), hash: hash_file(p)? } }
-       else { return Err(format!("{}: niet ondersteund bestandstype (apparaat/fifo/socket)", p.display())) })
+       else { return Err(tf!("{}: unsupported file type (device/fifo/socket)", p.display())) })
 }
 /// state using the baseline as a cache: same size+mtime+inode => same hash (like git's stat cache)
 fn state_cached(p: &Path, base: Option<&Entry>) -> Res<St> {
@@ -133,16 +134,16 @@ pub fn list() -> Vec<Meta> {
 
 pub fn create(name: &str, origin: &Path, description: &str) -> Res<Meta> {
     let origin = fs::canonicalize(origin).map_err(|x| format!("{}: {x}", origin.display()))?;
-    if !origin.is_dir() { return Err("Kies een map.".into()); }
+    if !origin.is_dir() { return Err(tr("Choose a folder.").into()); }
     let home = fs::canonicalize(std::env::var("HOME").unwrap_or_default()).unwrap_or_default();
-    let dd = data_dir(); fs::create_dir_all(dd.join("polders")).map_err(e("map maken"))?;
+    let dd = data_dir(); fs::create_dir_all(dd.join("polders")).map_err(e(tr("create folder")))?;
     let ddc = fs::canonicalize(&dd).unwrap_or(dd.clone());
-    if origin == Path::new("/") || origin == home { return Err("Een proefpolder van je hele thuismap of het hele systeem kan niet; kies een projectmap.".into()); }
-    if ddc.starts_with(&origin) || origin.starts_with(&ddc) { return Err("Deze map bevat de opslag van Sluis zelf.".into()); }
+    if origin == Path::new("/") || origin == home { return Err(tr("A test polder of your whole home folder or the whole system is not possible; choose a project folder.").into()); }
+    if ddc.starts_with(&origin) || origin.starts_with(&ddc) { return Err(tr("This folder contains Sluis's own storage.").into()); }
     let mut id = slug(name); let mut i = 2;
     while pdir(&id).exists() { id = format!("{}-{i}", slug(name)); i += 1; }
     let d = pdir(&id);
-    for s in ["upper", "work", "hupper", "hwork", "journal"] { fs::create_dir_all(d.join(s)).map_err(e("map maken"))?; }
+    for s in ["upper", "work", "hupper", "hwork", "journal"] { fs::create_dir_all(d.join(s)).map_err(e(tr("create folder")))?; }
     let base = scan(&origin)?;
     write_json(&d.join("baseline.json"), &base)?;
     let m = Meta { id, name: name.into(), description: description.into(), origin: origin.to_string_lossy().into(), created: now(), ..Default::default() };
@@ -159,7 +160,7 @@ pub fn rm_rf(p: &Path) -> Res<()> {
     fs::remove_dir_all(p).map_err(|x| format!("{}: {x}", p.display()))
 }
 pub fn discard(id: &str) -> Res<()> {
-    if pending_merge(id).is_some() { return Err("Er is een onderbroken overname; herstel of maak die eerst ongedaan.".into()); }
+    if pending_merge(id).is_some() { return Err(tr("There is an interrupted merge; finish or undo it first.").into()); }
     rm_rf(&pdir(id))
 }
 pub fn archive(id: &str, on: bool) -> Res<Meta> { let mut m = meta(id)?; m.archived = on; save_meta(&m)?; Ok(m) }
@@ -253,13 +254,13 @@ pub fn changes_for(origin: &Path, upper: &Path, base: &BTreeMap<String, Entry>) 
         let conflict = home_changed && hs != *b;
         let mut w = vec![];
         if matches!(b, St::Link { .. }) || matches!(bs, St::Link { .. }) {
-            if let St::Link { target } = b { if target.starts_with('/') || target.split('/').any(|c| c == "..") { w.push(format!("symlink wijst buiten de map: {target}")); } else { w.push("symlink".into()); } } else { w.push("symlink".into()); }
+            if let St::Link { target } = b { if target.starts_with('/') || target.split('/').any(|c| c == "..") { w.push(tf!("symlink points outside the folder: {target}" ; target)); } else { w.push("symlink".into()); } } else { w.push("symlink".into()); }
         }
-        if kind == "verwijderd" { w.push("verwijdert een bestand op het vasteland".into()); }
-        if kind == "rechten" || matches!((&bs, b), (St::File { mode: a, .. }, St::File { mode: c, .. }) if a != c) { w.push("wijzigt rechten".into()); }
+        if kind == "verwijderd" { w.push(tr("deletes a file on the mainland").into()); }
+        if kind == "rechten" || matches!((&bs, b), (St::File { mode: a, .. }, St::File { mode: c, .. }) if a != c) { w.push(tr("changes permissions").into()); }
         if let St::File { mode, .. } = b { if mode & 0o6000 != 0 { w.push("setuid/setgid-bit".into()); } }
-        if !bs.is_absent() && !b.is_absent() && kind != "rechten" { w.push("overschrijft een bestand op het vasteland".into()); }
-        if conflict { w.push("ook gewijzigd op het vasteland".into()); }
+        if !bs.is_absent() && !b.is_absent() && kind != "rechten" { w.push(tr("overwrites a file on the mainland").into()); }
+        if conflict { w.push(tr("also changed on the mainland").into()); }
         out.push(Change { path: p.clone(), kind: kind.into(), base: bs, home: hs, branch: b.clone(), conflict, home_changed, renamed_from: None, warnings: w });
     }
     // rename detection: a deleted file and an added file with the same content
@@ -298,8 +299,8 @@ pub fn plan_for(origin: &Path, upper: &Path, ch: &[Change], selected: &[String],
     want.sort_by(|a, b| a.path.cmp(&b.path));
     let mut dirs_needed = BTreeSet::new();
     for c in &want {
-        if c.home == c.branch { plan.skipped.push((c.path.clone(), "al gelijk op het vasteland".into())); continue; }
-        if c.conflict && !force.contains(&c.path) { plan.skipped.push((c.path.clone(), "conflict: ook gewijzigd op het vasteland".into())); continue; }
+        if c.home == c.branch { plan.skipped.push((c.path.clone(), tr("already identical on the mainland").into())); continue; }
+        if c.conflict && !force.contains(&c.path) { plan.skipped.push((c.path.clone(), tr("conflict: also changed on the mainland").into())); continue; }
         for w in &c.warnings { plan.warnings.push(format!("{}: {w}", c.path)); }
         // parents that do not exist on the vasteland yet
         let mut acc = String::new();
@@ -362,25 +363,25 @@ fn tmp_name(target: &Path) -> PathBuf {
 fn apply_op(origin: &Path, o: &Op) -> Res<()> {
     let t = origin.join(&o.path);
     match o.act.as_str() {
-        "mkdir" => { if let St::Dir { mode } = o.post { fs::create_dir(&t).map_err(e("map maken"))?; fs::set_permissions(&t, fs::Permissions::from_mode(mode)).map_err(e("rechten"))?; } }
-        "chmod" => { let mode = match &o.post { St::Dir { mode } | St::File { mode, .. } => *mode, _ => 0o644 }; fs::set_permissions(&t, fs::Permissions::from_mode(mode)).map_err(e("rechten"))?; }
-        "delete" => { fs::remove_file(&t).map_err(e("verwijderen"))?; }
-        "rmdir" => { fs::remove_dir(&t).map_err(|x| format!("map is niet leeg op het vasteland (er staan bestanden die de polder niet kent): {x}"))?; }
+        "mkdir" => { if let St::Dir { mode } = o.post { fs::create_dir(&t).map_err(e(tr("create folder")))?; fs::set_permissions(&t, fs::Permissions::from_mode(mode)).map_err(e(tr("permissions")))?; } }
+        "chmod" => { let mode = match &o.post { St::Dir { mode } | St::File { mode, .. } => *mode, _ => 0o644 }; fs::set_permissions(&t, fs::Permissions::from_mode(mode)).map_err(e(tr("permissions")))?; }
+        "delete" => { fs::remove_file(&t).map_err(e(tr("delete")))?; }
+        "rmdir" => { fs::remove_dir(&t).map_err(|x| tf!("folder is not empty on the mainland (it contains files the polder does not know): {x}" ; x))?; }
         "write" => {
             let tmp = tmp_name(&t); let _ = fs::remove_file(&tmp);
             match &o.post {
                 St::Link { target } => std::os::unix::fs::symlink(target, &tmp).map_err(e("symlink"))?,
                 St::File { mode, hash, .. } => {
-                    let src = PathBuf::from(o.src.as_ref().ok_or("geen bron")?);
-                    fs::copy(&src, &tmp).map_err(e("kopiëren"))?;
-                    let f = fs::File::open(&tmp).map_err(e("kopiëren"))?; f.sync_all().ok();
-                    fs::set_permissions(&tmp, fs::Permissions::from_mode(*mode)).map_err(e("rechten"))?;
-                    if hash_file(&tmp)? != *hash { let _ = fs::remove_file(&tmp); return Err("bestand in de polder is intussen veranderd; bekijk de wijzigingen opnieuw".into()); }
+                    let src = PathBuf::from(o.src.as_ref().ok_or(tr("no source"))?);
+                    fs::copy(&src, &tmp).map_err(e(tr("copy")))?;
+                    let f = fs::File::open(&tmp).map_err(e(tr("copy")))?; f.sync_all().ok();
+                    fs::set_permissions(&tmp, fs::Permissions::from_mode(*mode)).map_err(e(tr("permissions")))?;
+                    if hash_file(&tmp)? != *hash { let _ = fs::remove_file(&tmp); return Err(tr("the file in the polder has changed meanwhile; review the changes again").into()); }
                 }
-                _ => return Err("onbekende bewerking".into()),
+                _ => return Err(tr("unknown operation").into()),
             }
-            if let St::Dir { .. } = o.pre { fs::remove_dir(&t).map_err(e("map vervangen"))?; }
-            fs::rename(&tmp, &t).map_err(e("vervangen"))?;   // atomic replace
+            if let St::Dir { .. } = o.pre { fs::remove_dir(&t).map_err(e(tr("replace folder")))?; }
+            fs::rename(&tmp, &t).map_err(e(tr("replace")))?;   // atomic replace
         }
         x => return Err(format!("onbekende bewerking {x}")),
     }
@@ -393,7 +394,7 @@ fn now_state(origin: &Path, o: &Op) -> St { state_of(&origin.join(&o.path)).unwr
 pub fn crash_after() -> Option<usize> { std::env::var("POLDER_SLUIS_CRASH_AFTER").ok().and_then(|s| s.parse().ok()) }
 
 pub fn apply_plan(jroot: &Path, origin: &Path, plan: &Plan, crash: Option<usize>) -> Res<Report> {
-    if let Some(p) = pending_in(jroot) { return Err(format!("onderbroken overname {p} moet eerst hersteld of teruggedraaid worden")); }
+    if let Some(p) = pending_in(jroot) { return Err(tf!("interrupted merge {p} must be finished or rolled back first" ; p)); }
     static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let ns = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
     let mid = format!("{ns}-{}-{}", std::process::id(), SEQ.fetch_add(1, std::sync::atomic::Ordering::SeqCst));
@@ -413,7 +414,7 @@ fn run_ops(j: &Path, origin: &Path, plan: &Plan, start: usize, crash: Option<usi
         let cur = now_state(origin, o);
         if cur == o.post { log_line(j, &format!("done {n}"))?; r.done.push(o.path.clone()); continue; }   // already applied (resume)
         if cur != o.pre && !(o.act == "chmod" && cur.same_content(&o.pre)) {
-            log_line(j, &format!("fail {n}"))?; r.failed.push((o.path.clone(), "vasteland is intussen gewijzigd; niet aangeraakt".into())); continue;
+            log_line(j, &format!("fail {n}"))?; r.failed.push((o.path.clone(), tr("the mainland has changed meanwhile; not touched").into())); continue;
         }
         backup(j, n, &origin.join(&o.path))?;
         log_line(j, &format!("start {n}"))?;
@@ -438,14 +439,14 @@ pub fn pending_merge(id: &str) -> Option<String> { pending_in(&pdir(id).join("jo
 
 /// Continue an interrupted merge where it stopped (ops are idempotent: already-applied ones are recognised).
 pub fn resume_in(jroot: &Path) -> Res<Report> {
-    let mid = pending_in(jroot).ok_or("geen onderbroken overname")?;
+    let mid = pending_in(jroot).ok_or(tr("no interrupted merge"))?;
     let j = jroot.join(&mid);
     let (origin, plan): (String, Plan) = read_json(&j.join("plan.json"))?;
     run_ops(&j, Path::new(&origin), &plan, 0, None, mid)
 }
 /// Undo an interrupted (or finished) merge: every op whose result is present is reverted from the journal backups.
 pub fn rollback_in(jroot: &Path, mid: Option<&str>) -> Res<Report> {
-    let mid = match mid { Some(m) => m.to_string(), None => pending_in(jroot).ok_or("geen onderbroken overname")? };
+    let mid = match mid { Some(m) => m.to_string(), None => pending_in(jroot).ok_or(tr("no interrupted merge"))? };
     let j = jroot.join(&mid);
     let (origin, plan): (String, Plan) = read_json(&j.join("plan.json"))?;
     let origin = PathBuf::from(origin);
@@ -455,14 +456,14 @@ pub fn rollback_in(jroot: &Path, mid: Option<&str>) -> Res<Report> {
         let cur = now_state(&origin, o);
         let _ = fs::remove_file(tmp_name(&t));                       // half-written temp file of a crashed write
         if cur == o.pre { continue; }                                 // never applied
-        if cur != o.post && !(o.act == "chmod" && cur.same_content(&o.post)) { r.failed.push((o.path.clone(), "gewijzigd na de overname; niet teruggezet".into())); continue; }
+        if cur != o.post && !(o.act == "chmod" && cur.same_content(&o.post)) { r.failed.push((o.path.clone(), tr("changed after the merge; not restored").into())); continue; }
         let res: Res<()> = (|| {
             match (&o.pre, o.act.as_str()) {
-                (St::Absent, _) => { if matches!(o.post, St::Dir { .. }) { fs::remove_dir(&t).map_err(e("map verwijderen")) } else { fs::remove_file(&t).map_err(e("verwijderen")) } }
-                (St::Dir { mode }, "chmod") | (St::Dir { mode }, "rmdir") => { if o.act == "rmdir" { fs::create_dir(&t).map_err(e("map"))?; } fs::set_permissions(&t, fs::Permissions::from_mode(*mode)).map_err(e("rechten")) }
-                (St::File { mode, .. }, "chmod") => fs::set_permissions(&t, fs::Permissions::from_mode(*mode)).map_err(e("rechten")),
+                (St::Absent, _) => { if matches!(o.post, St::Dir { .. }) { fs::remove_dir(&t).map_err(e(tr("remove folder"))) } else { fs::remove_file(&t).map_err(e(tr("delete"))) } }
+                (St::Dir { mode }, "chmod") | (St::Dir { mode }, "rmdir") => { if o.act == "rmdir" { fs::create_dir(&t).map_err(e("map"))?; } fs::set_permissions(&t, fs::Permissions::from_mode(*mode)).map_err(e(tr("permissions"))) }
+                (St::File { mode, .. }, "chmod") => fs::set_permissions(&t, fs::Permissions::from_mode(*mode)).map_err(e(tr("permissions"))),
                 (St::Dir { .. }, _) => { if cur.kind() != "map" { let _ = fs::remove_file(&t); } fs::create_dir_all(&t).map_err(e("map")) }
-                _ => { let b = j.join("backup").join(n.to_string()); if matches!(cur, St::Dir { .. }) { fs::remove_dir(&t).map_err(e("map"))?; } fs::rename(&b, &t).map_err(|x| format!("reservekopie terugzetten: {x}")) }
+                _ => { let b = j.join("backup").join(n.to_string()); if matches!(cur, St::Dir { .. }) { fs::remove_dir(&t).map_err(e("map"))?; } fs::rename(&b, &t).map_err(|x| tf!("restoring backup: {x}" ; x)) }
             }
         })();
         match res { Ok(()) => r.done.push(o.path.clone()), Err(x) => r.failed.push((o.path.clone(), x)) }
@@ -482,7 +483,7 @@ pub fn rebase(base: &mut BTreeMap<String, Entry>, origin: &Path, paths: &[String
     }
 }
 pub fn merge(id: &str, selected: &[String], force: &[String]) -> Res<Report> {
-    let m = meta(id)?; if m.archived { return Err("Deze proefpolder is gearchiveerd.".into()); }
+    let m = meta(id)?; if m.archived { return Err(tr("This test polder is archived.").into()); }
     let p = plan(id, selected, force)?;
     let jroot = pdir(id).join("journal");
     let saved = fs::read(pdir(id).join("baseline.json")).map_err(e("baseline"))?;

@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 //! Polder OS Quick Settings in Rust (GTK4 + wlr-layer-shell): feature port of config/quicksettings/qs.py (Wayland path).
 //! Run again -> closes the open panel (same PID file as qs.py, so the two implementations toggle each other).
+#[path = "../i18n.rs"] #[macro_use] mod i18n;
+#[allow(unused_imports)] use i18n::tr;
 #[path = "../theme.rs"] mod theme;
 #[path = "../status.rs"] mod status;
 #[path = "../kdc.rs"] mod kdc;
@@ -10,8 +12,8 @@ use serde_json::Value;
 use std::{cell::{Cell, RefCell}, process::{Command, Stdio}, rc::Rc, time::SystemTime};
 
 const W: i32 = 420; const MARGIN_R: i32 = 10; const SHELF: i32 = 62; const GAP: i32 = 8; const TOP_MARGIN: i32 = 10;
-const DAYS: [&str; 7] = ["ma", "di", "wo", "do", "vr", "za", "zo"];
-const MONTHS: [&str; 12] = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
+fn weekday(d: i32) -> &'static str { tr("Mon Tue Wed Thu Fri Sat Sun").split(' ').nth(d as usize - 1).unwrap_or("") }
+fn month(m: u32) -> &'static str { tr("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec").split(' ').nth(m as usize - 1).unwrap_or("") }
 
 fn have(c: &str) -> bool { status::which(c) }
 fn run(argv: &[&str]) {
@@ -33,7 +35,7 @@ fn battery() -> Option<String> {
 }
 fn wifi_state() -> (bool, String) {
     let o = out(&["nmcli", "radio", "wifi"]);
-    (o == "enabled", if o == "enabled" { "Verbonden" } else { "Uit" }.into())
+    (o == "enabled", if o == "enabled" { tr("Connected") } else { tr("Off") }.into())
 }
 fn volume() -> f64 {   // real sink volume (qs.py starts the slider at 70)
     let v = out(&["pactl", "get-sink-volume", "@DEFAULT_SINK@"]);
@@ -71,10 +73,10 @@ fn notify_state() -> Value {
 
 // ---- KDE Connect phone: tile whenever KDE Connect exists; it opens the Telefoon-hub (never invents a device) ----
 fn phone() -> Option<(String, String, bool)> {
-    if !kdc::running() { return if kdc::installed() { Some(("Telefoon".into(), "Uit".into(), false)) } else { None }; }
+    if !kdc::running() { return if kdc::installed() { Some((tr("Phone").into(), tr("Off").into(), false)) } else { None }; }
     let devs = kdc::devices();
-    let Some(d) = devs.iter().find(|d| d.paired) else { return Some(("Telefoon".into(), "Niet gekoppeld".into(), false)) };
-    let sub = if !d.reachable { "Niet bereikbaar".to_string() } else { match kdc::info(d).battery { Some((b, _)) => format!("{b}%"), None => "Verbonden".into() } };
+    let Some(d) = devs.iter().find(|d| d.paired) else { return Some((tr("Phone").into(), tr("Not paired").into(), false)) };
+    let sub = if !d.reachable { tr("Unreachable").to_string() } else { match kdc::info(d).battery { Some((b, _)) => format!("{b}%"), None => tr("Connected").into() } };
     Some((d.name.clone(), sub, d.reachable))
 }
 fn hub_bin() -> Option<String> {
@@ -86,19 +88,19 @@ fn hub_bin() -> Option<String> {
 struct Tile { key: &'static str, icon: &'static str, title: String, sub: Option<String>, active: bool }
 fn tiles() -> Vec<Tile> {
     let s = theme::settings(); let mut t = vec![];
-    if have("nmcli") { let (a, sub) = wifi_state(); t.push(Tile { key: "wifi", icon: "network-wireless-signal-excellent-symbolic", title: "Wifi".into(), sub: Some(sub), active: a }); }
-    if have("bluetoothctl") { t.push(Tile { key: "bt", icon: "bluetooth-active-symbolic", title: "Bluetooth".into(), sub: None, active: false }); }
+    if have("nmcli") { let (a, sub) = wifi_state(); t.push(Tile { key: "wifi", icon: "network-wireless-signal-excellent-symbolic", title: tr("Wi‑Fi").into(), sub: Some(sub), active: a }); }
+    if have("bluetoothctl") { t.push(Tile { key: "bt", icon: "bluetooth-active-symbolic", title: tr("Bluetooth").into(), sub: None, active: false }); }
     let th = s.get("theme").and_then(|v| v.as_str()).unwrap_or("light");
-    t.push(Tile { key: "dark", icon: "weather-clear-night-symbolic", title: "Donker thema".into(),
-                  sub: Some(match th { "auto" => "Automatisch", "dark" => "Aan", _ => "Uit" }.into()), active: theme::effective_dark(&s) });
+    t.push(Tile { key: "dark", icon: "weather-clear-night-symbolic", title: tr("Dark theme").into(),
+                  sub: Some(match th { "auto" => tr("Automatic"), "dark" => tr("On"), _ => tr("Off") }.into()), active: theme::effective_dark(&s) });
     let dyn_on = s.get("color_source").and_then(|v| v.as_str()) == Some("wallpaper");
-    t.push(Tile { key: "dyn", icon: "preferences-desktop-wallpaper-symbolic", title: "Kleuren uit achtergrond".into(),
-                  sub: Some(if dyn_on { "Aan" } else { "Uit" }.into()), active: dyn_on });
+    t.push(Tile { key: "dyn", icon: "preferences-desktop-wallpaper-symbolic", title: tr("Colors from wallpaper").into(),
+                  sub: Some(if dyn_on { tr("On") } else { tr("Off") }.into()), active: dyn_on });
     let (l, v) = (s.get("kbd_layout").and_then(|x| x.as_str()).unwrap_or("us").to_string(), s.get("kbd_variant").and_then(|x| x.as_str()).unwrap_or("").to_string());
-    let kn = theme::LAYOUTS.iter().find(|x| x.0 == l && x.1 == v).map(|x| x.2.to_string()).unwrap_or_else(|| l.to_uppercase());
-    t.push(Tile { key: "kbd", icon: "input-keyboard-symbolic", title: "Toetsenbord".into(), sub: Some(kn), active: false });
-    t.push(Tile { key: "cap", icon: "camera-photo-symbolic", title: "Schermopname".into(), sub: Some("Screenshot of video".into()), active: false });
-    t.push(Tile { key: "dnd", icon: "notifications-disabled-symbolic", title: "Niet storen".into(), sub: None, active: notify_state()["dnd"].as_bool().unwrap_or(false) });
+    let kn = theme::LAYOUTS.iter().find(|x| x.0 == l && x.1 == v).map(|x| tr(x.2).to_string()).unwrap_or_else(|| l.to_uppercase());
+    t.push(Tile { key: "kbd", icon: "input-keyboard-symbolic", title: tr("Keyboard").into(), sub: Some(kn), active: false });
+    t.push(Tile { key: "cap", icon: "camera-photo-symbolic", title: tr("Screen capture").into(), sub: Some(tr("Screenshot or video").into()), active: false });
+    t.push(Tile { key: "dnd", icon: "notifications-disabled-symbolic", title: tr("Do not disturb").into(), sub: None, active: notify_state()["dnd"].as_bool().unwrap_or(false) });
     if let Some((name, sub, reach)) = phone() { t.push(Tile { key: "phone", icon: "phone-symbolic", title: name, sub: Some(sub), active: reach }); }
     t
 }
@@ -174,7 +176,7 @@ fn reload_css(q: &Q) {
 fn notif_card(q: &Q, n: &Value) -> gtk::Box {
     let id = n["id"].as_u64().unwrap_or(0) as u32;
     let card = gtk::Box::new(gtk::Orientation::Horizontal, 12); card.add_css_class("card"); card.add_css_class("inner");
-    let app = n["app"].as_str().unwrap_or("Systeem");
+    let app = n["app"].as_str().unwrap_or(tr("System"));
     let icon = n["icon"].as_str().filter(|s| !s.is_empty()).map(String::from).unwrap_or_else(|| match app.to_lowercase().as_str() {
         "downloads" => "folder-download-symbolic", "systeem" => "emblem-system-symbolic", "chromium" => "web-browser-symbolic",
         "bestanden" => "system-file-manager-symbolic", _ => "dialog-information-symbolic" }.into());
@@ -197,7 +199,7 @@ fn notif_card(q: &Q, n: &Value) -> gtk::Box {
         col.append(&row);
     }
     card.append(&col);
-    let x = gtk::Button::from_icon_name("window-close-symbolic"); x.set_tooltip_text(Some("Sluiten")); x.add_css_class("x"); x.set_valign(gtk::Align::Start);
+    let x = gtk::Button::from_icon_name("window-close-symbolic"); x.set_tooltip_text(Some(tr("Close"))); x.add_css_class("x"); x.set_valign(gtk::Align::Start);
     let w = Rc::downgrade(q);
     x.connect_clicked(move |_| if let Some(q) = w.upgrade() {
         ncall("Dismiss", Some((id,).to_variant()));
@@ -220,8 +222,8 @@ fn layout(q: &Q) {
     if !hist.is_empty() {
         let card = gtk::Box::new(gtk::Orientation::Vertical, 8); card.set_widget_name("histcard");
         let hdr = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        let l = lbl(&format!("Meldingen ({})", hist.len()), "histtitle", 0); l.set_hexpand(true); hdr.append(&l);
-        let cb = gtk::Button::with_label("Alles wissen"); cb.add_css_class("pill");
+        let l = lbl(&tf!("Notifications ({})", hist.len()), "histtitle", 0); l.set_hexpand(true); hdr.append(&l);
+        let cb = gtk::Button::with_label(tr("Clear all")); cb.add_css_class("pill");
         let w = Rc::downgrade(q);
         cb.connect_clicked(move |_| if let Some(q) = w.upgrade() { ncall("ClearAll", None); q.borrow_mut().hist.clear(); layout(&q); });
         hdr.append(&cb); card.append(&hdr);
@@ -254,13 +256,13 @@ fn refresh_media(q: &Q) {
                   else { let p = gtk::Image::from_icon_name("audio-x-generic-symbolic"); p.set_pixel_size(24); p.add_css_class("mart"); p };
         card.append(&art);
         let tb = gtk::Box::new(gtk::Orientation::Vertical, 0); tb.set_valign(gtk::Align::Center); tb.set_hexpand(true);
-        tb.append(&lbl(if m.title.is_empty() { "Onbekende titel" } else { &m.title }, "mtitle", 20));
+        tb.append(&lbl(if m.title.is_empty() { tr("Unknown title") } else { &m.title }, "mtitle", 20));
         tb.append(&lbl(&[m.artist.as_str(), m.app.as_str()].iter().filter(|x| !x.is_empty()).cloned().collect::<Vec<_>>().join(" · "), "msub", 20));
         card.append(&tb);
         let playing = m.status == "Playing";
-        for (icon, meth, ok, tip) in [("media-skip-backward-symbolic", "Previous", m.can_prev, "Vorige"),
-                                      (if playing { "media-playback-pause-symbolic" } else { "media-playback-start-symbolic" }, "PlayPause", true, if playing { "Pauzeren" } else { "Afspelen" }),
-                                      ("media-skip-forward-symbolic", "Next", m.can_next, "Volgende")] {
+        for (icon, meth, ok, tip) in [("media-skip-backward-symbolic", "Previous", m.can_prev, tr("Previous")),
+                                      (if playing { "media-playback-pause-symbolic" } else { "media-playback-start-symbolic" }, "PlayPause", true, if playing { tr("Pause") } else { tr("Play") }),
+                                      ("media-skip-forward-symbolic", "Next", m.can_next, tr("Next"))] {
             let b = gtk::Button::from_icon_name(icon); b.add_css_class("mbtn"); if meth == "PlayPause" { b.add_css_class("pp"); }
             b.set_tooltip_text(Some(tip)); b.set_sensitive(ok); b.set_valign(gtk::Align::Center);
             let (name, w) = (m.name.clone(), Rc::downgrade(q));
@@ -275,13 +277,13 @@ fn refresh_media(q: &Q) {
 
 fn power_menu(q: &Q) {
     q.borrow().dialog_open.set(true);
-    let d = gtk::Window::builder().title("Aan/uit").decorated(false).build(); d.set_widget_name("qswin");
+    let d = gtk::Window::builder().title(tr("Power")).decorated(false).build(); d.set_widget_name("qswin");
     d.init_layer_shell(); d.set_namespace("polder-dialog"); d.set_layer(Layer::Overlay); d.set_keyboard_mode(KeyboardMode::Exclusive); d.set_exclusive_zone(-1);
     let card = gtk::Box::new(gtk::Orientation::Vertical, 14); card.set_widget_name("pwcard");
-    card.append(&lbl("Wat wil je doen?", "pwtitle", 0));
+    card.append(&lbl(tr("What do you want to do?"), "pwtitle", 0));
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    let mut opts = vec![("Annuleren", 0), ("Afmelden", 1), ("Opnieuw opstarten", 2), ("Uitschakelen", 3)];
-    if wayland() { opts.push(("Slaapstand", 4)); }
+    let mut opts = vec![(tr("Cancel"), 0), (tr("Sign out"), 1), (tr("Restart"), 2), (tr("Shut down"), 3)];
+    if wayland() { opts.push((tr("Sleep"), 4)); }
     for (l, r) in opts {
         let b = gtk::Button::with_label(l); b.add_css_class("pill"); if r != 0 { b.add_css_class("active"); }
         let (d2, w) = (d.clone(), Rc::downgrade(q));
@@ -293,8 +295,8 @@ fn power_menu(q: &Q) {
             if (1..=3).contains(&r) { println!("would run: {}", ["", "logout", "systemctl reboot", "systemctl poweroff"][r]); }
             if iso { match r {
                 1 => run(&["sh", "-c", "loginctl terminate-session \"$XDG_SESSION_ID\""]), 2 => run(&["systemctl", "reboot"]), 3 => run(&["systemctl", "poweroff"]),
-                4 => { run(&["sh", "-c", "\"$1\" || notify-send \"Slaapstand niet gestart\" \"Vergrendelen of slaapstand is mislukt. Probeer het opnieuw.\"",
-                             "polder-suspend", &cpath("lock/suspend-now.sh")]); quit() }
+                4 => { run(&["sh", "-c", "\"$1\" || notify-send \"$2\" \"$3\"",
+                             "polder-suspend", &cpath("lock/suspend-now.sh"), tr("Sleep did not start"), tr("Locking or sleep failed. Please try again.")]); quit() }
                 _ => {} } }
         });
         row.append(&b);
@@ -305,7 +307,7 @@ fn power_menu(q: &Q) {
 fn build(app: &gtk::Application) -> Q {
     let sh = gdk::Display::default().and_then(|d| d.monitors().item(0)).and_then(|m| m.downcast::<gdk::Monitor>().ok()).map(|m| m.geometry().height()).unwrap_or(768);
     let win = gtk::ApplicationWindow::new(app).upcast::<gtk::Window>();
-    win.set_title(Some("Snelle instellingen")); win.set_widget_name("qswin"); win.set_decorated(false);
+    win.set_title(Some(tr("Quick Settings"))); win.set_widget_name("qswin"); win.set_decorated(false);
     win.init_layer_shell(); win.set_namespace("polder-quicksettings"); win.set_layer(Layer::Overlay);
     win.set_anchor(Edge::Right, true); win.set_anchor(Edge::Bottom, true);
     win.set_margin(Edge::Right, MARGIN_R); win.set_margin(Edge::Bottom, SHELF); win.set_exclusive_zone(0); win.set_keyboard_mode(KeyboardMode::OnDemand);
@@ -319,10 +321,10 @@ fn build(app: &gtk::Application) -> Q {
     // header
     let hdr = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     let now = glib::DateTime::now_local().unwrap();
-    hdr.append(&pill(&format!("{} {} {}", DAYS[(now.day_of_week() - 1) as usize], now.day_of_month(), MONTHS[(now.month() - 1) as usize]), Some("x-office-calendar-symbolic")));
+    hdr.append(&pill(&{ let (weekday, day, month) = (weekday(now.day_of_week()), now.day_of_month(), month(now.month() as u32)); tf!("{weekday} {month} {day}" ; weekday, month, day) }, Some("x-office-calendar-symbolic")));
     let sp = gtk::Box::new(gtk::Orientation::Horizontal, 0); sp.set_hexpand(true); hdr.append(&sp);
     if std::path::Path::new("/tmp/osb-update.json").exists() {   // ChromeOS 'Update' pill -> reboot (ISO only)
-        let up = pill("Update", Some("go-up-symbolic")); up.add_css_class("active"); up.set_tooltip_text(Some("Opnieuw opstarten om bij te werken"));
+        let up = pill(tr("Update"), Some("go-up-symbolic")); up.add_css_class("active"); up.set_tooltip_text(Some(tr("Restart to update")));
         up.connect_clicked(|_| if std::env::var("POLDEROS_ISO").is_ok() { run(&["systemctl", "reboot"]) } else { println!("update pill: reboot (prototype: skipped)") });
         hdr.append(&up);
     }

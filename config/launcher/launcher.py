@@ -3,6 +3,7 @@
 opening is fast. Empty query = app grid; typing = grouped results: Apps, Instellingen, Bestanden, Rekenmachine,
 'Zoeken op het web'. No fake results: everything comes from .desktop files, the Settings sections, the real
 file tree under the Files home, Python's arithmetic, or a real web search."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, re, sys, ast, operator, signal, threading, time, subprocess, urllib.parse
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in ('osb', 'notify'): sys.path.insert(0, os.path.join(C, d))
@@ -20,22 +21,23 @@ W, H, MARGIN, SHELF = 640, 500, 10, 62
 FILES_HOME = os.environ.get('OSB_FILES_HOME', '/tmp/osb-files/Mijn bestanden')   # what the Files app shows as home
 SETTINGS = os.path.join(C, 'settings', 'instellingen.py')
 SECTIONS = [  # (title, subtitle, section, keywords)
-    ('Welkom bij Polder OS', 'Rondleiding en eerste instellingen', '__welkom', 'welkom welcome rondleiding tour eerste start introductie'),
-    ('Sneltoetsen bekijken', 'Toetsenbord · Ctrl+Alt+/', '__sneltoetsen', 'sneltoetsen sneltoets shortcuts toetscombinaties toetsen keyboard'),
-    ('Thema: licht, donker of automatisch', 'Personalisatie', 'personalisatie', 'thema donker licht dark light modus automatisch nacht'),
-    ('Achtergrond', 'Personalisatie', 'personalisatie', 'achtergrond wallpaper bureaublad polderheuvel'),
-    ('Accentkleur', 'Personalisatie', 'personalisatie', 'accent kleur kleuren'),
-    ('Meldingen', 'Meldingen', 'meldingen', 'meldingen notificaties pop-ups popup'),
-    ('Niet storen', 'Meldingen', 'meldingen', 'niet storen dnd stil'),
-    ('Agenda-abonnementen (iCal)', 'Agenda', 'agenda', 'agenda kalender ical ics webcal feestdagen'),
-    ('Toetsenbordindeling', 'Toetsenbord en taal', 'toetsenbord', 'toetsenbord keyboard indeling layout taal qwerty'),
-    ('Datum en tijd', 'Datum en tijd', 'datum', 'datum tijd klok 24-uurs uur'),
-    ('Weer-locatie', 'Weer', 'weer', 'weer weather locatie stad plaats'),
-    ('Webapps installeren', 'Webapps', 'webapps', 'webapp webapps pwa site app installeren'),
-    ('Telefoon koppelen', 'Telefoon', 'telefoon', 'telefoon phone kde connect koppelen android iphone'),
-    ('Polder Assistent en AI-sleutel', 'Assistent', 'assistent', 'assistent assistant ai openai gemini claude sleutel key'),
-    ('Polder Sync', 'Sync', 'sync', 'sync synchroniseren back-up backup herstel github nextcloud dropbox andere pc'),
-    ('Over Polder OS', 'Versie, geheugen, systeem', 'over', 'over versie polder os systeem geheugen info'),
+    (_('Welcome to Polder OS'), _('Tour and first-run settings'), '__welkom', _('welcome tour first start introduction welkom rondleiding')),
+    (_('View keyboard shortcuts'), _('Keyboard · Ctrl+Alt+/'), '__sneltoetsen', _('shortcuts shortcut keys keyboard sneltoetsen')),
+    (_('Theme: light, dark or automatic'), _('Personalization'), 'personalisatie', _('theme dark light mode automatic night thema donker licht')),
+    (_('Wallpaper'), _('Personalization'), 'personalisatie', _('wallpaper background desktop polderheuvel achtergrond')),
+    (_('Accent color'), _('Personalization'), 'personalisatie', _('accent color colors kleur')),
+    (_('Notifications'), _('Notifications'), 'meldingen', _('notifications pop-ups popup meldingen')),
+    (_('Do not disturb'), _('Notifications'), 'meldingen', _('do not disturb dnd silent niet storen')),
+    (_('Calendar subscriptions (iCal)'), _('Calendar'), 'agenda', _('calendar ical ics webcal holidays agenda')),
+    (_('Keyboard layout'), _('Keyboard'), 'toetsenbord', _('keyboard layout qwerty toetsenbord indeling')),
+    (_('Language: Nederlands / English'), _('Language and region'), 'taal', _('language taal english nederlands dutch locale region regio')),
+    (_('Date and time'), _('Date and time'), 'datum', _('date time clock 24-hour hour datum tijd')),
+    (_('Weather location'), _('Weather'), 'weer', _('weather location city place weer')),
+    (_('Install web apps'), _('Web apps'), 'webapps', _('webapp web apps pwa site app install')),
+    (_('Pair phone'), _('Phone'), 'telefoon', 'telefoon phone kde connect koppelen android iphone'),
+    (_('Polder Assistant and AI key'), _('Assistant'), 'assistent', _('assistant ai openai gemini claude key assistent')),
+    (_('Polder Sync'), _('Sync'), 'sync', _('sync backup restore github nextcloud dropbox other pc synchroniseren')),
+    (_('About Polder OS'), _('Version, memory, system'), 'over', _('about version polder os system memory info')),
 ]
 OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv,
        ast.Pow: operator.pow, ast.Mod: operator.mod, ast.USub: operator.neg, ast.UAdd: operator.pos, ast.FloorDiv: operator.floordiv}
@@ -122,7 +124,7 @@ scrollbar {{ background: transparent; }}
 
 class Launcher(Gtk.Window):
     def __init__(self):
-        super().__init__(type=Gtk.WindowType.TOPLEVEL, title='Polder Launcher')
+        super().__init__(type=Gtk.WindowType.TOPLEVEL, title=_('Polder Launcher'))
         self.set_decorated(False); self.set_keep_above(True); self.set_skip_taskbar_hint(True); self.set_skip_pager_hint(True)
         self.set_type_hint(Gdk.WindowTypeHint.DIALOG); self.set_name('lwin'); self.set_resizable(False)
         scr = Gdk.Screen.get_default(); self.sw, self.sh = scr.get_width(), scr.get_height()
@@ -136,7 +138,7 @@ class Launcher(Gtk.Window):
         Gio.AppInfoMonitor.get().connect('changed', lambda *a: self.load_apps())
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12); box.set_name('lbox'); self.add(box)
         self.entry = Gtk.SearchEntry(); self.entry.set_name('search')
-        self.entry.set_placeholder_text('Zoek op je apparaat, in apps, instellingen, op internet…')
+        self.entry.set_placeholder_text(_('Search your device, apps, settings, the web…'))
         self.entry.connect('changed', self.on_changed); self.entry.connect('key-press-event', self.on_key)
         self.entry.connect('activate', lambda *a: self.activate_selected())
         box.pack_start(self.entry, False, False, 0)
@@ -194,9 +196,9 @@ class Launcher(Gtk.Window):
             p = [x for x in S.load().get('pinned', []) if x != i]
             if on: p.append(i)
             S.update(pinned=p)
-        items = [('view-pin-symbolic', 'Losmaken van plank', lambda: pin(False)) if i in pinned else ('view-pin-symbolic', 'Vastzetten aan plank', lambda: pin(True)),
-                 ('media-playback-start-symbolic', 'Openen', lambda: self.launch_app(a))]
-        if grid: items += [None, ('view-sort-ascending-symbolic', 'Sorteren op naam', lambda: (S.update(app_order=[]), self.load_apps()))]
+        items = [('view-pin-symbolic', _('Unpin from shelf'), lambda: pin(False)) if i in pinned else ('view-pin-symbolic', _('Pin to shelf'), lambda: pin(True)),
+                 ('media-playback-start-symbolic', _('Open'), lambda: self.launch_app(a))]
+        if grid: items += [None, ('view-sort-ascending-symbolic', _('Sort by name'), lambda: (S.update(app_order=[]), self.load_apps()))]
         ptr = Gdk.Display.get_default().get_default_seat().get_pointer().get_position()
         self.menu = popmenu.PopMenu(items, ptr[1], ptr[2], anchor='below', title=a.get_display_name(), on_close=self.menu_closed)
 
@@ -264,35 +266,35 @@ class Launcher(Gtk.Window):
         first = None
         m = re.match(r'^(?:installeer|install)\s+(\S+\.\S+)(?:\s+als\s+app)?(?:\s+(.+))?$', q, re.I)   # Revision 25: webapps
         if m:
-            self.header('Webapp'); first = self.row('web-browser-symbolic', f'{m.group(1)} als app installeren', ('Naam: ' + m.group(2) if m.group(2) else 'Pictogram en naam komen van de website') + '  ·  Enter installeert', ('webapp', m.group(1), m.group(2)), big=True)
+            self.header(_('Web app')); first = self.row('web-browser-symbolic', _('Install {p0} as an app').format(p0=m.group(1)), (_('Name: ') + m.group(2) if m.group(2) else _('Icon and name come from the website')) + _('  ·  Enter installs'), ('webapp', m.group(1), m.group(2)), big=True)
         r = calc(q)
         if r is not None:
-            self.header('Rekenmachine'); first = first or self.row('accessories-calculator-symbolic', f'= {r}', f'{q}  ·  Enter kopieert het resultaat', ('calc', r), big=True)
+            self.header(_('Calculator')); first = first or self.row('accessories-calculator-symbolic', f'= {r}', _('{q}  ·  Enter copies the result').format(q=q), ('calc', r), big=True)
         apps = sorted(((score(ql, a.get_display_name(), a.get_generic_name(), ' '.join(a.get_keywords() or []), a.get_id()), a) for a in self.apps), key=lambda t: -t[0])
         apps = [a for s, a in apps if s >= 30][:5]
         if apps:
-            self.header('Apps')
+            self.header(_('Apps'))
             for a in apps: rw = self.row(a.get_icon() or 'application-x-executable', a.get_display_name(), a.get_generic_name() or a.get_description() or '', ('app', a)); first = first or rw
         sets = sorted(((score(ql, t, k, sub), (t, sub, sec)) for t, sub, sec, k in SECTIONS), key=lambda t: -t[0])
         sets = [x for s, x in sets if s >= 45][:3]
         if sets:
-            self.header('Instellingen')
-            for t, sub, sec in sets: rw = self.row('emblem-system-symbolic', t, f'Instellingen › {sub}', ('set', sec)); first = first or rw
+            self.header(_('Settings'))
+            for t, sub, sec in sets: rw = self.row('emblem-system-symbolic', t, _('Settings › {sub}').format(sub=sub), ('set', sec)); first = first or rw
         if len(ql) >= 2:
             files = self.files.search(ql)
             if files:
-                self.header('Bestanden')
+                self.header(_('Files'))
                 for s, mt, name, p, isdir in files:
                     rel = os.path.relpath(os.path.dirname(p), os.path.dirname(FILES_HOME))
                     when = time.strftime('%d-%m-%Y %H:%M', time.localtime(mt))
-                    rw = self.row('folder-symbolic' if isdir else self.file_icon(p), name, f'{rel} · gewijzigd {when}', ('file', p, isdir)); first = first or rw
-        self.header('Internet')
-        web = self.row('web-browser-symbolic', f'Zoeken op het web: {q}', 'Google in Chromium', ('web', q))
+                    rw = self.row('folder-symbolic' if isdir else self.file_icon(p), name, _('{rel} · modified {when}').format(rel=rel, when=when), ('file', p, isdir)); first = first or rw
+        self.header(_('Internet'))
+        web = self.row('web-browser-symbolic', _('Search the web: {q}').format(q=q), _('Google in Chromium'), ('web', q))
         self.list.show_all(); self.stack.set_visible_child_name('results')
         self.list.select_row(first or web)
 
     def file_icon(self, p):
-        ct, _ = Gio.content_type_guess(p, None); return Gio.content_type_get_icon(ct)
+        ct, _x = Gio.content_type_guess(p, None); return Gio.content_type_get_icon(ct)
 
     def header(self, text):
         r = Gtk.ListBoxRow(); r.set_selectable(False); r.set_activatable(False); r.get_style_context().add_class('hdr')
@@ -331,12 +333,12 @@ class Launcher(Gtk.Window):
         if kind == 'app': self.launch_app(a[1]); return
         if kind == 'calc':
             cb = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD); cb.set_text(a[1].replace(' ', ''), -1); cb.store()
-            subprocess.Popen(['notify-send', '-a', 'Rekenmachine', 'Gekopieerd', a[1]])
+            subprocess.Popen(['notify-send', '-a', _('Calculator'), _('Copied'), a[1]])
         elif kind == 'webapp':
             def work(url=a[1], name=a[2]):
                 sys.path.insert(0, os.path.join(C, 'webapps')); import webapps
-                try: r = webapps.install(url, name); subprocess.run(['notify-send', '-a', 'Webapps', '-i', r['icon'], 'Webapp geïnstalleerd', f"{r['name']} staat nu in de launcher"])
-                except Exception as e: subprocess.run(['notify-send', '-a', 'Webapps', 'Installeren mislukt', str(e)[:200]])
+                try: r = webapps.install(url, name); subprocess.run(['notify-send', '-a', _('Web apps'), '-i', r['icon'], _('Web app installed'), _('{p0} is now in the launcher').format(p0=r['name'])])
+                except Exception as e: subprocess.run(['notify-send', '-a', _('Web apps'), _('Installation failed'), str(e)[:200]])
             threading.Thread(target=work, daemon=True).start()
         elif kind == 'set' and a[1] == '__welkom': subprocess.Popen([sys.executable, os.path.join(C, 'welcome', 'welkom.py')], start_new_session=True)
         elif kind == 'set' and a[1] == '__sneltoetsen': subprocess.Popen([sys.executable, os.path.join(C, 'shortcuts', 'sneltoetsen.py')], start_new_session=True)

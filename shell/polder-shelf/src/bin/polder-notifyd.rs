@@ -3,6 +3,8 @@
 //! Owns org.freedesktop.Notifications, shows ChromeOS-style toasts bottom-right (QS column), keeps history/unread/DND in
 //! $OSB_NOTIFY_DIR/state.json in exactly the osb-notifyd.py format (read by QS, shelf, phone hub), and exposes
 //! org.osbuilder.Notify (ClearAll, Dismiss, MarkRead, SetDnd, Invoke).
+#[path = "../i18n.rs"] #[macro_use] mod i18n;
+#[allow(unused_imports)] use i18n::tr;
 #[path = "../theme.rs"] mod theme;
 use gtk::{gdk, gio, glib, pango, prelude::*};
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
@@ -156,7 +158,7 @@ fn build_card(r: &R, n: &Value) -> gtk::Widget {
         col.append(&row);
     }
     card.append(&col);
-    let x = gtk::Button::from_icon_name("window-close-symbolic"); x.set_tooltip_text(Some("Sluiten")); x.add_css_class("x"); x.set_valign(gtk::Align::Start);
+    let x = gtk::Button::from_icon_name("window-close-symbolic"); x.set_tooltip_text(Some(tr("Close"))); x.add_css_class("x"); x.set_valign(gtk::Align::Start);
     { let r = r.clone(); x.connect_clicked(move |_| close_popup(&r, id, 2)); }
     card.append(&x);
     let g = gtk::GestureClick::new(); g.set_button(1);
@@ -170,7 +172,7 @@ fn notify(r: &R, app: String, replaces: u32, icon: String, summary: String, body
     { let mut d = r.borrow_mut(); d.next_id = d.next_id.max(nid + 1); }
     let hs = |k: &str| hints.lookup_value(k, None).and_then(|v| v.str().map(String::from)).unwrap_or_default();
     let acts: Vec<Value> = actions.chunks(2).filter(|c| c.len() == 2).map(|c| json!([c[0], c[1]])).collect();
-    let mut n = json!({"id": nid, "app": if app.is_empty() { "Systeem".to_string() } else { app }, "icon": if !icon.is_empty() && !icon.contains('/') { icon.clone() } else { String::new() },
+    let mut n = json!({"id": nid, "app": if app.is_empty() { tr("System").to_string() } else { app }, "icon": if !icon.is_empty() && !icon.contains('/') { icon.clone() } else { String::new() },
                        "summary": summary, "body": body, "time": now(), "actions": acts, "desktop": hs("desktop-entry")});
     let mut img = [hs("image-path"), hs("image_path")].into_iter().find(|s| !s.is_empty()).unwrap_or_else(|| if icon.starts_with('/') { icon.clone() } else { String::new() });
     if let Some(s) = img.strip_prefix("file://") { img = s.to_string(); }
@@ -192,7 +194,7 @@ fn show_popup(r: &R, n: &Value, timeout: i32) {
     refresh_css(r);
     let id = n["id"].as_u64().unwrap_or(0);
     close_windows(r, id);   // replaces_id: swap the card in place
-    let w = gtk::Window::builder().title("Polder melding").decorated(false).resizable(false).build(); w.add_css_class("ntoast");
+    let w = gtk::Window::builder().title(tr("Polder notification")).decorated(false).resizable(false).build(); w.add_css_class("ntoast");
     if gtk4_layer_shell::is_supported() {
         w.init_layer_shell(); w.set_namespace("polder-toast"); w.set_layer(Layer::Overlay);
         w.set_anchor(Edge::Right, true); w.set_anchor(Edge::Bottom, true); w.set_margin(Edge::Right, MARGIN); w.set_margin(Edge::Bottom, SHELF);
@@ -234,7 +236,7 @@ fn on_call(r: &R, conn: gio::DBusConnection, method: &str, p: glib::Variant, inv
     let mut ret: Option<glib::Variant> = None;
     match method {
         "GetCapabilities" => ret = Some((vec!["body", "actions", "persistence"],).to_variant()),
-        "GetServerInformation" => ret = Some(("Polder OS Meldingen", "Polder OS", "0.13", "1.2").to_variant()),
+        "GetServerInformation" => ret = Some((tr("Polder OS Notifications"), tr("Polder OS"), "0.13", "1.2").to_variant()),
         "Notify" => {
             let g = |i: usize| p.child_value(i);
             let s = |i: usize| g(i).str().unwrap_or("").to_string();

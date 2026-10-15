@@ -1,4 +1,5 @@
 """Polder Weer card (Revision 25) shown on top of the calendar popup (cal.py --weather). Real cached Open-Meteo data only."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gi; gi.require_version('Gtk', '3.0')
@@ -28,7 +29,7 @@ def card():
     w = WX.load()
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10); box.get_style_context().add_class('wx')
     if not w:
-        box.pack_start(L('Weer niet beschikbaar (offline of geen recente gegevens).', 'wxsub'), False, False, 0); return box
+        box.pack_start(L(_('Weather not available (offline or no recent data).'), 'wxsub'), False, False, 0); return box
     d = w['data']; c = d['current']; txt, ic = WX.describe(c['weather_code'], c['is_day'])
     top = Gtk.Box(spacing=12); top.pack_start(icon(ic, 44), False, False, 0)
     top.pack_start(L(f"{round(c['temperature_2m'])}°", 'wxtemp'), False, False, 0)
@@ -37,17 +38,17 @@ def card():
     top.pack_start(v, True, True, 0); box.pack_start(top, False, False, 0)
     now = c['time'][:13]; hrs = d['hourly']; i0 = next((i for i, t in enumerate(hrs['time']) if t[:13] >= now), 0)
     rain = hrs['precipitation_probability'][i0] if hrs.get('precipitation_probability') else None
-    box.pack_start(L(f"Voelt als {round(c['apparent_temperature'])}° · Wind {WX.bft(c['wind_speed_10m'])} Bft {WX.wind_dir(c['wind_direction_10m'])}"
-                     + (f' · Regenkans {rain}%' if rain is not None else ''), 'wxsub'), False, False, 0)
+    box.pack_start(L(_('Feels like {p0}° · Wind {p1} Bft {p2}').format(p0=round(c['apparent_temperature']), p1=WX.bft(c['wind_speed_10m']), p2=WX.wind_dir(c['wind_direction_10m']))
+                     + (_(' · Chance of rain {rain}%').format(rain=rain) if rain is not None else ''), 'wxsub'), False, False, 0)
     # rain next 2 hours (minutely_15)
     mm = (d.get('minutely_15') or {}).get('precipitation') or []
     if mm:
-        if max(mm) <= 0: box.pack_start(L('Droog de komende 2 uur', 'wxsub'), False, False, 0)
+        if max(mm) <= 0: box.pack_start(L(_('Dry for the next 2 hours'), 'wxsub'), False, False, 0)
         else:
             rb = Gtk.Box(spacing=3); mx = max(max(mm), 1.0)
             for x in mm:
                 b = Gtk.Box(); b.get_style_context().add_class('wxbar' if x > 0 else 'wxbar0'); b.set_size_request(30, max(3, int(24 * x / mx))); b.set_valign(Gtk.Align.END); rb.pack_start(b, False, False, 0)
-            rb.set_size_request(-1, 24); box.pack_start(L(f'Neerslag komende 2 uur (max {max(mm):.1f} mm/15 min)', 'wxsub'), False, False, 0); box.pack_start(rb, False, False, 0)
+            rb.set_size_request(-1, 24); box.pack_start(L(_('Precipitation next 2 hours (max {p0:.1f} mm/15 min)').format(p0=max(mm)), 'wxsub'), False, False, 0); box.pack_start(rb, False, False, 0)
     hs = Gtk.Box(homogeneous=True)
     for i in range(i0 + 1, min(i0 + 7, len(hrs['time']))):
         col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
@@ -58,7 +59,7 @@ def card():
     dl = d['daily']; g = Gtk.Grid(column_spacing=10, row_spacing=2)
     for r, day in enumerate(dl['time'][:5]):
         dt = datetime.date.fromisoformat(day)
-        g.attach(L('Vandaag' if r == 0 else DAYS[dt.weekday()]), 0, r, 1, 1)
+        g.attach(L(_('Today') if r == 0 else DAYS[dt.weekday()]), 0, r, 1, 1)
         g.attach(icon(WX.describe(dl['weather_code'][r])[1], 16), 1, r, 1, 1)
         g.attach(L(f"{dl['precipitation_probability_max'][r]}%", 'wxsub', 1), 2, r, 1, 1)
         l = L(f"{round(dl['temperature_2m_min'][r])}° / {round(dl['temperature_2m_max'][r])}°", None, 1); l.set_hexpand(True); g.attach(l, 3, r, 1, 1)

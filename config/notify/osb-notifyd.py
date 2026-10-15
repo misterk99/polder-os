@@ -2,6 +2,7 @@
 """Polder OS notification service: owns org.freedesktop.Notifications on the session bus,
 shows ChromeOS-style pop-ups, keeps history/unread/DND in /tmp/osb-notify/state.json,
 and exposes org.osbuilder.Notify (ClearAll, Dismiss, MarkRead, SetDnd) for QS/shelf."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, json, time, subprocess, datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
@@ -86,7 +87,7 @@ def build_card(n, on_close, on_activate=None, inner=False):
             bt.connect('clicked', lambda _b, k=k: on_activate(n['id'], k)); row.pack_start(bt, False, False, 0)
         col.pack_start(row, False, False, 0)
     card.pack_start(col, True, True, 0)
-    x = Gtk.Button(); x.add(Gtk.Image.new_from_icon_name('window-close-symbolic', Gtk.IconSize.MENU)); x.set_tooltip_text('Sluiten')
+    x = Gtk.Button(); x.add(Gtk.Image.new_from_icon_name('window-close-symbolic', Gtk.IconSize.MENU)); x.set_tooltip_text(_('Close'))
     x.get_style_context().add_class('x'); x.set_valign(Gtk.Align.START); x.connect('clicked', lambda *_: on_close(n['id']))
     card.pack_end(x, False, False, 0)
     if not on_activate: return card
@@ -148,7 +149,7 @@ class Daemon:
     def on_call(self, conn, sender, path, iface, method, params, inv):
         p = params.unpack(); r = None
         if method == 'GetCapabilities': r = GLib.Variant('(as)', (['body', 'actions', 'persistence'],))
-        elif method == 'GetServerInformation': r = GLib.Variant('(ssss)', ('Polder OS Meldingen', 'Polder OS', '0.13', '1.2'))
+        elif method == 'GetServerInformation': r = GLib.Variant('(ssss)', (_('Polder OS Notifications'), _('Polder OS'), '0.13', '1.2'))
         elif method == 'Notify': r = GLib.Variant('(u)', (self.notify(*p),))
         elif method == 'CloseNotification': self.close_popup(p[0])
         elif method == 'ClearAll': self.state['history'] = []; self.state['unread'] = 0
@@ -157,12 +158,12 @@ class Daemon:
         elif method == 'Invoke': self.invoke(*p)
         elif method == 'SetDnd':
             self.state['dnd'] = bool(p[0])
-            if p[0]: [self.close_popup(i) for i, _ in list(self.popups)]
+            if p[0]: [self.close_popup(i) for i, _x in list(self.popups)]
         self.save(); inv.return_value(r)
 
     def notify(self, app, replaces, icon, summary, body, actions, hints, timeout):
         nid = replaces or self.next_id; self.next_id = max(self.next_id, nid + 1)
-        n = {'id': nid, 'app': app or 'Systeem', 'icon': icon if icon and '/' not in icon else '', 'summary': summary,
+        n = {'id': nid, 'app': app or _('System'), 'icon': icon if icon and '/' not in icon else '', 'summary': summary,
              'body': body, 'time': time.time(), 'actions': [[actions[i], actions[i+1]] for i in range(0, len(actions) - 1, 2)],
              'desktop': hints.get('desktop-entry', '') if hints else ''}
         img = (hints or {}).get('image-path') or (hints or {}).get('image_path') or (icon if icon and icon.startswith('/') else '')
@@ -190,7 +191,7 @@ class Daemon:
     def invoke(self, nid, key):
         n = next((h for h in self.state['history'] if h['id'] == nid), None)
         if not n: return
-        keys = [k for k, _ in n.get('actions', [])]
+        keys = [k for k, _x in n.get('actions', [])]
         if key in keys:
             self.conn.emit_signal(None, '/org/freedesktop/Notifications', 'org.freedesktop.Notifications', 'ActionInvoked',
                                   GLib.Variant('(us)', (nid, key)))
@@ -209,7 +210,7 @@ class Daemon:
 
     def expire(self, nid):
         # popup timed out: hide it but keep it in history; tell the app (reason 1 = expired)
-        if any(i == nid for i, _ in self.popups): self.close_popup(nid, reason=1)
+        if any(i == nid for i, _x in self.popups): self.close_popup(nid, reason=1)
         return False
 
     def relayout(self):

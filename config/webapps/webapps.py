@@ -5,6 +5,7 @@ Icon is real: Web App Manifest icon (largest) -> apple-touch-icon / <link rel=ic
 Window matching: Chromium names --app windows WM_CLASS instance '<host><path with / -> _>' (e.g. 'music.youtube.com', 'outlook.live.com__mail'),
 which goes into StartupWMClass so the shelf maps the window to this entry (own icon, pinnable).
 CLI: webapps.py install <url> [name] | list | remove <id>"""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, re, sys, json, hashlib, subprocess, urllib.request, urllib.parse, urllib.error
 from html.parser import HTMLParser
 DATA = os.environ.get('XDG_DATA_HOME') or os.path.expanduser('~/.local/share')
@@ -18,7 +19,7 @@ def norm(url):
     url = url.strip()
     if not re.match(r'^https?://', url): url = 'https://' + url
     p = urllib.parse.urlsplit(url)
-    if not p.netloc or '.' not in p.netloc: raise ValueError('Ongeldig webadres')
+    if not p.netloc or '.' not in p.netloc: raise ValueError(_('Invalid web address'))
     return urllib.parse.urlunsplit((p.scheme, p.netloc, p.path or '/', p.query, ''))
 
 def wm_instance(url):
@@ -50,7 +51,7 @@ def _size(s):
 
 def find_icon(url):
     """Returns (icon bytes, source description, page title) — raises if nothing real was found."""
-    try: html, final, _ = _get(url)
+    try: html, final, _x = _get(url)
     except Exception: html, final = b'', url    # page blocked for non-browsers (e.g. outlook.live.com: HTTP 417) -> still try /favicon.ico
     p = _Links(); p.feed(html.decode('utf-8', 'replace')); cands = []
     for rel, href, sizes in p.links:
@@ -65,12 +66,12 @@ def find_icon(url):
         elif 'apple-touch-icon' in rel: cands.append((500 + (_size(sizes) or 180), urllib.parse.urljoin(final, href), 'apple-touch-icon'))
         elif 'icon' in rel.split(): cands.append((_size(sizes) or 32, urllib.parse.urljoin(final, href), 'favicon'))
     cands.append((1, urllib.parse.urljoin(final, '/favicon.ico'), 'favicon.ico'))
-    for _, u, src in sorted(cands, reverse=True):
+    for _x, u, src in sorted(cands, reverse=True):
         try:
-            data, _, ct = _get(u)
+            data, _x, ct = _get(u)
             if len(data) > 100 and 'html' not in ct: return data, f'{src}: {u}', p.title
         except Exception: continue
-    raise RuntimeError('Geen pictogram gevonden op de website')
+    raise RuntimeError(_('No icon found on the website'))
 
 def install(url, name=None):
     url = norm(url); wid = hashlib.sha1(url.encode()).hexdigest()[:8]
