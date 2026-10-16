@@ -8,6 +8,7 @@ apps installed via Polder Store (restore *offers* to install). NEVER: API keys, 
 Merge: per item newest timestamp wins; before applying remote values the local state is backed up to
 ~/.config/osb/sync-backups/. Optional client-side encryption: scrypt(passphrase) -> Fernet (AES-128-CBC + HMAC).
 CLI: polder_sync.py sync [--restore] | status"""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, json, time, base64, socket, shutil, subprocess, copy, glob
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 sys.path.insert(0, os.path.join(C, 'osb')); import osbsettings as S
@@ -56,10 +57,10 @@ def encrypt(obj, pw):
 def decrypt(env, pw):
     from cryptography.fernet import Fernet, InvalidToken
     from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
-    if not pw: raise SyncError('De gegevens zijn versleuteld: vul je sync-wachtzin in.')
+    if not pw: raise SyncError(_('The data is encrypted: enter your sync passphrase.'))
     k = base64.urlsafe_b64encode(Scrypt(salt=base64.b64decode(env['salt']), length=32, n=2**15, r=8, p=1).derive(pw.encode()))
     try: return json.loads(Fernet(k).decrypt(env['data'].encode()))
-    except InvalidToken: raise SyncError('Verkeerde sync-wachtzin (kan de gegevens niet ontsleutelen).')
+    except InvalidToken: raise SyncError(_('Wrong sync passphrase (cannot decrypt the data).'))
 
 # ---------- local items ----------
 def _webapps():
@@ -112,8 +113,8 @@ def apply_item(k, v):
 # ---------- backends ----------
 class Folder:
     def __init__(self, path):
-        if not path: raise SyncError('Kies eerst een map.')
-        if not os.path.isdir(path): raise SyncError(f'Map bestaat niet (niet gekoppeld?): {path}')
+        if not path: raise SyncError(_('Choose a folder first.'))
+        if not os.path.isdir(path): raise SyncError(_('Folder does not exist (not mounted?): {path}').format(path=path))
         self.d = os.path.join(path, 'polder-sync'); os.makedirs(self.d, exist_ok=True)
     def read(self):
         for n in ('bundle.enc', 'bundle.json'):
@@ -128,12 +129,12 @@ class Folder:
 
 class Git:
     def __init__(self, url):
-        if not url: raise SyncError('Vul eerst een git-URL in (of maak een privé GitHub-repo).')
+        if not url: raise SyncError(_('Enter a git URL first (or create a private GitHub repo).'))
         self.url = url; self.d = os.path.join(os.path.expanduser('~/.cache/osb'), 'sync-git')
     def g(self, *a, check=True):
         r = subprocess.run(['git', '-C', self.d, '-c', 'user.name=Polder Sync', '-c', f'user.email=polder-sync@{socket.gethostname()}', *a],
                            capture_output=True, text=True, timeout=120, env={**os.environ, 'GIT_TERMINAL_PROMPT': '0'})
-        if check and r.returncode: raise SyncError(f'git {a[0]} mislukt: ' + (r.stderr.strip() or r.stdout.strip())[-300:])
+        if check and r.returncode: raise SyncError(_('git {p0} failed: ').format(p0=a[0]) + (r.stderr.strip() or r.stdout.strip())[-300:])
         return r
     def _prep(self):
         if os.path.isdir(os.path.join(self.d, '.git')) and self.g('remote', 'get-url', 'origin', check=False).stdout.strip() != self.url:
@@ -141,7 +142,7 @@ class Git:
         if not os.path.isdir(os.path.join(self.d, '.git')):
             os.makedirs(os.path.dirname(self.d), exist_ok=True)
             r = subprocess.run(['git', 'clone', '-q', self.url, self.d], capture_output=True, text=True, timeout=120, env={**os.environ, 'GIT_TERMINAL_PROMPT': '0'})
-            if r.returncode: raise SyncError('git clone mislukt: ' + r.stderr.strip()[-300:])
+            if r.returncode: raise SyncError(_('git clone failed: ') + r.stderr.strip()[-300:])
         if self.g('ls-remote', '--heads', 'origin', check=False).stdout.strip():
             self.g('fetch', '-q', 'origin'); br = self.g('rev-parse', '--abbrev-ref', 'origin/HEAD', check=False).stdout.strip() or 'origin/main'
             if br == 'origin/HEAD': br = 'origin/main'
@@ -159,10 +160,10 @@ class Git:
         other = 'bundle.json' if enc else 'bundle.enc'
         if os.path.exists(os.path.join(self.d, other)): self.g('rm', '-q', other)
         if self.g('status', '--porcelain').stdout.strip():
-            self.g('commit', '-q', '-m', f'Polder Sync van {socket.gethostname()} {time.strftime("%Y-%m-%d %H:%M")}')
+            self.g('commit', '-q', '-m', _('Polder Sync from {p0} {p1}').format(p0=socket.gethostname(), p1=time.strftime("%Y-%m-%d %H:%M")))
             br = self.g('rev-parse', '--abbrev-ref', 'HEAD').stdout.strip()
             if self.g('push', '-q', 'origin', br, check=False).returncode:   # someone pushed meanwhile: caller retries the whole sync
-                raise SyncError('git push geweigerd (andere pc was sneller); probeer opnieuw.')
+                raise SyncError(_('git push rejected (another PC was faster); try again.'))
 
 def backend(c):
     return Git(c['git_url']) if c['backend'] == 'git' else Folder(c['folder'])
@@ -171,7 +172,7 @@ def backend(c):
 def sync(restore=False, c=None):
     """Pull, merge (newest per item wins; restore=True: remote wins everywhere), back up + apply, push. Returns summary str."""
     c = c or cfg(); st = load_state(); be = backend(c); pw = get_pass() if c['encrypt'] else ''
-    if c['encrypt'] and not pw: raise SyncError('Versleuteling staat aan maar er is geen wachtzin ingesteld.')
+    if c['encrypt'] and not pw: raise SyncError(_('Encryption is on but no passphrase is set.'))
     cur = stamp(st); remote = be.read(); remote_enc = bool(remote) and remote.get('format') == 'polder-sync-enc-1'
     if remote and remote.get('format') == 'polder-sync-enc-1': remote = decrypt(remote, get_pass())
     ritems = (remote or {}).get('items', {})
@@ -195,7 +196,7 @@ def sync(restore=False, c=None):
     pushed = [k for k in merged if k not in ritems or ritems[k] != merged[k]]
     if pushed or remote is None or remote_enc != bool(c['encrypt']):
         be.write(encrypt(bundle, pw) if c['encrypt'] else bundle)
-    st['last_sync'] = time.time(); st['last_result'] = f'{len(pulled)} opgehaald, {len(pushed)} verstuurd'; st['last_error'] = ''
+    st['last_sync'] = time.time(); st['last_result'] = _('{p0} received, {p1} sent').format(p0=len(pulled), p1=len(pushed)); st['last_error'] = ''
     st['pulled_keys'] = pulled; save_state(st); return st['last_result']
 
 def sync_safe(restore=False):

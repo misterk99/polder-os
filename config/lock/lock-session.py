@@ -80,9 +80,9 @@ def serve(path, commands=None, ack_timeout=ACK_TIMEOUT):
                 deadline = time.monotonic() + ack_timeout
                 acknowledged = False
                 while True:
-                    for key, _ in selector.select(.1):
+                    for key, _x in selector.select(.1):
                         if key.fileobj is server:
-                            client, _ = server.accept(); client.settimeout(.2)
+                            client, _x = server.accept(); client.settimeout(.2)
                             clients.append(client)
                             if acknowledged:
                                 try: client.sendall(b'LOCKED\n')

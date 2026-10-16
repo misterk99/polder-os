@@ -42,9 +42,9 @@ APT=(-o Dir::Etc::sourcelist=- -o "Dir::Etc::sourceparts=$WORK/sources"
      -o APT::Architectures=arm64 -o Debug::NoLocking=1
      -o "APT::Sandbox::User=$(id -un)")
 apt-get "${APT[@]}" update --error-on=any
-apt-get "${APT[@]}" --simulate --no-install-recommends install polder-compositor polder-desktop polder-settings
+apt-get "${APT[@]}" --simulate --no-install-recommends install polder-compositor polder-desktop polder-settings polder-shell-rs
 cd "$WORK"
-apt-get "${APT[@]}" download polder-compositor polder-desktop polder-settings
+apt-get "${APT[@]}" download polder-compositor polder-desktop polder-settings polder-shell-rs
 apt-get "${APT[@]}" source --download-only polderos
 for deb in ./*.deb; do dpkg-deb --info "$deb" >/dev/null; done
 echo 'PASS: trusted signed indexes, Debian runtime dependency resolution, binary and source downloads.'

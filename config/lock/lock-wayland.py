@@ -3,6 +3,7 @@
 avatar, Dutch text, blurred wallpaper) but locked through ext-session-lock-v1 (gtk-session-lock): the compositor
 covers every output and routes all input to us until we call unlock; if this process dies the session STAYS locked.
 PAM ('login' service) checks the password of the user running this process. Fallback: polder-lock-wayland.sh (swaylock)."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, pwd, threading, subprocess, signal
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gi; gi.require_version('GtkSessionLock', '0.1')
@@ -15,7 +16,7 @@ class Lock(lockui.LockUI):
         me = pwd.getpwuid(os.getuid()); self.lock = lock; self.user = me.pw_name
         s = S.load(); display = s.get('display_name') or me.pw_gecos.split(',')[0] or me.pw_name; hint = None
         if os.environ.get('OSB_LOCK_TEST_ACCOUNT'):   # box-only test arrangement, shown honestly on screen
-            display = s.get('display_name') or 'Gebruiker'; hint = f'Testaccount voor deze prototype-box: {me.pw_name}'
+            display = s.get('display_name') or _('User'); hint = _('Test account for this prototype box: {pw_name}').format(pw_name=me.pw_name)
         super().__init__([{'name': me.pw_name, 'display': display, 'face': os.path.join(me.pw_dir, '.face')}], hint=hint, popup=False)
         self.set_decorated(False)   # no GTK client-side titlebar on the lock surface
         # The shared X11 UI requests the whole screen as a minimum. A Wayland
@@ -35,9 +36,9 @@ class Lock(lockui.LockUI):
         def work():
             try:
                 import pam   # python3-pampy
-                ok = pam.pam().authenticate(self.user, pw, service='login'); why = '' if ok else 'Onjuist wachtwoord'
+                ok = pam.pam().authenticate(self.user, pw, service='login'); why = '' if ok else _('Incorrect password')
             except Exception as e:   # never leave the UI stuck on 'Controleren…'
-                print('pam error:', e, flush=True); ok, why = False, 'Wachtwoordcontrole niet beschikbaar'
+                print('pam error:', e, flush=True); ok, why = False, _('Password check not available')
             if not ok: print('authentication rejected', flush=True)
             GLib.idle_add(done, ok, why)
         threading.Thread(target=work, daemon=True).start()
@@ -47,7 +48,7 @@ class Lock(lockui.LockUI):
 
     def power(self, action):
         # SAFETY: the prototype never powers off/logs out the box; the ISO maps these to systemctl/loginctl.
-        self.msg.set_text({'shutdown': 'Uitschakelen is uitgeschakeld in het prototype', 'logout': 'Afmelden is uitgeschakeld in het prototype'}[action])
+        self.msg.set_text({'shutdown': _('Shutting down is disabled in the prototype'), 'logout': _('Signing out is disabled in the prototype')}[action])
         if os.environ.get('POLDEROS_ISO'):
             subprocess.Popen({'shutdown': ['systemctl', 'poweroff'], 'logout': ['sh', '-c', 'loginctl terminate-session "$XDG_SESSION_ID"']}[action])
 
@@ -64,7 +65,7 @@ class SessionLock:
         self.display.connect('monitor-added', self.monitor_added)
         self.display.connect('monitor-removed', self.monitor_removed)
 
-    def on_locked(self, *_):
+    def on_locked(self, *_x):
         self.confirmed = True
         # The compositor's locked event, not window creation or a PID, gates suspend.
         ready = os.environ.pop('POLDER_LOCK_READY_FD', None)
@@ -105,7 +106,7 @@ class SessionLock:
         window = self.windows.pop(monitor, None)
         if window is not None: window.destroy()
 
-    def on_finished(self, *_):
+    def on_finished(self, *_x):
         self.ended = True
         self.lock.destroy()
         print('Compositor refused the session lock', flush=True)

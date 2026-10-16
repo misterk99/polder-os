@@ -1,0 +1,1 @@
+Vendored from https://github.com/Antynea/grub-btrfs tag 4.13 (GPL-3.0, see LICENSE); grub-btrfs is not packaged in Debian trixie. Unmodified; Polder settings live in safeharbor/grub/grub-btrfs-config.

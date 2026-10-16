@@ -93,7 +93,7 @@ class Shell:
             except Exception as e: log('ipc', e)
 
     def on_conn(self, *a):
-        c, _ = self.srv.accept(); c.settimeout(1)
+        c, _x = self.srv.accept(); c.settimeout(1)
         try:
             cmd = c.recv(64).decode().strip()
             known = cmd in ('launcher', 'clip', 'assistant', 'clip-clear', 'notify-reload', 'ping')

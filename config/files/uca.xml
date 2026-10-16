@@ -2,4 +2,5 @@
 <actions>
 <action><icon>package-x-generic</icon><name>Zippen</name><unique-id>osb-zip</unique-id><command>zip -r %n.zip %N</command><description>Selectie zippen</description><patterns>*</patterns><directories/><audio-files/><image-files/><other-files/><text-files/><video-files/></action>
 <action><icon>phone-symbolic</icon><name>Naar telefoon sturen</name><unique-id>osb-phone-send</unique-id><command>python3 /workspace/osbuilder/config/osb/phone.py send %F</command><description>Via KDE Connect naar je gekoppelde telefoon</description><patterns>*</patterns><audio-files/><image-files/><other-files/><text-files/><video-files/></action>
+<action><icon>view-dual-symbolic</icon><name>Openen in Sluis</name><unique-id>polder-sluis-open</unique-id><command>polder-sluis --new %f</command><description>Maak een proefpolder van deze map om veilig te experimenteren</description><patterns>*</patterns><directories/></action>
 </actions>

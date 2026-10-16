@@ -2,15 +2,16 @@
 """Telefoon (Revision 28): thin client for kdeconnectd (KDE Connect) over the session D-Bus.
 Used by Instellingen > Telefoon, the QS 'Telefoon' tile, the shelf status and the 'Naar telefoon sturen' action.
 Never invents a device: everything comes from the daemon. CLI: phone.py list | send <file>... | ring <id>"""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, json, subprocess, shutil
 import gi; gi.require_version('Gio', '2.0')
 from gi.repository import Gio, GLib
 BUS = 'org.kde.kdeconnect'; ROOT = '/modules/kdeconnect'
-PLUGINS = [('kdeconnect_notifications', 'Meldingen synchroniseren', 'Meldingen van je telefoon verschijnen hier.'),
-           ('kdeconnect_clipboard', 'Klembord delen', 'Gekopieerde tekst gaat automatisch heen en weer.'),
-           ('kdeconnect_share', 'Bestanden ontvangen', 'Gedeelde bestanden komen in ~/Downloads.'),
-           ('kdeconnect_battery', 'Batterijstatus', 'Batterij van je telefoon in Snelle instellingen.'),
-           ('kdeconnect_findmyphone', 'Telefoon zoeken', 'Laat je telefoon overgaan, ook op stil.')]
+PLUGINS = [('kdeconnect_notifications', _('Sync notifications'), _('Notifications from your phone appear here.')),
+           ('kdeconnect_clipboard', _('Share clipboard'), _('Copied text goes back and forth automatically.')),
+           ('kdeconnect_share', _('Receive files'), _('Shared files go into ~/Downloads.')),
+           ('kdeconnect_battery', _('Battery status'), _("Your phone's battery in Quick Settings.")),
+           ('kdeconnect_findmyphone', _('Find phone'), _('Make your phone ring, even on silent.'))]
 
 def available(): return bool(shutil.which('kdeconnectd') or os.path.exists('/usr/lib/x86_64-linux-gnu/libexec/kdeconnectd'))
 
@@ -81,5 +82,5 @@ if __name__ == '__main__':
     elif a[0] == 'ring': ring(a[1])
     elif a[0] == 'send':   # Thunar action: send to the (first) connected phone, notify the result
         d = connected()
-        if not d: subprocess.run(['notify-send', '-a', 'Telefoon', '-i', 'phone-symbolic', 'Geen telefoon verbonden', 'Koppel je telefoon in Instellingen › Telefoon.']); sys.exit(1)
-        send(d['id'], a[1:]); subprocess.run(['notify-send', '-a', 'Telefoon', '-i', 'phone-symbolic', f"Verstuurd naar {d['name']}", ', '.join(os.path.basename(x) for x in a[1:])[:200]])
+        if not d: subprocess.run(['notify-send', '-a', _('Phone'), '-i', 'phone-symbolic', _('No phone connected'), _('Pair your phone in Settings › Phone.')]); sys.exit(1)
+        send(d['id'], a[1:]); subprocess.run(['notify-send', '-a', _('Phone'), '-i', 'phone-symbolic', _('Sent to {p0}').format(p0=d['name']), ', '.join(os.path.basename(x) for x in a[1:])[:200]])

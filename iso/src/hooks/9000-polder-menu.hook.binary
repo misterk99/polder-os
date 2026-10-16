@@ -1,2 +1,22 @@
 #!/bin/sh
-for f in boot/grub/grub.cfg boot/grub/*.cfg; do [ -f "$f" ] && sed -i 's/Live system/Polder OS Live/g' "$f"; done; true
+for f in boot/grub/grub.cfg boot/grub/*.cfg; do [ -f "$f" ] && sed -i 's/Live system/Polder OS Live/g' "$f"; done
+# Polder OS i18n: second live entry in English. live-config takes the first entry of locales= as LANG, so the
+# English entry lists en_US first (both locales are generated either way; see --bootappend-live in iso/build.sh).
+for f in boot/grub/grub.cfg; do
+  [ -f "$f" ] && ! grep -q 'Polder OS Live (English)' "$f" || continue
+  awk '
+    !done && /^[ \t]*menuentry / { inblk = 1; blk = ""; depth = 0 }
+    inblk {
+      blk = blk $0 "\n"; n = gsub(/\{/, "{"); m = gsub(/\}/, "}"); depth += n - m; print
+      if (depth == 0 && blk ~ /\}/) {
+        inblk = 0; done = 1; e = blk
+        sub(/menuentry "[^"]*"/, "menuentry \"Polder OS Live (English)\"", e)
+        gsub(/--hotkey=[a-z]/, "--hotkey=e", e)
+        gsub(/locales=nl_NL\.UTF-8,en_US\.UTF-8/, "locales=en_US.UTF-8,nl_NL.UTF-8", e)
+        printf "%s", e
+      }
+      next
+    }
+    { print }' "$f" > "$f.new" && mv "$f.new" "$f"
+done
+true

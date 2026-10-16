@@ -1,5 +1,6 @@
 """Polder OS shared settings: one JSON file (~/.config/osb/settings.json) that every component reads.
 Writers save atomically; osb-settingsd.py watches the file and applies changes live."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, json, copy, datetime
 CFG = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 FILE = os.environ.get('OSB_SETTINGS') or os.path.expanduser('~/.config/osb/settings.json')
@@ -9,6 +10,8 @@ DEFAULTS = {
     'theme': 'light',            # light | dark | auto (licht 07:00-19:00)
     'reduced_motion': False,
     'accent': 'blauw',
+    'color_source': 'accent',    # accent | wallpaper ("Kleuren uit achtergrond", Material You: seed colour from the wallpaper)
+    'dynamic_seed': 0,           # which of the (max. 4) wallpaper seed colours, best first
     'wallpaper': 'polderheuvel',  # dark theme automatically uses polderheuvel-avond
     'notifications': True,       # pop-ups aan/uit
     'notif_history': True,       # bewaar in geschiedenis als pop-ups uit staan
@@ -37,8 +40,8 @@ BASES = {
     'dark':  dict(SURFACE='#1f2023', SURFACE_VARIANT='#2e3135', OUTLINE='#44474b', ON_SURFACE='#e3e3e3', ON_SURFACE_VARIANT='#c4c7c5'),
 }
 WALLPAPERS = ['polderheuvel', 'blauw', 'avond', 'groen', 'roze', 'grafiet']
-LAYOUTS = [('us', '', 'Engels (VS)'), ('us', 'intl', 'Engels (VS, internationaal)'), ('nl', '', 'Nederlands'),
-           ('be', '', 'Belgisch'), ('de', '', 'Duits'), ('gb', '', 'Engels (VK)'), ('fr', '', 'Frans')]
+LAYOUTS = [('us', '', _('English (US)')), ('us', 'intl', _('English (US, international)')), ('nl', '', _('Dutch')),
+           ('be', '', _('Belgian')), ('de', '', _('German')), ('gb', '', _('English (UK)')), ('fr', '', _('French'))]
 
 def wallpaper_thumb(name, w=176, h=99):
     """Cached thumbnail path for a wallpaper (shared by Instellingen and Welkom); None if the wallpaper is missing."""
@@ -70,7 +73,43 @@ def effective_theme(s=None, now=None):
         return 'light' if 7 <= h < 19 else 'dark'
     return 'dark' if t == 'dark' else 'light'
 
-def palette_for(theme, accent):
+def dyncolor_bin():
+    import shutil
+    for b in (os.environ.get('POLDER_DYNCOLOR'), shutil.which('polder-dynamic-color'),
+              os.path.join(CFG, '..', 'shell', 'polder-shelf', 'target', 'release', 'polder-dynamic-color')):
+        if b and os.path.isfile(b) and os.access(b, os.X_OK): return b
+    return None
+
+def wallpaper_path(name):
+    return os.path.join(CFG, 'wallpapers', name + '.png')
+
+def _dyn(name, *args):
+    """Run polder-dynamic-color on wallpaper `name` (the day variant, so light/dark/auto keep one seed); cached by mtime."""
+    import subprocess, hashlib
+    wp, b = wallpaper_path(name), dyncolor_bin()
+    if not b or not os.path.exists(wp): return None
+    key = hashlib.sha1(f'{wp}:{os.path.getmtime(wp)}:{args}'.encode()).hexdigest()[:16]
+    cf = os.path.join(CACHE, 'dyncolor', key)
+    try: return open(cf).read()
+    except OSError: pass
+    try: out = subprocess.run([b, wp, *args], capture_output=True, text=True, timeout=20, check=True).stdout
+    except Exception as e: print('polder-dynamic-color:', e); return None
+    os.makedirs(os.path.dirname(cf), exist_ok=True); open(cf, 'w').write(out); return out
+
+def dynamic_seeds(name):
+    """Up to 4 seed colours (#rrggbb, best first) extracted from the wallpaper; [] if unavailable."""
+    out = _dyn(name, '--seeds'); return out.split() if out else []
+
+def dynamic_palette(theme, name, index=0):
+    out = _dyn(name, '--theme', theme, '--index', str(int(index)))
+    if not out: return None
+    p = dict(l.split('=', 1) for l in out.splitlines() if '=' in l); p.pop('SEED', None)
+    return p if 'ACCENT' in p else None
+
+def palette_for(theme, accent, s=None):
+    if s and s.get('color_source') == 'wallpaper':
+        p = dynamic_palette(theme, s.get('wallpaper', 'polderheuvel'), s.get('dynamic_seed', 0))
+        if p: return p   # else: fall back to the accent palette
     a = ACCENTS.get(accent, ACCENTS['blauw']); p = dict(BASES[theme])
     if theme == 'light': p.update(ACCENT=a[0], ACCENT_CONTAINER=a[1], ON_ACCENT_CONTAINER=a[2], ON_ACCENT='#ffffff')
     else: p.update(ACCENT=a[3], ACCENT_CONTAINER=a[4], ON_ACCENT_CONTAINER=a[5], ON_ACCENT=a[6])

@@ -47,3 +47,5 @@ etc/apt/apt.conf.d/60polder-store-appstream
 etc/polkit-1/rules.d
 usr/lib/systemd/system
 usr/libexec/polder-store-catalog-refresh
+usr/share/polderos/config/locale
+usr/share/polderos/config/sluis

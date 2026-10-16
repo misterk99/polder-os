@@ -4,6 +4,7 @@ records text + images (max 10, ~/.cache/osb/clipboard/), skips content flagged b
 (x-kde-passwordManagerHint=secret / x-kde-passwordManagerHint). SIGUSR1 toggles the popup; SIGUSR2 clears.
 Choosing an item: we take CLIPBOARD ownership with that item (this process stays alive, so paste keeps working),
 re-focus the previous window and send Ctrl+V (Ctrl+Shift+V for terminals)."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, json, time, signal, subprocess, hashlib, html
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in ('osb', 'notify'): sys.path.insert(0, os.path.join(C, d))
@@ -37,7 +38,7 @@ row:selected, row:selected label {{ background: {P['ACCENT_CONTAINER']}; color: 
 
 class Clip(Gtk.Window):
     def __init__(self):
-        super().__init__(type=Gtk.WindowType.TOPLEVEL, title='Klembord')
+        super().__init__(type=Gtk.WindowType.TOPLEVEL, title=_('Clipboard'))
         self.set_decorated(False); self.set_keep_above(True); self.set_skip_taskbar_hint(True); self.set_skip_pager_hint(True)
         self.set_type_hint(Gdk.WindowTypeHint.DIALOG); self.set_resizable(False); self.set_name('cwin'); RGBA.enable(self)
         os.makedirs(DIR, exist_ok=True)
@@ -119,25 +120,25 @@ class Clip(Gtk.Window):
 
     def build(self):
         for c in self.card.get_children(): c.destroy()
-        hd = Gtk.Box(); l = Gtk.Label(label='Klembord', xalign=0); l.get_style_context().add_class('chead'); hd.pack_start(l, True, True, 0)
+        hd = Gtk.Box(); l = Gtk.Label(label=_('Clipboard'), xalign=0); l.get_style_context().add_class('chead'); hd.pack_start(l, True, True, 0)
         if self.hist:
-            b = Gtk.Button(label='Alles wissen'); b.get_style_context().add_class('clear'); b.connect('clicked', lambda *a: self.clear()); hd.pack_end(b, False, False, 0)
+            b = Gtk.Button(label=_('Clear all')); b.get_style_context().add_class('clear'); b.connect('clicked', lambda *a: self.clear()); hd.pack_end(b, False, False, 0)
         self.card.pack_start(hd, False, False, 0)
         self.list = Gtk.ListBox(); self.list.connect('row-activated', lambda lb, r: self.choose(r.idx)); self.card.pack_start(self.list, False, False, 0)
         if not self.hist:
-            e = Gtk.Label(label='Nog niets gekopieerd.\nKopieer tekst of een afbeelding om die hier terug te vinden.', justify=Gtk.Justification.CENTER)
+            e = Gtk.Label(label=_('Nothing copied yet.\nCopy text or an image to find it here again.'), justify=Gtk.Justification.CENTER)
             e.get_style_context().add_class('cempty'); self.card.pack_start(e, False, False, 0)
         for i, h in enumerate(self.hist):
             r = Gtk.ListBoxRow(); r.idx = i; bx = Gtk.Box(spacing=10)
             n = Gtk.Label(label=str(i + 1)); n.get_style_context().add_class('cnum'); bx.pack_start(n, False, False, 0)
             if h['kind'] == 'image' and os.path.exists(h['img']):
                 pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(h['img'], 160, 56, True); bx.pack_start(Gtk.Image.new_from_pixbuf(pb), False, False, 0)
-                s = Gtk.Label(label=f"Afbeelding {h['w']}×{h['h']}", xalign=0); s.get_style_context().add_class('cnum'); bx.pack_start(s, True, True, 0)
+                s = Gtk.Label(label=_('Image {p0}×{p1}').format(p0=h['w'], p1=h['h']), xalign=0); s.get_style_context().add_class('cnum'); bx.pack_start(s, True, True, 0)
             else:
                 t = ' '.join(h.get('text', '').split()); l = Gtk.Label(label=t, xalign=0); l.set_ellipsize(Pango.EllipsizeMode.END)
                 l.set_max_width_chars(34); l.get_style_context().add_class('ctext'); bx.pack_start(l, True, True, 0)
             d = Gtk.Button(); d.add(Gtk.Image.new_from_icon_name('window-close-symbolic', Gtk.IconSize.MENU)); d.get_style_context().add_class('cdel')
-            d.set_tooltip_text('Verwijderen'); d.connect('clicked', lambda _b, i=i: self.delete(i)); bx.pack_end(d, False, False, 0)
+            d.set_tooltip_text(_('Remove')); d.connect('clicked', lambda _b, i=i: self.delete(i)); bx.pack_end(d, False, False, 0)
             r.add(bx); self.list.add(r)
         self.card.show_all()
         if self.hist: self.list.select_row(self.list.get_row_at_index(0))

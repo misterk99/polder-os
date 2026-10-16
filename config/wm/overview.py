@@ -2,6 +2,7 @@
 """ChromeOS-style Overview (mode 'overview') and Alt+Tab switcher (mode 'alttab').
 Overview: fullscreen window, dimmed wallpaper, desks bar on top, window thumbnails grid.
 Alt+Tab: centered rounded strip; grabs keyboard, Tab/Shift+Tab cycles, releasing Alt activates."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, subprocess, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gi; gi.require_version('Gtk', '3.0'); gi.require_version('Gdk', '3.0')
@@ -98,7 +99,7 @@ class Overview(Base):
         root.pack_start(self.desk_bar(), False, False, 0)
         wins = WL.windows()
         if not wins:
-            l = Gtk.Label(label='Geen vensters op dit bureau'); l.get_style_context().add_class('empty')
+            l = Gtk.Label(label=_('No windows on this desk')); l.get_style_context().add_class('empty')
             root.pack_start(l, True, True, 0)
         else:
             root.pack_start(self.grid(wins), True, True, 0)
@@ -113,17 +114,17 @@ class Overview(Base):
             box.get_style_context().add_class('desk')
             if d == cur: box.get_style_context().add_class('current')
             mini = Gtk.Image.new_from_file(self.desk_mini(d)); box.pack_start(mini, False, False, 0)
-            lr = Gtk.Box(spacing=4, halign=Gtk.Align.CENTER); lr.pack_start(Gtk.Label(label=f'Bureau {d + 1}'), False, False, 0)
+            lr = Gtk.Box(spacing=4, halign=Gtk.Align.CENTER); lr.pack_start(Gtk.Label(label=_('Desk {p0}').format(p0=d + 1)), False, False, 0)
             if WL.desks() > 1 and (WAY or d == WL.desks() - 1):   # Rev 34h: remove desk (its windows go to the neighbour desk)
                 xb = Gtk.Button(); xb.add(Gtk.Image.new_from_icon_name('window-close-symbolic', Gtk.IconSize.MENU)); xb.get_style_context().add_class('x')
-                xb.set_tooltip_text('Bureau verwijderen'); xb.connect('clicked', lambda *_, d=d: self.del_desk(d)); lr.pack_start(xb, False, False, 0)
+                xb.set_tooltip_text(_('Remove desk')); xb.connect('clicked', lambda *_, d=d: self.del_desk(d)); lr.pack_start(xb, False, False, 0)
             box.pack_start(lr, False, False, 0)
             ev.add(box); ev.connect('button-release-event', lambda w, e, d=d: self.switch(d)); self.desk_evs.append((ev, box))
             # drop target: move a dragged window to this desk
             ev.drag_dest_set(Gtk.DestDefaults.ALL, [Gtk.TargetEntry.new('osb-win', DNDFLAG, 0)], Gdk.DragAction.MOVE)
             ev.connect('drag-data-received', lambda w, c, x, y, data, i, t, d=d: self.move_to(int(data.get_text()), d))
             bar.pack_start(ev, False, False, 0)
-        nb = Gtk.Button(label='+  Nieuw bureau'); nb.get_style_context().add_class('newdesk'); nb.set_valign(Gtk.Align.CENTER)
+        nb = Gtk.Button(label=_('+  New desk')); nb.get_style_context().add_class('newdesk'); nb.set_valign(Gtk.Align.CENTER)
         nb.connect('clicked', self.new_desk); bar.pack_start(nb, False, False, 0)
         return bar
 
@@ -161,7 +162,7 @@ class Overview(Base):
         t = Gtk.Label(label=w['title'] or w['app'], xalign=0); t.set_ellipsize(Pango.EllipsizeMode.END); t.set_max_width_chars(30)
         t.get_style_context().add_class('wintitle'); hdr.pack_start(t, True, True, 0)
         x = Gtk.Button(); x.add(Gtk.Image.new_from_icon_name('window-close-symbolic', Gtk.IconSize.MENU)); x.get_style_context().add_class('x')
-        x.set_tooltip_text('Sluiten'); x.connect('clicked', lambda *_: (WL.close(w['id']), self.quit())); hdr.pack_end(x, False, False, 0)
+        x.set_tooltip_text(_('Close')); x.connect('clicked', lambda *_: (WL.close(w['id']), self.quit())); hdr.pack_end(x, False, False, 0)
         box.pack_start(hdr, False, False, 0)
         tp = WL.thumb(w, tw, th)
         if tp: img = rounded_pixbuf(tp)
@@ -300,7 +301,7 @@ class SplitPick(Overview):
         p = Gtk.CssProvider(); p.load_from_data(f"#ov {{ background-image: url('{bg}'); }}".encode())
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), p, 900)
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16); root.set_margin_top(24); self.add(root)
-        l = Gtk.Label(label='Kies een venster voor deze helft'); l.get_style_context().add_class('empty'); root.pack_start(l, False, False, 0)
+        l = Gtk.Label(label=_('Choose a window for this half')); l.get_style_context().add_class('empty'); root.pack_start(l, False, False, 0)
         root.pack_start(self.grid(wins), True, True, 0)
         self.show_all(); self.grab()
         self.connect('button-release-event', lambda w, e: self.quit() if e.button == 1 else None)

@@ -13,7 +13,7 @@ HOME_URL="https://github.com/"
 R
 ln -sf ../usr/lib/os-release /etc/os-release
 echo "Polder OS 0.30.1 \\n \\l" > /etc/issue
-# Dutch locale available (UI is Dutch), keep en_US too
+# Both UI languages (Polder OS i18n: nl + en, see po/) need their locale generated
 sed -i 's/^# *\(nl_NL.UTF-8\)/\1/; s/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen; locale-gen
 # only our X session; lightdm greeter = ours
 rm -f /usr/share/xsessions/xfce.desktop /usr/share/xsessions/lightdm-xsession.desktop

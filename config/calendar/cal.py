@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """ChromeOS-style calendar popup (GTK3). Toggle by clicking the date pill; closes on Escape/focus loss;
 mutually exclusive with Quick Settings. Events from ~/.local/share/osb/calendar.ics (simple VEVENT parser)."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, signal, subprocess, datetime, calendar
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'notify'))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -23,8 +24,8 @@ if os.path.exists('/tmp/osb-qs.pid'):  # close Quick Settings
     try: os.kill(int(open('/tmp/osb-qs.pid').read()), signal.SIGTERM); os.remove('/tmp/osb-qs.pid')
     except Exception: pass
 
-MONTHS = ['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december']
-DAYS = ['ma','di','wo','do','vr','za','zo']; DAYS_LONG = ['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag']
+MONTHS = _('January February March April May June July August September October November December').split()
+DAYS = _('Mon Tue Wed Thu Fri Sat Sun').split(); DAYS_LONG = _('Monday Tuesday Wednesday Thursday Friday Saturday Sunday').split()
 P = N.palette()
 CSS = f'''
 * {{ font-family: Roboto; }}
@@ -72,8 +73,8 @@ class Cal(Gtk.Window):
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10); self.box.set_name('cal'); self.add(self.box)
         hdr = Gtk.Box(spacing=4)
         self.title = Gtk.Label(xalign=0); self.title.get_style_context().add_class('month'); hdr.pack_start(self.title, True, True, 0)
-        tb = Gtk.Button(label='Vandaag'); tb.get_style_context().add_class('today-btn'); tb.connect('clicked', self.goto_today); hdr.pack_start(tb, False, False, 4)
-        for icon, d, tip in (('go-up-symbolic', -1, 'Vorige maand'), ('go-down-symbolic', 1, 'Volgende maand')):
+        tb = Gtk.Button(label=_('Today')); tb.get_style_context().add_class('today-btn'); tb.connect('clicked', self.goto_today); hdr.pack_start(tb, False, False, 4)
+        for icon, d, tip in (('go-up-symbolic', -1, _('Previous month')), ('go-down-symbolic', 1, _('Next month'))):
             b = Gtk.Button(); b.add(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU)); b.set_tooltip_text(tip)
             b.get_style_context().add_class('nav'); b.connect('clicked', lambda _b, d=d: self.shift(d)); hdr.pack_start(b, False, False, 0)
         if '--weather' in sys.argv:   # Revision 25: Polder Weer card on top (opened from the weather pill)
@@ -142,11 +143,11 @@ class Cal(Gtk.Window):
         if '--weather' in sys.argv: return   # weather mode: card + month grid only (fits 768px)
         for c in self.evbox.get_children(): c.destroy()
         d = self.sel
-        h = Gtk.Label(label=f'{DAYS_LONG[d.weekday()]} {d.day} {MONTHS[d.month - 1]}', xalign=0); h.get_style_context().add_class('evhdr')
+        h = Gtk.Label(label=_('{weekday} {month} {day}').format(weekday=DAYS_LONG[d.weekday()], day=d.day, month=MONTHS[d.month - 1]), xalign=0); h.get_style_context().add_class('evhdr')
         self.evbox.pack_start(h, False, False, 0)
         evs = self.events.get(d, [])
         if not evs:
-            e = Gtk.Label(label='Geen evenementen', xalign=0); e.get_style_context().add_class('empty'); self.evbox.pack_start(e, False, False, 0)
+            e = Gtk.Label(label=_('No events'), xalign=0); e.get_style_context().add_class('empty'); self.evbox.pack_start(e, False, False, 0)
         for ev in evs[:2]:
             row = Gtk.Box(spacing=10); row.get_style_context().add_class('ev')
             bar = Gtk.Box(); bar.get_style_context().add_class('evbar'); row.pack_start(bar, False, False, 0)
@@ -154,13 +155,13 @@ class Cal(Gtk.Window):
                 cp = Gtk.CssProvider(); cp.load_from_data(f".evbar {{ background: {ev['color']}; }}".encode())
                 bar.get_style_context().add_provider(cp, 950)
             col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-            t = Gtk.Label(label=ev.get('title', '(geen titel)'), xalign=0); t.set_ellipsize(Pango.EllipsizeMode.END); t.get_style_context().add_class('evtitle')
+            t = Gtk.Label(label=ev.get('title', _('(no title)')), xalign=0); t.set_ellipsize(Pango.EllipsizeMode.END); t.get_style_context().add_class('evtitle')
             col.pack_start(t, False, False, 0)
             sub = Gtk.Label(label=' · '.join(x for x in (self.when(ev, d), ev.get('loc'), ev.get('cal')) if x), xalign=0); sub.get_style_context().add_class('evsub')
             sub.set_ellipsize(Pango.EllipsizeMode.END); col.pack_start(sub, False, False, 0)
             row.pack_start(col, True, True, 0); self.evbox.pack_start(row, False, False, 0)
         if len(evs) > 2:
-            m = Gtk.Label(label=f'+{len(evs) - 2} meer', xalign=0); m.get_style_context().add_class('evsub'); self.evbox.pack_start(m, False, False, 0)
+            m = Gtk.Label(label=_('+{p0} more').format(p0=len(evs) - 2), xalign=0); m.get_style_context().add_class('evsub'); self.evbox.pack_start(m, False, False, 0)
         self.evbox.show_all()
         if self.get_realized(): self.place()
 
@@ -168,9 +169,9 @@ class Cal(Gtk.Window):
         fmt = (lambda t: t.strftime('%H:%M')) if SET.get('clock24', True) else (lambda t: t.strftime('%-I:%M %p').lower())
         span = ev['first'] != ev['last']
         if ev['allday']:
-            return f"Hele dag (dag {(d - ev['first']).days + 1} van {(ev['last'] - ev['first']).days + 1})" if span else 'Hele dag'
+            return _('All day (day {p0} of {p1})').format(p0=(d - ev['first']).days + 1, p1=(ev['last'] - ev['first']).days + 1) if span else _('All day')
         if span:
-            return ('Vanaf ' + fmt(ev['start'])) if d == ev['first'] else ('Tot ' + fmt(ev['end'])) if d == ev['last'] else 'Hele dag'
+            return (_('From ') + fmt(ev['start'])) if d == ev['first'] else (_('Until ') + fmt(ev['end'])) if d == ev['last'] else _('All day')
         return fmt(ev['start']) + ('–' + fmt(ev['end']) if ev['end'] and ev['end'] != ev['start'] else '')
 
     def select(self, day):

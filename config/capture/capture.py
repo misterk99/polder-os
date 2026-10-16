@@ -3,6 +3,7 @@
 Bar: Screenshot/Video, Volledig scherm / Gedeelte / Venster, settings gear, close. Screenshots are cut from a frozen
 grab taken at start; video uses wf-recorder on Wayland and ffmpeg on X11.
 If a recording is running, starting this stops it instead."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, json, time, signal, subprocess, shlex, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in ('osb', 'notify'): sys.path.insert(0, os.path.join(C, d))
@@ -19,8 +20,8 @@ SHELF = 52
 
 def dirs():
     s = S.load(); base = s.get('capture_dir') or ''
-    shot = base or os.path.join(FILES_HOME, 'Afbeeldingen', 'Schermafbeeldingen')
-    vid = base or os.path.join(FILES_HOME, "Video's", 'Schermopnamen')
+    shot = base or os.path.join(FILES_HOME, 'Afbeeldingen', _('Screenshots'))
+    vid = base or os.path.join(FILES_HOME, _('Videos'), _('Screen recordings'))
     return shot, vid
 
 def wl_windows():
@@ -29,7 +30,7 @@ def wl_windows():
     try:
         m0 = os.path.getmtime(f) if os.path.exists(f) else 0
         os.kill(int(os.environ['POLDER_COMP_PID']), signal.SIGUSR2)
-        for _ in range(20):
+        for _x in range(20):
             if os.path.exists(f) and os.path.getmtime(f) != m0: break
             time.sleep(0.05)
         skip = {'polder-shelf', 'sneltoetsen.py'}
@@ -110,12 +111,12 @@ class Overlay(Gtk.Window):
 
     def place_widgets(self):
         a = self.app; r = self.sel if a.source == 'region' else (self.hover and (self.hover['x'], self.hover['y'], self.hover['w'], self.hover['h']))
-        self.go.set_label('Opnemen' if a.mode == 'video' else 'Vastleggen'); sc = self.go.get_style_context()
+        self.go.set_label(_('Record') if a.mode == 'video' else _('Capture')); sc = self.go.get_style_context()
         (sc.add_class if a.mode == 'video' else sc.remove_class)('rec')
         if a.source == 'full':
-            self.hint.set_text('Klik ergens om het ' + ('volledige scherm op te nemen' if a.mode == 'video' else 'volledige scherm vast te leggen'))
-        elif a.source == 'window': self.hint.set_text('Klik op een venster om het ' + ('op te nemen' if a.mode == 'video' else 'vast te leggen'))
-        else: self.hint.set_text('Sleep om een gedeelte te selecteren')
+            self.hint.set_text(_('Click anywhere to ') + (_('record the full screen') if a.mode == 'video' else _('capture the full screen')))
+        elif a.source == 'window': self.hint.set_text(_('Click a window to ') + (_('record it') if a.mode == 'video' else _('capture it')))
+        else: self.hint.set_text(_('Drag to select a region'))
         show_hint = a.source == 'full' or (a.source == 'window' and not self.hover) or (a.source == 'region' and not self.sel)
         self.hint.set_visible(show_hint)
         if show_hint:
@@ -180,19 +181,19 @@ class App:
         self.bar = Gtk.Window(type=Gtk.WindowType.TOPLEVEL if WL else Gtk.WindowType.POPUP); self.bar.set_name('barwin'); RGBA.enable(self.bar)
         b = Gtk.Box(spacing=4); b.set_name('bar'); self.bar.add(b)
         seg1 = Gtk.Box(spacing=2); seg1.get_style_context().add_class('seg'); self.mbtn = {}
-        for k, icon, tip in (('shot', 'camera-photo-symbolic', 'Screenshot'), ('video', 'camera-video-symbolic', 'Schermopname (video)')):
+        for k, icon, tip in (('shot', 'camera-photo-symbolic', _('Screenshot')), ('video', 'camera-video-symbolic', _('Screen recording (video)'))):
             t = Gtk.ToggleButton(); t.add(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU)); t.get_style_context().add_class('cb'); t.set_tooltip_text(tip)
             t.connect('toggled', self.set_mode, k); seg1.pack_start(t, False, False, 0); self.mbtn[k] = t
         b.pack_start(seg1, False, False, 0); s = Gtk.Box(); s.get_style_context().add_class('sep'); b.pack_start(s, False, False, 0)
         self.sbtn = {}
-        for k, icon, label in (('full', 'view-fullscreen-symbolic', 'Volledig scherm'), ('region', 'edit-select-all-symbolic', 'Gedeelte'), ('window', 'window-new-symbolic', 'Venster')):
+        for k, icon, label in (('full', 'view-fullscreen-symbolic', _('Full screen')), ('region', 'edit-select-all-symbolic', _('Region')), ('window', 'window-new-symbolic', _('Window'))):
             t = Gtk.ToggleButton(); bx = Gtk.Box(spacing=6); bx.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU), False, False, 0)
             bx.pack_start(Gtk.Label(label=label), False, False, 0); t.add(bx); t.get_style_context().add_class('cb'); t.set_tooltip_text(label)
             t.connect('toggled', self.set_source, k); b.pack_start(t, False, False, 0); self.sbtn[k] = t
         s = Gtk.Box(); s.get_style_context().add_class('sep'); b.pack_start(s, False, False, 0)
-        g = Gtk.Button(); g.add(Gtk.Image.new_from_icon_name('emblem-system-symbolic', Gtk.IconSize.MENU)); g.get_style_context().add_class('cb'); g.set_tooltip_text('Instellingen')
+        g = Gtk.Button(); g.add(Gtk.Image.new_from_icon_name('emblem-system-symbolic', Gtk.IconSize.MENU)); g.get_style_context().add_class('cb'); g.set_tooltip_text(_('Settings'))
         g.connect('clicked', self.settings); b.pack_start(g, False, False, 0)
-        x = Gtk.Button(); x.add(Gtk.Image.new_from_icon_name('window-close-symbolic', Gtk.IconSize.MENU)); x.get_style_context().add_class('cb'); x.set_tooltip_text('Sluiten (Esc)')
+        x = Gtk.Button(); x.add(Gtk.Image.new_from_icon_name('window-close-symbolic', Gtk.IconSize.MENU)); x.get_style_context().add_class('cb'); x.set_tooltip_text(_('Close (Esc)'))
         x.connect('clicked', lambda *a: self.quit()); b.pack_start(x, False, False, 0)
         self._busy = False; self.mbtn['shot'].set_active(True); self.sbtn['region'].set_active(True)
         b.show_all(); bw, bh = b.get_preferred_size()[1].width, b.get_preferred_size()[1].height
@@ -243,18 +244,18 @@ class App:
         s = S.load(); shot, vid = dirs(); ptr = s.get('capture_pointer', False)
         def toggle_ptr(): S.update(capture_pointer=not ptr)
         def choose_dir():
-            d = Gtk.FileChooserDialog(title='Opslaan in', action=Gtk.FileChooserAction.SELECT_FOLDER)
-            d.add_buttons('Annuleren', Gtk.ResponseType.CANCEL, 'Kiezen', Gtk.ResponseType.OK); d.set_keep_above(True)
+            d = Gtk.FileChooserDialog(title=_('Save to'), action=Gtk.FileChooserAction.SELECT_FOLDER)
+            d.add_buttons(_('Cancel'), Gtk.ResponseType.CANCEL, _('Choose'), Gtk.ResponseType.OK); d.set_keep_above(True)
             d.set_current_folder(os.path.dirname(shot) if os.path.isdir(os.path.dirname(shot)) else FILES_HOME)
             if d.run() == Gtk.ResponseType.OK: S.update(capture_dir=d.get_filename())
             d.destroy()
-        items = [(None, f'Opslaan in: {os.path.basename(shot)}' + ('' if s.get('capture_dir') else ' / Schermopnamen'), None),
-                 ('folder-symbolic', 'Map wijzigen…', choose_dir)]
-        if s.get('capture_dir'): items.append(('edit-undo-symbolic', 'Standaardmappen herstellen', lambda: S.update(capture_dir='')))
-        if not WL: items += [None, ('object-select-symbolic' if ptr else None, 'Muisaanwijzer tonen (video)', toggle_ptr)]   # wf-recorder can't draw the pointer
+        items = [(None, _('Save to: {p0}').format(p0=os.path.basename(shot)) + ('' if s.get('capture_dir') else _(' / Screen recordings')), None),
+                 ('folder-symbolic', _('Change folder…'), choose_dir)]
+        if s.get('capture_dir'): items.append(('edit-undo-symbolic', _('Restore default folders'), lambda: S.update(capture_dir='')))
+        if not WL: items += [None, ('object-select-symbolic' if ptr else None, _('Show mouse pointer (video)'), toggle_ptr)]   # wf-recorder can't draw the pointer
         # Audio capture is not offered until its source selection is implemented.
         a = btn.get_allocation(); x, y = (self.bx, self.by) if WL else self.bar.get_window().get_origin()[1:]
-        popmenu.PopMenu(items, x + a.x, y - 8, anchor='above', title='Schermopname', on_close=lambda: self.grab() and False)
+        popmenu.PopMenu(items, x + a.x, y - 8, anchor='above', title=_('Screen capture'), on_close=lambda: self.grab() and False)
 
     def key(self, w, e):
         if e.keyval == Gdk.KEY_Escape: self.quit(); return True
@@ -275,7 +276,7 @@ class App:
         x, y, w, h = r
         shot, vid = dirs(); stamp = time.strftime('%Y-%m-%d %H.%M.%S') + f'.{time.time_ns() % 1000000000:09d}'
         if self.mode == 'shot':
-            os.makedirs(shot, exist_ok=True); path = os.path.join(shot, f'Schermafbeelding {stamp}.png')
+            os.makedirs(shot, exist_ok=True); path = os.path.join(shot, _('Screenshot {stamp}.png').format(stamp=stamp))
             self.frozen.new_subpixbuf(x, y, w, h).savev(path, 'png', [], [])
             if WL:
                 try:
@@ -287,10 +288,10 @@ class App:
                 except (OSError, subprocess.SubprocessError):
                     copied = False
             else: subprocess.Popen(['sh', '-c', 'xclip -selection clipboard -t image/png -i "$0" >/dev/null 2>&1 &', path])   # xclip keeps owning the clipboard
-            self.notify('Schermafbeelding gemaakt', 'Ook gekopieerd naar het klembord.' if not WL or copied else 'Opgeslagen; kopiëren naar het klembord is mislukt.', path, shot)
+            self.notify(_('Screenshot taken'), _('Also copied to the clipboard.') if not WL or copied else _('Saved; copying to the clipboard failed.'), path, shot)
             self.quit(); return
         # video: even sizes for x264
-        os.makedirs(vid, exist_ok=True); path = os.path.join(vid, f'Schermopname {stamp}.mp4')
+        os.makedirs(vid, exist_ok=True); path = os.path.join(vid, _('Screen recording {stamp}.mp4').format(stamp=stamp))
         ff = backend.recording_command(path, r, WL, S.load().get('capture_pointer', False), self.origin)
         self.hide_all()
         def start_recording():
@@ -315,9 +316,9 @@ class App:
 def notify(title, body, image, folder):
     """Real notification with thumbnail + 'Map tonen' action (waits for the click in a detached helper)."""
     files = os.path.join(C, 'files', 'run-files.sh')
-    sh = ('a=$(timeout 900 notify-send --wait -a Schermopname -h "string:image-path:$1" -A "map=Map tonen" "$2" "$3"); '
+    sh = ('a=$(timeout 900 notify-send --wait -a "$6" -h "string:image-path:$1" -A "map=$7" "$2" "$3"); '
           '[ "$a" = map ] && exec "$4" "$5"')
-    subprocess.Popen(['sh', '-c', sh, 'x', image, title, body, files, folder], start_new_session=True,
+    subprocess.Popen(['sh', '-c', sh, 'x', image, title, body, files, folder, _('Screen capture'), _('Show folder')], start_new_session=True,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 if __name__ == '__main__':
@@ -329,7 +330,7 @@ if __name__ == '__main__':
             try:
                 subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-sseof', '-0.5', '-i', p, '-frames:v', '1', '-vf', 'scale=240:-1', thumb], timeout=30)
             except (OSError, subprocess.SubprocessError): pass
-        notify('Schermopname opgeslagen' if ok else 'Schermopname mislukt', os.path.basename(p) if ok else f'Zie {backend.runtime_dir() / "osb-rec.log"}',
+        notify(_('Screen recording saved') if ok else _('Screen capture failed'), os.path.basename(p) if ok else _('See {p0}').format(p0=backend.runtime_dir() / "osb-rec.log"),
                thumb if ok else '', os.path.dirname(p)); sys.exit(0 if ok else 1)
     if backend.stop_recording(): sys.exit(0)     # Print / Ctrl+Shift+F5 / QS tile while recording = stop
     lock = backend.acquire_lock('osb-capture.lock')
@@ -338,6 +339,6 @@ if __name__ == '__main__':
         App(); Gtk.main()
     except (OSError, ValueError, GLib.Error, subprocess.SubprocessError) as error:
         print(f'capture: {error}', file=sys.stderr, flush=True)
-        notify('Schermopname mislukt', 'Het scherm kon niet worden vastgelegd.', '', dirs()[0])
+        notify(_('Screen capture failed'), _('The screen could not be captured.'), '', dirs()[0])
     finally:
         os.close(lock)

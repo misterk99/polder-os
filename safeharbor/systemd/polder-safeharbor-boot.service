@@ -1,0 +1,13 @@
+[Unit]
+Description=Polder SafeHarbor: detect an unfinished previous boot
+DefaultDependencies=no
+After=local-fs.target
+Before=sysinit.target
+ConditionPathIsDirectory=/var/log
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/polder-safeharbor/boot-check start
+
+[Install]
+WantedBy=sysinit.target

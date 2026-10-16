@@ -59,10 +59,34 @@ supervise() {
     done
   ) &
 }
-supervise notifications python3 "$C/notify/osb-notifyd.py"
-supervise shelf python3 "$C/shelf/shelf.py"
-supervise launcher python3 "$C/launcher/launcher.py"
-supervise clipboard python3 "$C/clip/clipd.py"
+# Rust launcher / notification daemon / clipboard history: opt-in per component, POLDER_<X>_IMPL=rust or ~/.config/osb/<x>-impl
+# containing "rust" (x = launcher, notify, clip). Without the binary, or by default, the Python version runs.
+impl_of() { local v; v=$(printenv "POLDER_$(echo "$1" | tr a-z A-Z)_IMPL"); echo "${v:-$(cat "$HOME/.config/osb/$1-impl" 2>/dev/null || echo python)}"; }
+if [ "$(impl_of notify)" = rust ] && command -v polder-notifyd >/dev/null; then
+  supervise notifications polder-notifyd
+else
+  supervise notifications python3 "$C/notify/osb-notifyd.py"
+fi
+# Rust shelf (shell/polder-shelf) is opt-in: POLDER_SHELF=rust in the session environment or ~/.config/osb/shelf-impl
+# containing "rust". Without the binary, or by default, the Python shelf runs (same PID file, so never both).
+shelf_impl=${POLDER_SHELF:-$(cat "$HOME/.config/osb/shelf-impl" 2>/dev/null || echo python)}
+if [ "$shelf_impl" = rust ] && command -v polder-shelf >/dev/null; then
+  supervise shelf polder-shelf
+else
+  supervise shelf python3 "$C/shelf/shelf.py"
+fi
+if [ "$(impl_of launcher)" = rust ] && command -v polder-launcher >/dev/null; then
+  supervise launcher polder-launcher
+else
+  supervise launcher python3 "$C/launcher/launcher.py"
+fi
+if [ "$(impl_of clip)" = rust ] && command -v polder-clipd >/dev/null; then
+  supervise clipboard polder-clipd
+else
+  supervise clipboard python3 "$C/clip/clipd.py"
+fi
+# Polder Sluis: interrupted-merge and storage notifications for proefpolders
+command -v polder-sluisd >/dev/null && supervise sluis polder-sluisd daemon
 supervise settings python3 "$C/osb/osb-settingsd.py"
 supervise polkit lxpolkit
 if [ -n "${DISPLAY:-}" ]; then

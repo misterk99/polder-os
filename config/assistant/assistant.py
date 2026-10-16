@@ -2,6 +2,7 @@
 """Polder Assistent panel (Rev 29). Super+A toggles it (polder-shell module 'assistant'; standalone fallback:
 assistant.py --show, SIGUSR1 toggles). Local intents first (offline, no key); anything else goes to the cloud LLM
 if one is configured in Instellingen > Assistent, else an honest 'not understood' with examples."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, sys, signal, threading, subprocess, json, time
 HERE = os.path.dirname(os.path.abspath(__file__)); C = os.path.join(HERE, '..')
 for d in (HERE, os.path.join(C, 'osb'), os.path.join(C, 'notify')): sys.path.insert(0, d)
@@ -11,7 +12,7 @@ import osbnotify as N, actions as A, intents as I, llm as L
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'osb')); import layershell as LSH   # Rev 34
 W, H, SHELF = 560, 460, 62
 PIDF = os.path.join(os.environ.get('OSB_RUNDIR', '/tmp'), 'osb-assistant.pid')
-EXAMPLES = ['Zet donker thema aan', 'Volume op 30%', 'Wat voor weer is het?', 'Open terminal', 'Zoek bestand factuur', 'Maak een screenshot']
+EXAMPLES = [_('Turn on dark theme'), _('Volume to 30%'), _("What's the weather like?"), _('Open terminal'), _('Find file invoice'), _('Take a screenshot')]
 
 def css():
     P = N.palette()
@@ -34,7 +35,7 @@ scrolledwindow, viewport {{ background: transparent; }}
 
 class Assistant(Gtk.Window):
     def __init__(self):
-        super().__init__(type=Gtk.WindowType.TOPLEVEL, title='Polder Assistent')
+        super().__init__(type=Gtk.WindowType.TOPLEVEL, title=_('Polder Assistant'))
         self.set_decorated(False); self.set_keep_above(True); self.set_skip_taskbar_hint(True); self.set_skip_pager_hint(True)
         self.set_type_hint(Gdk.WindowTypeHint.DIALOG); self.set_name('awin'); self.set_resizable(False)
         scr = Gdk.Screen.get_default(); self.sw, self.sh = scr.get_width(), scr.get_height()
@@ -51,13 +52,13 @@ class Assistant(Gtk.Window):
         self.set_app_paintable(True); self.connect('draw', self.on_draw)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10); box.set_name('abox'); self.add(box)
         hd = Gtk.Box(spacing=8); ic = Gtk.Image.new_from_icon_name('starred-symbolic', Gtk.IconSize.LARGE_TOOLBAR); hd.pack_start(ic, False, False, 0)
-        t = Gtk.Label(label='Polder Assistent', xalign=0); t.set_name('ahead'); hd.pack_start(t, False, False, 0)
+        t = Gtk.Label(label=_('Polder Assistant'), xalign=0); t.set_name('ahead'); hd.pack_start(t, False, False, 0)
         self.mode = Gtk.Label(xalign=1); self.mode.get_style_context().add_class('asub'); hd.pack_end(self.mode, False, False, 0)
         box.pack_start(hd, False, False, 0)
         self.sc = Gtk.ScrolledWindow(); self.sc.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         self.conv = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8); self.conv.set_valign(Gtk.Align.END)
         self.sc.add(self.conv); box.pack_start(self.sc, True, True, 0)
-        self.entry = Gtk.Entry(); self.entry.set_name('aentry'); self.entry.set_placeholder_text('Vraag of zeg iets… (bv. "zet wifi uit")')
+        self.entry = Gtk.Entry(); self.entry.set_name('aentry'); self.entry.set_placeholder_text(_('Ask or say something… (e.g. "turn wifi off")'))
         self.entry.connect('activate', self.on_send); box.pack_start(self.entry, False, False, 0)
         self.connect('key-press-event', lambda w, e: e.keyval == Gdk.KEY_Escape and self.hide_a())
         self.connect('delete-event', lambda *a: self.hide_a() or True)
@@ -74,7 +75,7 @@ class Assistant(Gtk.Window):
             subprocess.run(['convert', wp, '-crop', f'{W}x{H}+{self.x}+{self.y}', '+repage', out], timeout=10)
             self.bgprov.load_from_data(f"#awin {{ background-image: url('{out}'); background-color: transparent; }}".encode())
         cfg = L.config()
-        self.mode.set_text(f'{L.PROVIDERS[cfg[0]][0]} · {cfg[1]}' if cfg and cfg[2] else 'Lokaal · geen sleutel')
+        self.mode.set_text(f'{L.PROVIDERS[cfg[0]][0]} · {cfg[1]}' if cfg and cfg[2] else _('Local · no key'))
 
     def on_draw(self, w, cr):
         import cairo
@@ -85,7 +86,7 @@ class Assistant(Gtk.Window):
     def welcome(self):
         for c in self.conv.get_children(): c.destroy()
         self.history = []
-        self.bubble('ai', 'Hoi! Ik kan je computer bedienen: thema, volume, helderheid, wifi, bluetooth, niet storen, apps, agenda, weer, bestanden zoeken, vergrendelen en schermafbeeldingen.')
+        self.bubble('ai', _('Hi! I can control your computer: theme, volume, brightness, Wi‑Fi, Bluetooth, do not disturb, apps, calendar, weather, file search, locking and screenshots.'))
         fb = Gtk.FlowBox(); fb.set_selection_mode(Gtk.SelectionMode.NONE); fb.set_max_children_per_line(3)
         for ex in EXAMPLES:
             b = Gtk.Button(label=ex); b.get_style_context().add_class('chip'); b.connect('clicked', lambda _b, t=ex: self.ask(t)); fb.add(b)
@@ -148,17 +149,16 @@ class Assistant(Gtk.Window):
         if hit: self.local(*hit); return
         cfg = L.config()
         if cfg and cfg[2]: self.cloud(text, cfg); return
-        self.bubble('ai', 'Dat begrijp ik lokaal niet. Probeer bv. "volume op 50", "open firefox" of "zoek bestand notities". '
-                          'Voor vrije vragen: stel een OpenAI-, Gemini- of Claude-sleutel in via Instellingen › Assistent.')
+        self.bubble('ai', _('I don\'t understand that locally. Try e.g. "volume 50", "open firefox" or "find file notes". For free-form questions: set an OpenAI, Gemini or Claude key in Settings › Assistant.'))
 
     def confirm(self, q):
         self.modal = True
         d = Gtk.MessageDialog(transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION, buttons=Gtk.ButtonsType.NONE, text=q)
-        d.add_buttons('Annuleren', 0, 'Ja', 1); d.set_keep_above(True); r = d.run(); d.destroy(); self.modal = False; self.present(); return r == 1
+        d.add_buttons(_('Cancel'), 0, _('Yes'), 1); d.set_keep_above(True); r = d.run(); d.destroy(); self.modal = False; self.present(); return r == 1
 
     def local(self, name, args):
         q = A.needs_confirm(name, args)
-        if q and not self.confirm(q): self.bubble('act', 'Geannuleerd.'); return
+        if q and not self.confirm(q): self.bubble('act', _('Cancelled.')); return
         if name in ('screenshot', 'lock_screen', 'open_calendar', 'open_app', 'open_path'): self.hide_a()   # 0.30 VM: panel stayed above newly opened apps
         self.busy = True
         def work():
@@ -176,7 +176,7 @@ class Assistant(Gtk.Window):
             if q:
                 ev = threading.Event(); ok = [False]
                 GLib.idle_add(lambda: (ok.__setitem__(0, self.confirm(q)), ev.set()) and False); ev.wait()
-                if not ok[0]: GLib.idle_add(self.bubble, 'act', f'✗ {name} geweigerd'); return 'De gebruiker heeft deze actie geweigerd.'
+                if not ok[0]: GLib.idle_add(self.bubble, 'act', _('✗ {name} declined').format(name=name)); return _('The user declined this action.')
             r = A.run(name, args); GLib.idle_add(self.bubble, 'act', f'⚙ {name}: {r}'); return r
         def work():
             try: out = L.chat(self.history, on_text, on_tool, cfg); err = None
@@ -186,10 +186,10 @@ class Assistant(Gtk.Window):
         threading.Thread(target=work, daemon=True).start()
     def done_cloud(self, lbl, out, err):
         self.busy = False
-        if err: lbl.set_text(f'{L.PROVIDERS[L.config()[0]][0]} gaf een fout: {err}\nControleer je sleutel in Instellingen › Assistent.'); self.history.pop()
+        if err: lbl.set_text(_('{p0} returned an error: {err}\nCheck your key in Settings › Assistant.').format(p0=L.PROVIDERS[L.config()[0]][0], err=err)); self.history.pop()
         else:
-            if not out: lbl.set_text('Klaar.')
-            self.history.append({'role': 'assistant', 'content': out or 'Klaar.'})
+            if not out: lbl.set_text(_('Done.'))
+            self.history.append({'role': 'assistant', 'content': out or _('Done.')})
         return False
 
 if __name__ == '__main__':

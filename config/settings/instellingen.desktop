@@ -1,7 +1,9 @@
 [Desktop Entry]
 Type=Application
-Name=Instellingen
-Comment=Polder OS-instellingen
+Name=Settings
+Name[nl]=Instellingen
+Comment=Polder OS settings
+Comment[nl]=Polder OS-instellingen
 Exec=python3 /workspace/osbuilder/config/settings/instellingen.py
 Icon=preferences-system
 Categories=Settings;

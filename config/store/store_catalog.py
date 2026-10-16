@@ -1,4 +1,5 @@
 """Catalog helpers shared by the Store UI and its focused tests (no GTK)."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import glob
 import os
 from pathlib import Path
@@ -88,15 +89,15 @@ def should_refresh(status, app_count, last_request, now=None):
 def status_message(status, app_count):
     phase = status.get('phase')
     if phase == 'refreshing':
-        return ('De appcatalogus wordt bijgewerkt. Je kunt apps blijven bekijken.' if app_count
-                else 'De appcatalogus wordt automatisch voorbereid…')
+        return (_('The app catalog is being updated. You can keep browsing apps.') if app_count
+                else _('The app catalog is being prepared automatically…'))
     if phase == 'retry':
         if status.get('reason') == 'busy':
-            return 'Een andere pakketbeheerder is bezig. We proberen het automatisch opnieuw.'
-        return ('Bijwerken lukt nu niet. Je opgeslagen appcatalogus blijft beschikbaar.' if app_count
-                else 'De appcatalogus is nog niet beschikbaar. We proberen het automatisch opnieuw zodra de verbinding beschikbaar is.')
+            return _('Another package manager is busy. We will try again automatically.')
+        return (_('Updating is not possible right now. Your saved app catalog remains available.') if app_count
+                else _('The app catalog is not available yet. We will try again automatically as soon as a connection is available.'))
     if not app_count:
-        return 'De appcatalogus wordt automatisch voorbereid. Dit kan even duren bij de eerste start.'
+        return _('The app catalog is being prepared automatically. This can take a while on first start.')
     return ''
 
 

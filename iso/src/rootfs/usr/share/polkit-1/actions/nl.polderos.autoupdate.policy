@@ -2,8 +2,10 @@
 <!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <policyconfig>
   <action id="nl.polderos.autoupdate">
-    <description>Automatische updates aan- of uitzetten</description>
-    <message>Authenticatie is vereist om automatische updates te wijzigen</message>
+    <description>Turn automatic updates on or off</description>
+    <description xml:lang="nl">Automatische updates aan- of uitzetten</description>
+    <message>Authentication is required to change automatic updates</message>
+    <message xml:lang="nl">Authenticatie is vereist om automatische updates te wijzigen</message>
     <defaults><allow_any>auth_admin</allow_any><allow_inactive>auth_admin</allow_inactive><allow_active>auth_admin_keep</allow_active></defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/share/polderos/config/osb/polder-autoupdate</annotate>
   </action>

@@ -1,6 +1,7 @@
 """Polder Assistent cloud LLM (optional). Providers: OpenAI (Chat Completions), Google Gemini (generateContent),
 Anthropic Claude (Messages). Plain urllib + SSE streaming + tool/function calling with the actions in actions.py.
 Keys: libsecret via `secret-tool` when available (gnome-keyring), else ~/.config/osb/assistant-keys (chmod 600). Never in settings.json."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import os, json, shutil, subprocess, urllib.request, urllib.error
 import actions as A
 PROVIDERS = {'openai': ('OpenAI', 'gpt-4o-mini'), 'gemini': ('Google Gemini', 'gemini-2.0-flash'), 'claude': ('Anthropic Claude', 'claude-3-5-haiku-latest')}
@@ -21,7 +22,7 @@ def set_key(p, key):
     """Returns where the key was stored ('sleutelbos' or 'bestand')."""
     if _secret_ok():
         if key:
-            r = subprocess.run(['secret-tool', 'store', '--label', f'Polder Assistent ({p})', 'service', 'polder-assistent', 'provider', p], input=key, capture_output=True, text=True, timeout=5)
+            r = subprocess.run(['secret-tool', 'store', '--label', _('Polder Assistant ({p})').format(p=p), 'service', 'polder-assistent', 'provider', p], input=key, capture_output=True, text=True, timeout=5)
         else: r = subprocess.run(['secret-tool', 'clear', 'service', 'polder-assistent', 'provider', p], capture_output=True, timeout=5)
         if r.returncode == 0: _file_set(p, ''); return 'sleutelbos'
     _file_set(p, key); return 'bestand'
@@ -52,7 +53,7 @@ def _post(url, body, headers, stream=True, timeout=60):
         try: j = json.loads(raw); j = j[0] if isinstance(j, list) else j; msg = (j.get('error') or {}).get('message') or raw
         except Exception: msg = raw
         raise LLMError(f'HTTP {e.code}: {msg[:300]}')
-    except urllib.error.URLError as e: raise LLMError(f'Geen verbinding: {e.reason}')
+    except urllib.error.URLError as e: raise LLMError(_('No connection: {reason}').format(reason=e.reason))
 def _sse(resp):
     for line in resp:
         line = line.decode('utf-8', 'replace').strip()
@@ -79,12 +80,12 @@ def chat(history, on_text, on_tool, cfg=None, max_rounds=5):
     """history: list of {'role': 'user'|'assistant', 'content': str}. Streams text via on_text(chunk).
     on_tool(name, args) -> result string (handles confirmation + execution). Returns final assistant text."""
     p, model, key = cfg or config()
-    if not key: raise LLMError('Geen API-sleutel ingesteld.')
+    if not key: raise LLMError(_('No API key set.'))
     return {'openai': _openai, 'gemini': _gemini, 'claude': _claude}[p](history, model, key, on_text, on_tool, max_rounds)
 
 def _openai(history, model, key, on_text, on_tool, rounds):
     msgs = [{'role': 'system', 'content': SYSTEM}] + [dict(m) for m in history]; full = ''
-    for _ in range(rounds):
+    for _x in range(rounds):
         r = _post('https://api.openai.com/v1/chat/completions', {'model': model, 'messages': msgs, 'tools': _tools('openai'), 'stream': True}, {'Authorization': f'Bearer {key}'})
         text = ''; calls = {}
         for ev in _sse(r):
@@ -106,7 +107,7 @@ def _openai(history, model, key, on_text, on_tool, rounds):
 
 def _claude(history, model, key, on_text, on_tool, rounds):
     msgs = [dict(m) for m in history]; full = ''
-    for _ in range(rounds):
+    for _x in range(rounds):
         r = _post('https://api.anthropic.com/v1/messages', {'model': model, 'max_tokens': 1024, 'system': SYSTEM, 'messages': msgs, 'tools': _tools('claude'), 'stream': True},
                   {'x-api-key': key, 'anthropic-version': '2023-06-01'})
         blocks = {}; stop = None
@@ -135,7 +136,7 @@ def _claude(history, model, key, on_text, on_tool, rounds):
 
 def _gemini(history, model, key, on_text, on_tool, rounds):
     contents = [{'role': 'model' if m['role'] == 'assistant' else 'user', 'parts': [{'text': m['content']}]} for m in history]; full = ''
-    for _ in range(rounds):
+    for _x in range(rounds):
         r = _post(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?alt=sse',
                   {'systemInstruction': {'parts': [{'text': SYSTEM}]}, 'contents': contents, 'tools': _tools('gemini')}, {'x-goog-api-key': key})
         parts = []; calls = []
@@ -156,6 +157,6 @@ def test(p, model, key):
         if p == 'openai': r = _post('https://api.openai.com/v1/chat/completions', {'model': model, 'messages': [{'role': 'user', 'content': 'Zeg alleen: ok'}], 'max_tokens': 5}, {'Authorization': f'Bearer {key}'}, False, 20)
         elif p == 'claude': r = _post('https://api.anthropic.com/v1/messages', {'model': model, 'max_tokens': 5, 'messages': [{'role': 'user', 'content': 'Zeg alleen: ok'}]}, {'x-api-key': key, 'anthropic-version': '2023-06-01'}, False, 20)
         else: r = _post(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent', {'contents': [{'parts': [{'text': 'Zeg alleen: ok'}]}], 'generationConfig': {'maxOutputTokens': 5}}, {'x-goog-api-key': key}, False, 20)
-        json.load(r); return True, f'Verbonden met {PROVIDERS[p][0]} ({model}).'
+        json.load(r); return True, _('Connected to {p0} ({model}).').format(p0=PROVIDERS[p][0], model=model)
     except LLMError as e: return False, str(e)
     except Exception as e: return False, f'{type(e).__name__}: {e}'

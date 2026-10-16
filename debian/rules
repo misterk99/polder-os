@@ -13,6 +13,11 @@ export DH_OPTIONS = -Npolder-archive-keyring
 endif
 JOBS = $(or $(filter parallel=%,$(DEB_BUILD_OPTIONS)),parallel=2)
 NJOBS = $(patsubst parallel=%,%,$(JOBS))
+# Rust crate: built offline against Debian's vendored crate registry (/usr/share/cargo/registry, librust-*-dev).
+RUST_DIR = shell/polder-shelf
+RUST_BINS = polder-shelf polder-quicksettings polder-phonehub polder-dynamic-color polder-launcher polder-notifyd polder-clipd polder-safeharbor polder-sluis polder-sluisd
+export CARGO_HOME = $(CURDIR)/debian/cargo-home
+export CARGO_TARGET_DIR = $(CURDIR)/obj-rust
 
 %:
 	dh $@ --buildsystem=none
@@ -30,6 +35,9 @@ override_dh_auto_build:
 	  meson compile -C obj-plain -j $(NJOBS); \
 	  PKG_CONFIG_PATH="$$(pwd)/obj-scenefx/meson-uninstalled" meson setup obj-effects compositor/polder-comp --wrap-mode=nofallback --prefix=/usr --buildtype=plain -Dscenefx=enabled -Dscenefx_libdir=$(PRIVATE_LIBDIR); \
 	  meson compile -C obj-effects -j $(NJOBS); \
+	  mkdir -p debian/cargo-home; \
+	  printf '[source.crates-io]\nreplace-with = "debian"\n[source.debian]\ndirectory = "/usr/share/cargo/registry"\n[net]\noffline = true\n' > debian/cargo-home/config.toml; \
+	  cargo build --release --offline -j $(NJOBS) --manifest-path $(RUST_DIR)/Cargo.toml $(addprefix --bin ,$(RUST_BINS)); \
 	fi
 
 override_dh_auto_install:
@@ -42,6 +50,9 @@ override_dh_auto_install:
 	  install -d debian/tmp$(PRIVATE_LIBDIR); \
 	  cp -a obj-scenefx/libscenefx-0.2.so* debian/tmp$(PRIVATE_LIBDIR)/; \
 	  install -Dm644 .package-sources/scenefx/LICENSE debian/tmp/usr/share/doc/polder-compositor/scenefx-LICENSE; \
+	  for b in $(RUST_BINS); do install -Dm755 obj-rust/release/$$b debian/tmp/usr/bin/$$b; done; \
+	  install -Dm644 config/sluis/polder-sluis.desktop debian/tmp/usr/share/applications/polder-sluis.desktop; \
+	  install -Dm644 config/sluis/polder-sluisd-autostart.desktop debian/tmp/etc/xdg/autostart/polder-sluisd.desktop; \
 	fi
 
 override_dh_shlibdeps:
@@ -63,4 +74,4 @@ override_dh_missing:
 	dh_missing --fail-missing
 
 override_dh_auto_clean:
-	rm -rf obj-scenefx obj-plain obj-effects obj-effects-install debian/tmp debian/shlibs.local
+	rm -rf obj-scenefx obj-plain obj-effects obj-effects-install obj-rust debian/cargo-home debian/tmp debian/shlibs.local

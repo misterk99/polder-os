@@ -1,0 +1,8 @@
+// Reading the restore point list needs no password for the local active user; changing anything does (auth_admin_keep).
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.policykit.exec" || action.id == "org.polderos.safeharbor.manage") {
+        var p = action.lookup("program"), c = action.lookup("command_line") || "";
+        if (p == "/usr/libexec/polder-safeharbor-helper" && /polder-safeharbor-helper status$/.test(c) && subject.active && subject.local)
+            return polkit.Result.YES;
+    }
+});

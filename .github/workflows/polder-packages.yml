@@ -31,13 +31,18 @@ jobs:
             apt-utils build-essential ca-certificates curl debhelper devscripts dpkg-dev fakeroot \
             gnupg libdrm-dev libegl-dev libgbm-dev libgles-dev libpixman-1-dev \
             libwayland-dev libwlroots-0.18-dev libxcb1-dev libxkbcommon-dev \
-            meson ninja-build pkgconf python3 wayland-protocols xz-utils
+            meson ninja-build pkgconf python3 wayland-protocols xz-utils \
+            cargo rustc libgtk-4-dev libgtk4-layer-shell-dev librust-gtk4-dev librust-gtk4-layer-shell-dev \
+            librust-glib-dev librust-serde-dev librust-serde-derive-dev librust-serde-json-dev librust-libc-dev
 
       - name: Create disposable signing key
         run: tools/packages/test-key.sh --output /tmp/polder-test-key
 
       - name: Verify Store catalog initialization and recovery
         run: python3 -m unittest discover -s config/store -p 'test_*.py'
+
+      - name: Check translations (po/ complete, .mo/.desktop in sync, no hard-coded Dutch UI strings)
+        run: python3 -m unittest discover -s tools/i18n -p 'test_*.py'
 
       - name: Build packages as an unprivileged user
         run: |
@@ -56,10 +61,55 @@ jobs:
             --allow-test-key
           runuser -u nobody -- env HOME=/tmp/polder-home tools/packages/test-repository.sh --repository /tmp/polder-repository
 
+      - name: Keep built packages for the clean-install smoke test
+        uses: actions/upload-artifact@v4
+        with:
+          name: polder-packages-arm64
+          path: /tmp/polder-packages/*.deb
+          retention-days: 3
+
+  sluis:
+    name: Sluis Rust tests (userns overlayfs) and clean-install smoke test
+    needs: validate
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      # Ubuntu 24.04 hosts restrict unprivileged user namespaces through AppArmor; bubblewrap (and so Sluis) needs
+      # them. The tests run in a disposable debian:trixie container on an ext4 work dir (overlayfs upper dirs cannot
+      # live on the container's own overlay root).
+      - name: Allow unprivileged user namespaces on the runner
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          sudo sysctl -w kernel.unprivileged_userns_clone=1 || true
+          mkdir -p "$RUNNER_TEMP/work"
+
+      - name: Build the crate and run the Sluis tests (nl + en) on trixie, offline from Debian crates
+        run: |
+          docker run --rm --privileged -v "$PWD:/src:ro" -v "$RUNNER_TEMP/work:/work" debian:trixie \
+            bash /src/tools/ci/sluis-tests.sh
+          {
+            echo '### Sluis Rust tests'
+            if [ -s "$RUNNER_TEMP/work/sluis-skips.txt" ]; then echo 'Environment-based skips:'; sed 's/^/- /' "$RUNNER_TEMP/work/sluis-skips.txt"; else echo 'Environment-based skips: none'; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fetch built packages
+        uses: actions/download-artifact@v4
+        with:
+          name: polder-packages-arm64
+          path: ${{ runner.temp }}/debs
+
+      - name: Clean-install smoke test on trixie (install, CLI cycle, headless GUI launch)
+        run: |
+          docker run --rm --privileged --tmpfs /home:exec -v "$PWD:/src:ro" -v "$RUNNER_TEMP/debs:/debs:ro" debian:trixie \
+            bash /src/tools/packages/smoke-install.sh /debs | tee "$RUNNER_TEMP/smoke.log"
+          { echo '### Clean-install smoke test'; grep -E '^(PASS|SKIPPED)' "$RUNNER_TEMP/smoke.log"; } >> "$GITHUB_STEP_SUMMARY"
+
   publish:
     name: Publish signed ARM64 archive
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish
-    needs: validate
+    needs: [validate, sluis]
     runs-on: ubuntu-24.04-arm
     container: debian:trixie
     environment:
@@ -83,7 +133,9 @@ jobs:
             apt-utils build-essential ca-certificates curl debhelper devscripts dpkg-dev fakeroot \
             gnupg libdrm-dev libegl-dev libgbm-dev libgles-dev libpixman-1-dev \
             libwayland-dev libwlroots-0.18-dev libxcb1-dev libxkbcommon-dev \
-            meson ninja-build pkgconf python3 wayland-protocols xz-utils
+            meson ninja-build pkgconf python3 wayland-protocols xz-utils \
+            cargo rustc libgtk-4-dev libgtk4-layer-shell-dev librust-gtk4-dev librust-gtk4-layer-shell-dev \
+            librust-glib-dev librust-serde-dev librust-serde-derive-dev librust-serde-json-dev librust-libc-dev
 
       - name: Import production signing key and export public key
         env:

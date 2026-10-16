@@ -1,8 +1,9 @@
 """Window list helpers (wmctrl/xdotool/ImageMagick) for overview + alt-tab."""
+import os as _i18n_os, sys as _i18n_sys; _i18n_sys.path.insert(0, _i18n_os.path.join(_i18n_os.path.dirname(_i18n_os.path.abspath(__file__)), '..', 'osb')); from polder_i18n import _, ngettext  # i18n
 import subprocess, os, hashlib
 SKIP = {'tint2', 'polder-shell.py', 'qs.py', 'osb-notifyd.py', 'rofi'}
-APPNAMES = {'chromium': 'Chromium', 'thunar': 'Bestanden', 'xfce4-terminal': 'Terminal',
-            'xfce4-settings-manager': 'Instellingen'}
+APPNAMES = {'chromium': 'Chromium', 'thunar': _('Files'), 'xfce4-terminal': 'Terminal',
+            'xfce4-settings-manager': _('Settings')}
 ICONS = {'chromium': 'chromium-browser', 'thunar': 'system-file-manager', 'xfce4-terminal': 'utilities-terminal',
          'xfce4-settings-manager': 'preferences-system'}
 
@@ -37,7 +38,7 @@ def windows(desk=None, all_desks=False):
         title = sh('xdotool', 'getwindowname', str(wid)).strip()
         for suf in (' - Chromium', ' - Thunar', ' - Google Chrome'): title = title.replace(suf, '')
         if inst == 'xfce4-terminal': title = 'Terminal'
-        if inst == 'xfce4-settings-manager': title = 'Instellingen'
+        if inst == 'xfce4-settings-manager': title = _('Settings')
         wins[wid] = dict(id=wid, desk=d, inst=inst, title=title, app=APPNAMES.get(inst, inst.capitalize()),
                          icon=ICONS.get(inst, 'application-x-executable'),
                          hidden='_NET_WM_STATE_HIDDEN' in sh('xprop', '-id', hex(wid), '_NET_WM_STATE'))
@@ -86,8 +87,8 @@ def close(wid):
 import json, time
 WLMODE = bool(os.environ.get('POLDER_COMP') and os.environ.get('WAYLAND_DISPLAY'))
 RUN = os.environ.get('XDG_RUNTIME_DIR', '/tmp')
-WL_APPS = {'foot': ('Terminal', 'utilities-terminal'), 'org.gnome.Nautilus': ('Bestanden', 'system-file-manager'),
-           'Thunar': ('Bestanden', 'system-file-manager'), 'thunar': ('Bestanden', 'system-file-manager'),
+WL_APPS = {'foot': ('Terminal', 'utilities-terminal'), 'org.gnome.Nautilus': (_('Files'), 'system-file-manager'),
+           'Thunar': (_('Files'), 'system-file-manager'), 'thunar': (_('Files'), 'system-file-manager'),
            'chromium': ('Chromium', 'chromium-browser'), 'Chromium': ('Chromium', 'chromium-browser')}
 WL_SKIP = {'polder-shelf'}
 _state = None
@@ -100,7 +101,7 @@ def wl_state(refresh=False):
     if _state is not None and not refresh: return _state
     f = os.path.join(RUN, 'polder-state.json'); m0 = os.path.getmtime(f) if os.path.exists(f) else 0
     wl_cmd('dump')
-    for _ in range(40):
+    for _x in range(40):
         if os.path.exists(f) and os.path.getmtime(f) != m0: break
         time.sleep(0.025)
     try: _state = json.load(open(f))
@@ -108,7 +109,7 @@ def wl_state(refresh=False):
     return _state
 
 def _wl_win(w):
-    app, icon = WL_APPS.get(w['app_id'], (w['app_id'].split('.')[-1].capitalize() or 'Venster', w['app_id'].lower() or 'application-x-executable'))
+    app, icon = WL_APPS.get(w['app_id'], (w['app_id'].split('.')[-1].capitalize() or _('Window'), w['app_id'].lower() or 'application-x-executable'))
     return dict(id=w['id'], desk=w['desk'], inst=w['app_id'], title=w['title'], app=app, icon=icon, hidden=w['min'], geom=(w['x'], w['y'], w['w'], w['h']))
 
 def _wl_windows(desk=None, all_desks=False):

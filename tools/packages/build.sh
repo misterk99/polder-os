@@ -50,8 +50,8 @@ export POLDER_COMPONENTS_ONLY=$COMPONENTS
 SOURCE="$OUTPUT/polderos-$UPSTREAM"
 mkdir -p "$SOURCE/.package-sources/scenefx"
 # Copy the working source (including current authorized edits), not just HEAD.
-tar -C "$ROOT" --exclude=__pycache__ --exclude='*.pyc' -cf - \
-    config compositor iso/src tools/packages LICENSE | tar -C "$SOURCE" -xf -
+tar -C "$ROOT" --exclude=__pycache__ --exclude='*.pyc' --exclude=shell/polder-shelf/target -cf - \
+    config compositor iso/src tools/packages shell/polder-shelf LICENSE | tar -C "$SOURCE" -xf -
 # A Windows checkout may contain CRLF. Normalize copied UTF-8 text before
 # creating the orig source, so quilt and installed shell shebangs work on Linux.
 python3 - "$SOURCE" <<'PY'

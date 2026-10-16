@@ -64,7 +64,7 @@ def on_titlebar(px, py):
     if not wid: return False
     xi = sh('xwininfo', '-id', wid); g = {}
     for line in xi.splitlines():
-        k, _, v = line.strip().partition(':')
+        k, _x, v = line.strip().partition(':')
         if k == 'Absolute upper-left X': g['X'] = v.strip()
         elif k == 'Absolute upper-left Y': g['Y'] = v.strip()
         elif k == 'Width': g['WIDTH'] = v.strip()

@@ -1,5 +1,6 @@
 [Desktop Entry]
-Name=Bestanden
+Name=Files
+Name[nl]=Bestanden
 Exec=/workspace/osbuilder/config/files/run-files.sh
 Icon=system-file-manager
 Type=Application
