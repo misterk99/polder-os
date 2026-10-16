@@ -5,6 +5,7 @@ use std::fs;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::sync::Arc;
 use std::path::{Path, PathBuf};
+use std::io::Write;
 
 struct T { root: PathBuf, home: PathBuf, upper: PathBuf, work: PathBuf, j: PathBuf, base: std::collections::BTreeMap<String, Entry> }
 impl Drop for T { fn drop(&mut self) { let _ = rm_rf(&self.root); } }
@@ -739,4 +740,76 @@ fn locks_live_outside_workspaces_and_cover_discard_create_and_metadata() {
     let again = create("Proef", &proj, "").unwrap(); assert_eq!(again.id, "proef"); assert_eq!(ino(), ino0);
     std::env::remove_var("POLDER_SLUIS_DIR");
     let _ = rm_rf(&root);
+}
+
+// ======================================================================== review round 4: independent backups, verified swaps
+fn fd_write(p: &Path, s: &str) { use std::io::{Seek, SeekFrom}; let mut f = fs::OpenOptions::new().write(true).open(p).unwrap(); f.seek(SeekFrom::Start(0)).unwrap(); f.write_all(s.as_bytes()).unwrap(); f.set_len(s.len() as u64).unwrap(); f.sync_all().unwrap(); }
+
+#[test]
+fn backups_are_independent_copies_and_verified_before_restore() {
+    if !overlay_or_skip("backups_are_independent_copies_and_verified_before_restore") { return; }
+    let (t, p, _) = merge_custom("hardlink", "echo origineel > a; ln a hl", "echo nieuw > a");
+    assert_eq!(p.ops.len(), 1, "{:?}", p.ops);
+    let ino = fs::metadata(t.home.join("a")).unwrap().ino();
+    let mut held = fs::OpenOptions::new().write(true).open(t.home.join("a")).unwrap();   // fd open from before the merge
+    let mid = apply_plan(&t.j, &t.home, &p, None, &Faults::none()).unwrap().merge_id;
+    assert_eq!(rd(t.home.join("a")), "nieuw\n");
+    // the backup shares no inode with the original
+    let b = t.j.join(&mid).join("backup/0");
+    assert_ne!(fs::metadata(&b).unwrap().ino(), ino); assert_eq!(fs::metadata(&b).unwrap().nlink(), 1);
+    // after the merge the original inode is changed through the other hard link and through the already-open fd
+    fs::write(t.home.join("hl"), "via harde link\n").unwrap();
+    held.write_all(b"via open fd!!").unwrap(); held.sync_all().unwrap(); drop(held);
+    assert_eq!(rd(b.clone()), "origineel\n", "backup must not change with the original inode");
+    let r = rollback_in(&t.j, Some(&mid), &Faults::none()).unwrap(); assert!(r.rolled_back, "{:?}", r.failed);
+    assert_eq!(rd(t.home.join("a")), "origineel\n"); assert_ne!(fs::metadata(t.home.join("a")).unwrap().ino(), fs::metadata(&b).unwrap().ino());
+    assert!(no_tmp(&t.home));
+    // a backup that no longer matches its recorded size/sha256 is refused, the mainland is not touched
+    let (t, p, _) = merge_custom("badbackup", "echo origineel > a", "echo nieuw > a");
+    let mid = apply_plan(&t.j, &t.home, &p, None, &Faults::none()).unwrap().merge_id;
+    fs::write(t.j.join(&mid).join("backup/0"), "beschadigd\n").unwrap();
+    let r = rollback_in(&t.j, Some(&mid), &Faults::none()).unwrap();
+    assert!(!r.rolled_back && r.failed.iter().any(|(x, _)| x == "a"), "{:?}", r);
+    assert_eq!(rd(t.home.join("a")), "nieuw\n"); assert!(no_tmp(&t.home));
+    // same size, different content: still refused
+    fs::write(t.j.join(&mid).join("backup/0"), "ORIGINEEL\n").unwrap();
+    assert!(!rollback_in(&t.j, None, &Faults::none()).unwrap().rolled_back); assert_eq!(rd(t.home.join("a")), "nieuw\n");
+}
+
+#[test]
+fn changes_by_other_programs_just_before_the_swap_are_kept() {
+    if !overlay_or_skip("changes_by_other_programs_just_before_the_swap_are_kept") { return; }
+    for how in ["rename", "fd", "fd-same-size"] {
+        let act = |p: &Path, how: &str| match how {
+            "rename" => { let n = p.with_file_name(".user-tmp"); fs::write(&n, "gebruiker\n").unwrap(); fs::rename(&n, p).unwrap(); }
+            "fd" => fd_write(p, "gebruiker via fd\n"),
+            _ => { std::thread::sleep(std::time::Duration::from_millis(5)); fd_write(p, "ORIG\n") }
+        };
+        let want = |how: &str| match how { "rename" => "gebruiker\n", "fd" => "gebruiker via fd\n", _ => "ORIG\n" };
+        // replacement of a file (merge)
+        let (t, p, _) = merge_custom(&format!("ps-w-{how}"), "echo orig > w", "echo polder > w");
+        let h = t.home.clone(); let hw = how.to_string();
+        let f = Faults::hook(move |pt| if pt == "pre-swap:w" { act(&h.join("w"), &hw) });
+        let r = apply_plan(&t.j, &t.home, &p, None, &f).unwrap();
+        assert!(r.failed.iter().any(|(x, _)| x == "w"), "{how}: {:?}", r);
+        assert_eq!(rd(t.home.join("w")), want(how), "{how}: the other program's version must be kept");
+        assert!(no_tmp(&t.home), "{how}: staging left");
+        // deletion (merge)
+        let (t, p, _) = merge_custom(&format!("ps-d-{how}"), "echo orig > weg", "rm weg");
+        let h = t.home.clone(); let hw = how.to_string();
+        let f = Faults::hook(move |pt| if pt == "pre-swap:weg" { act(&h.join("weg"), &hw) });
+        let r = apply_plan(&t.j, &t.home, &p, None, &f).unwrap();
+        assert!(r.failed.iter().any(|(x, _)| x == "weg"), "{how}: {:?}", r);
+        assert_eq!(rd(t.home.join("weg")), want(how)); assert!(no_tmp(&t.home));
+        // rollback of a replacement and of a created file
+        let (t, p, _) = merge_custom(&format!("ps-r-{how}"), "echo orig > w", "echo polder > w; echo poldr > n");
+        let mid = apply_plan(&t.j, &t.home, &p, None, &Faults::none()).unwrap().merge_id;
+        let h = t.home.clone(); let hw = how.to_string();
+        let f = Faults::hook(move |pt| if let Some(x) = pt.strip_prefix("rollback-pre-swap:") { if x == "w" || x == "n" { act(&h.join(x), &hw) } });
+        let r = rollback_in(&t.j, Some(&mid), &f).unwrap();
+        assert!(!r.rolled_back && r.failed.iter().any(|(x, _)| x == "w") && r.failed.iter().any(|(x, _)| x == "n"), "{how}: {:?}", r);
+        assert_eq!(rd(t.home.join("w")), want(how)); assert_eq!(rd(t.home.join("n")), want(how)); assert!(no_tmp(&t.home));
+        // a retry still refuses: the user edits are never overwritten
+        let r = rollback_in(&t.j, None, &Faults::none()).unwrap(); assert!(!r.rolled_back, "user edits must still block: {:?}", r);
+    }
 }

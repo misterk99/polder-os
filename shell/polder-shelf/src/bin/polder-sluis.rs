@@ -407,10 +407,11 @@ fn dry_run(a: &A, id: &str) {
         if ops.is_empty() { lb.append(&lbl(tr("There is nothing to merge."), "")); }
         let sc = gtk::ScrolledWindow::builder().child(&lb).min_content_height(80).max_content_height(200).propagate_natural_height(true).hscrollbar_policy(gtk::PolicyType::Never).build();
         body.append(&sc);
+        body.append(&lbl(tr("Sluis checks every file right before it replaces it and keeps changes made by other programs in the meantime. A program that still has a file open can, after the merge, keep writing to the old version; that cannot be prevented. Close programs that are editing these files first."), "sub"));
         let warns: Vec<String> = v["warnings"].as_array().cloned().unwrap_or_default().iter().filter_map(|w| w.as_str().map(String::from)).filter(|w| !w.ends_with(": symlink")).collect();
-        if !warns.is_empty() { let w = lbl(&format!("Let op:\n{}", warns.iter().map(|w| format!("• {w}")).collect::<Vec<_>>().join("\n")), "banner warn"); body.append(&w); }
+        if !warns.is_empty() { let w = lbl(&format!("{}\n{}", tr("Note:"), warns.iter().map(|w| format!("• {w}")).collect::<Vec<_>>().join("\n")), "banner warn"); body.append(&w); }
         let sk = v["skipped"].as_array().cloned().unwrap_or_default();
-        if !sk.is_empty() { body.append(&lbl(&format!("Overgeslagen:\n{}", sk.iter().map(|s| format!("• {}: {}", s[0].as_str().unwrap_or(""), s[1].as_str().unwrap_or(""))).collect::<Vec<_>>().join("\n")), "sub")); }
+        if !sk.is_empty() { body.append(&lbl(&format!("{}\n{}", tr("Skipped:"), sk.iter().map(|s| format!("• {}: {}", s[0].as_str().unwrap_or(""), s[1].as_str().unwrap_or(""))).collect::<Vec<_>>().join("\n")), "sub")); }
         if ops.is_empty() { dialog(a, tr("Nothing to merge"), body.upcast_ref(), tr("Close"), false, || {}); return; }
         let (a2, i2) = (a.clone(), id2.clone());
         dialog(a, &tf!("Merge {} change(s)?", ops.len()), body.upcast_ref(), tr("Merge"), false, move || {

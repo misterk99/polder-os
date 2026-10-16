@@ -24,7 +24,7 @@ use std::fs;
 use std::io::{Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::{MetadataExt, PermissionsExt, FileTypeExt};
+use std::os::unix::fs::{MetadataExt, PermissionsExt, FileTypeExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -150,14 +150,12 @@ mod nf {
         let t = cs(target)?; chk(unsafe { libc::symlinkat(t.as_ptr(), d.as_raw_fd(), n.as_ptr()) }).map_err(e("symlink"))
     }
     pub fn renameat(fd1: libc::c_int, n1: &CStr, d2: &OwnedFd, n2: &CStr) -> IoRes<()> { chk(unsafe { libc::renameat(fd1, n1.as_ptr(), d2.as_raw_fd(), n2.as_ptr()) }) }
-    pub fn linkat(d: &OwnedFd, n: &CStr, to: &CStr) -> IoRes<()> { chk(unsafe { libc::linkat(d.as_raw_fd(), n.as_ptr(), libc::AT_FDCWD, to.as_ptr(), 0) }) }
     /// renameat2(2) within one directory: flags RENAME_NOREPLACE (1) or RENAME_EXCHANGE (2)
     pub fn rename2(d: &OwnedFd, a: &CStr, b: &CStr, flags: libc::c_uint) -> IoRes<()> {
         chk(unsafe { libc::syscall(libc::SYS_renameat2, d.as_raw_fd() as libc::c_long, a.as_ptr(), d.as_raw_fd() as libc::c_long, b.as_ptr(), flags as libc::c_long) } as libc::c_int)
     }
     pub const NOREPLACE: libc::c_uint = 1;
     pub const EXCHANGE: libc::c_uint = 2;
-    pub fn link_in(from: &CStr, d: &OwnedFd, n: &CStr) -> IoRes<()> { chk(unsafe { libc::linkat(libc::AT_FDCWD, from.as_ptr(), d.as_raw_fd(), n.as_ptr(), 0) }) }
     pub fn fsync(d: &OwnedFd) { unsafe { libc::fsync(d.as_raw_fd()); } }
     /// chmod an fd, also an O_PATH one (via its /proc/self/fd magic link, which resolves to exactly that inode)
     pub fn chmod_fd(fd: &OwnedFd, mode: u32) -> IoRes<()> {
@@ -232,7 +230,9 @@ fn hash_reader(f: &mut impl Read) -> Res<String> {
     loop { let n = f.read(&mut buf).map_err(e(tr("read")))?; if n == 0 { break; } c.update(&buf[..n]); }
     Ok(c.string().map(|s| s.to_string()).unwrap_or_default())
 }
-fn state_stat(l: &Loc) -> Res<(St, Option<libc::stat>)> {
+fn state_stat(l: &Loc) -> Res<(St, Option<libc::stat>)> { state_n(&l.dir, &l.name) }
+fn state_n(dir: &OwnedFd, name: &CStr) -> Res<(St, Option<libc::stat>)> {
+    let l = Loc { dir: dir.try_clone().map_err(e("dup"))?, name: name.to_owned() };
     let Some(st) = nf::lstatat(&l.dir, &l.name).map_err(e("stat"))? else { return Ok((St::Absent, None)) };
     let s = if nf::is(&st, libc::S_IFLNK) { St::Link { target: nf::readlinkat(&l.dir, &l.name).map_err(e("readlink"))? } }
         else if nf::is(&st, libc::S_IFDIR) { St::Dir { mode: st.st_mode as u32 & 0o7777 } }
@@ -652,19 +652,48 @@ fn stage_cleanup(j: &Path, key: &str, l: &Loc, notes: &mut Vec<(String, String)>
     stage_end(j, key); Ok(())
 }
 
-/// Keep the current mainland object of op n (files by hard link or copy, symlinks re-created; dirs need no backup).
+/// What a file backup must contain, recorded in `backup/<n>.json` when the backup is taken and checked again before
+/// every restore (a backup that no longer matches is never put back).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+struct BackupMeta { size: u64, sha256: String, mode: u32 }
+/// Copy all data of `src` into the new, empty `dst` as an INDEPENDENT copy: a reflink (FICLONE, copy-on-write, so
+/// later writes to the source never reach it) where the filesystem supports it, else a byte copy. Returns (size, sha256)
+/// of what landed in `dst`, read back from `dst` itself.
+fn copy_independent(src: &mut fs::File, dst: &mut fs::File) -> Res<(u64, String)> {
+    use std::io::{Seek, SeekFrom};
+    let cloned = unsafe { libc::ioctl(dst.as_raw_fd(), libc::FICLONE as _, src.as_raw_fd()) } == 0;
+    if !cloned {
+        dst.set_len(0).map_err(e(tr("copy")))?; dst.seek(SeekFrom::Start(0)).map_err(e(tr("copy")))?;
+        src.seek(SeekFrom::Start(0)).map_err(e(tr("copy")))?;
+        std::io::copy(src, dst).map_err(e(tr("copy")))?;
+    }
+    dst.sync_all().map_err(e(tr("copy")))?;
+    dst.seek(SeekFrom::Start(0)).map_err(e(tr("copy")))?;
+    let mut c = glib::Checksum::new(glib::ChecksumType::Sha256).ok_or(tr("no sha256"))?;
+    let mut buf = vec![0u8; 1 << 16]; let mut size = 0u64;
+    loop { let k = dst.read(&mut buf).map_err(e(tr("read")))?; if k == 0 { break; } size += k as u64; c.update(&buf[..k]); }
+    Ok((size, c.string().map(|s| s.to_string()).unwrap_or_default()))
+}
+fn backup_meta_path(j: &Path, n: usize) -> PathBuf { j.join("backup").join(format!("{n}.json")) }
+/// Keep the current mainland object of op n: files as an independent copy (reflink or byte copy, never a hard link, so
+/// other hard links or already-open fds to the original cannot change the backup), with size + sha256 + mode recorded;
+/// symlinks re-created; dirs need no backup. File and journal dir are fsynced before the op touches the mainland.
 fn backup(j: &Path, n: usize, l: &Loc, cur: &St) -> Res<()> {
     let bd = j.join("backup"); let b = bd.join(n.to_string());
     if b.symlink_metadata().is_ok() { return Ok(()); }                            // already taken (resume)
-    let tmp = bd.join(format!("{n}.tmp")); let _ = fs::remove_file(&tmp);
+    let tmp = bd.join(format!("{n}.tmp")); let _ = fs::remove_file(&tmp);          // journal-owned, under the lock
     match cur {
         St::Absent | St::Dir { .. } => return Ok(()),
         St::Link { target } => std::os::unix::fs::symlink(target, &tmp).map_err(e(tr("backup")))?,
-        St::File { .. } => if nf::linkat(&l.dir, &l.name, &nf::cp(&tmp)?).is_err() {
-            let fd = nf::openat(&l.dir, &l.name, libc::O_RDONLY | libc::O_NOFOLLOW, 0).map_err(e(tr("backup")))?;
-            let mut src = fs::File::from(fd); let mut dst = fs::File::create(&tmp).map_err(e(tr("backup")))?;
-            std::io::copy(&mut src, &mut dst).map_err(e(tr("backup")))?; dst.sync_all().map_err(e(tr("backup")))?;
-        },
+        St::File { mode, size, hash } => {
+            let fd = nf::openat(&l.dir, &l.name, libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK, 0).map_err(e(tr("backup")))?;
+            if !nf::is(&nf::fstat(&fd).map_err(e("stat"))?, libc::S_IFREG) { return Err(changed()); }
+            let mut src = fs::File::from(fd);
+            let mut dst = fs::OpenOptions::new().read(true).write(true).create_new(true).mode(0o600).open(&tmp).map_err(e(tr("backup")))?;
+            let (sz, h) = copy_independent(&mut src, &mut dst)?;
+            if sz != *size || h != *hash { let _ = fs::remove_file(&tmp); return Err(changed()); }
+            write_json(&backup_meta_path(j, n), &BackupMeta { size: sz, sha256: h, mode: *mode })?;
+        }
     }
     fs::rename(&tmp, &b).map_err(e(tr("backup")))?; fsync_dir(&bd);
     Ok(())
@@ -706,23 +735,46 @@ fn dir_is_empty(l: &Loc, n: &CStr) -> Res<bool> {
     let d = nf::openat(&l.dir, n, nf::DIRF, 0).map_err(|_| changed())?;
     Ok(nf::ls(&d).map_err(e("readdir"))?.is_empty())
 }
+/// identity used to verify the object swapped out by an exchange: dev, inode, full mode, mtime (s, ns), size. ctime is
+/// left out on purpose: the rename/exchange itself updates it.
+type Full = (u64, u64, u32, i64, i64, i64);
+fn full(st: &libc::stat) -> Full { (st.st_dev as u64, st.st_ino as u64, st.st_mode as u32, st.st_mtime, st.st_mtime_nsec, st.st_size as i64) }
+fn conflict(path: &str) -> String { tf!("{} was changed by another program during the merge; that version is kept and nothing was replaced", path) }
 /// Put the staged (Sluis-owned, uniquely named) object in place of `name`, so that at EVERY instant `name` is either the old
-/// object (`old`) or the new one: absent target -> renameat2(NOREPLACE); file/link replaced by file/link -> renameat
-/// (atomic); any replacement involving a directory -> renameat2(EXCHANGE), after which the old object sits at the
-/// temp name and is removed (a directory only when empty; otherwise the exchange is undone).
-/// Crash points: "<pfx>staged:<path>" (staged, nothing swapped) and "<pfx>exchanged:<path>" (swapped, old not removed).
+/// object (`old`) or the new one: absent target -> renameat2(NOREPLACE); any replacement -> renameat2(EXCHANGE), after
+/// which the swapped-out object (now at the staging name) is verified against what was expected: for a file or symlink
+/// type, dev/inode/mode/mtime/size AND content (sha256 / link target) must equal the state checked just before the
+/// swap and the planned `old`. On a mismatch (another program replaced or wrote the path in between) the exchange is
+/// undone, so the other program's version stays, and a conflict is reported. Only then is the old object removed (a
+/// directory only when empty; otherwise the exchange is undone too).
+/// Hooks/crash points: "<pfx>pre-swap:<path>" (hook, right before the exchange), "<pfx>staged:<path>",
+/// "<pfx>exchanged:<path>" (swapped and verified, old not removed).
 fn install_staged(j: &Path, key: &str, l: &Loc, tmp: &CStr, staged_dir: bool, old: &St, f: &Faults, pfx: &str, path: &str) -> Res<()> {
     let undo = |x: String| { let _ = nf::unlinkat(&l.dir, tmp, staged_dir); stage_end(j, key); x };
     f.check(&format!("{pfx}staged:{path}"))?;
     match old {
-        St::Absent => nf::rename2(&l.dir, tmp, &l.name, nf::NOREPLACE).map_err(|_| undo(changed()))?,
-        St::File { .. } | St::Link { .. } if !staged_dir => nf::renameat(l.dir.as_raw_fd(), tmp, &l.dir, &l.name).map_err(|x| undo(tf!("replace: {}", x)))?,
+        St::Absent => { f.call(&format!("{pfx}pre-swap:{path}")); nf::rename2(&l.dir, tmp, &l.name, nf::NOREPLACE).map_err(|_| undo(changed()))? }
         _ => {
             let old_dir = matches!(old, St::Dir { .. });
             if old_dir && !dir_is_empty(l, &l.name)? { return Err(undo(tr("folder is not empty on the mainland (it contains files the polder does not know)").into())); }
+            let id0 = if old_dir { None } else {
+                let (now, st0) = state_stat(l).map_err(|x| undo(x))?;
+                if now != *old { return Err(undo(changed())); }
+                st0.map(|s| full(&s))
+            };
             stage_own(j, key, l, &l.name).map_err(|x| undo(x))?;              // the object about to be swapped out is ours to remove
+            f.call(&format!("{pfx}pre-swap:{path}"));
             nf::rename2(&l.dir, tmp, &l.name, nf::EXCHANGE).map_err(|x| undo(tf!("replace: {}", x)))?;
             nf::fsync(&l.dir);
+            if !old_dir {
+                let ok = match state_n(&l.dir, tmp) { Ok((got, st1)) => got == *old && st1.map(|s| full(&s)) == id0, Err(_) => false };
+                if !ok {
+                    // another program got in between: put its object back, drop ours (only if it is positively ours)
+                    let back = nf::rename2(&l.dir, tmp, &l.name, nf::EXCHANGE); nf::fsync(&l.dir);
+                    if back.is_ok() { let mut n = vec![]; let _ = stage_cleanup(j, key, l, &mut n); } else { stage_end(j, key); }
+                    return Err(conflict(path));
+                }
+            }
             f.check(&format!("{pfx}exchanged:{path}"))?;
             if let Err(x) = nf::unlinkat(&l.dir, tmp, old_dir) {
                 // a file appeared in the old directory meanwhile: swap back, keep everything
@@ -734,24 +786,54 @@ fn install_staged(j: &Path, key: &str, l: &Loc, tmp: &CStr, staged_dir: bool, ol
     stage_end(j, key);
     Ok(())
 }
-/// Stage the backup of op n (the original file or symlink) under its owned staging name next to the target (hard link, or a
-/// copy when the journal is on another filesystem). The journal backup itself stays intact, so this is re-runnable.
+/// Remove the file or symlink at `l` only if it is exactly `expect`: it is first moved aside to an owned staging name
+/// (renameat2 NOREPLACE), verified there (identity + content as in install_staged), and only then unlinked; on a
+/// mismatch it is moved back and a conflict is reported.
+fn remove_verified(j: &Path, key: &str, l: &Loc, expect: &St, f: &Faults, pfx: &str, path: &str) -> Res<()> {
+    let (now, st0) = state_stat(l)?;
+    if now != *expect { return Err(changed()); }
+    let id0 = st0.map(|s| full(&s));
+    let tmp = stage_begin(j, key, l, f)?;
+    stage_own(j, key, l, &l.name)?;
+    f.call(&format!("{pfx}pre-swap:{path}"));
+    if let Err(x) = nf::rename2(&l.dir, &l.name, &tmp, nf::NOREPLACE) { stage_end(j, key); return Err(if x.raw_os_error() == Some(libc::EEXIST) { in_the_way(&tmp) } else { changed() }); }
+    nf::fsync(&l.dir);
+    let ok = match state_n(&l.dir, &tmp) { Ok((got, st1)) => got == *expect && st1.map(|s| full(&s)) == id0, Err(_) => false };
+    if !ok {
+        let back = nf::rename2(&l.dir, &tmp, &l.name, nf::NOREPLACE); nf::fsync(&l.dir); stage_end(j, key);
+        if back.is_err() { return Err(tf!("{} was changed by another program during the merge; that version was moved to {}", path, tmp.to_string_lossy())); }
+        return Err(conflict(path));
+    }
+    nf::unlinkat(&l.dir, &tmp, false).map_err(e(tr("delete")))?;
+    nf::fsync(&l.dir); stage_end(j, key); Ok(())
+}
+/// Stage the backup of op n (the original file or symlink) under its owned staging name next to the target, always as an
+/// independent copy (never a hard link, so the restored file shares no data with the journal). The copy is verified
+/// against the size + sha256 recorded when the backup was taken (and the plan's `pre`) before it can be installed; a
+/// mismatch refuses the restore. The journal backup itself stays intact, so this is re-runnable.
 fn stage_backup(j: &Path, n: usize, key: &str, l: &Loc, tmp: &CStr, pre: &St) -> Res<()> {
     let b = j.join("backup").join(n.to_string());
-    let r = stage_backup_inner(&b, l, tmp, pre);
-    if r.is_ok() { stage_own(j, key, l, tmp)?; }
+    let r = stage_backup_inner(j, n, &b, l, tmp, pre);
+    if r.is_ok() { stage_own(j, key, l, tmp)?; } else { stage_end(j, key); }
     r
 }
-fn stage_backup_inner(b: &Path, l: &Loc, tmp: &CStr, pre: &St) -> Res<()> {
+fn bad_backup(l: &Loc) -> String { tf!("the backup of {} does not match what was recorded (size/sha256); not restored", l.name.to_string_lossy()) }
+fn stage_backup_inner(j: &Path, n: usize, b: &Path, l: &Loc, tmp: &CStr, pre: &St) -> Res<()> {
     match pre {
-        St::Link { target } => nf::symlinkat(target, &l.dir, tmp).map_err(|x| if x.contains("File exists") { in_the_way(tmp) } else { x }),
-        St::File { mode, .. } => {
-            match nf::link_in(&nf::cp(b)?, &l.dir, tmp) { Ok(()) => return Ok(()), Err(x) if x.raw_os_error() == Some(libc::EEXIST) => return Err(in_the_way(tmp)), Err(_) => {} }
-            let mut src = fs::File::open(b).map_err(|x| tf!("restoring backup: {x}" ; x))?;
-            let fd = nf::openat(&l.dir, tmp, libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW, 0o600).map_err(|x| if x.raw_os_error() == Some(libc::EEXIST) { in_the_way(tmp) } else { format!("{}: {x}", tr("copy")) })?;
+        St::Link { target } => {
+            if fs::read_link(b).map(|t| t.to_string_lossy() != *target).unwrap_or(true) { return Err(bad_backup(l)); }
+            nf::symlinkat(target, &l.dir, tmp).map_err(|x| if x.contains("File exists") { in_the_way(tmp) } else { x })
+        }
+        St::File { mode, size, hash } => {
+            let meta: BackupMeta = read_json(&backup_meta_path(j, n)).map_err(|_| bad_backup(l))?;
+            if meta != (BackupMeta { size: *size, sha256: hash.clone(), mode: *mode }) { return Err(bad_backup(l)); }
+            let bfd = fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(b).map_err(|_| bad_backup(l))?;
+            let mut src = bfd;
+            let fd = nf::openat(&l.dir, tmp, libc::O_RDWR | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW, 0o600).map_err(|x| if x.raw_os_error() == Some(libc::EEXIST) { in_the_way(tmp) } else { format!("{}: {x}", tr("copy")) })?;
             let mut out = fs::File::from(fd);
-            let r = std::io::copy(&mut src, &mut out).and_then(|_| out.set_permissions(fs::Permissions::from_mode(*mode))).and_then(|_| out.sync_all());
-            if let Err(x) = r { let _ = nf::unlinkat(&l.dir, tmp, false); return Err(tf!("restoring backup: {x}" ; x)); }
+            let r = copy_independent(&mut src, &mut out).and_then(|(sz, h)| if sz == meta.size && h == meta.sha256 { Ok(()) } else { Err(bad_backup(l)) })
+                .and_then(|_| out.set_permissions(fs::Permissions::from_mode(*mode)).and_then(|_| out.sync_all()).map_err(|x| tf!("restoring backup: {x}" ; x)));
+            if let Err(x) = r { let _ = nf::unlinkat(&l.dir, tmp, false); return Err(x); }
             Ok(())
         }
         _ => Err(tr("unknown operation").into()),
@@ -780,8 +862,7 @@ fn apply_op(j: &Path, n: usize, root: &OwnedFd, o: &Op, f: &Faults) -> Res<()> {
         "chmod" => { f.call(&format!("chmod:{}", o.path)); chmod_exact(&l, &o.pre, o.post.mode().unwrap_or(0o644))?; }
         "delete" => {
             f.call(&format!("delete:{}", o.path));
-            if state_at(&l)? != o.pre { return Err(changed()); }
-            nf::unlinkat(&l.dir, &l.name, false).map_err(e(tr("delete")))?;
+            remove_verified(j, &format!("op{n}"), &l, &o.pre, f, "", &o.path)?;
         }
         "rmdir" => {
             if !matches!(nf::lstatat(&l.dir, &l.name), Ok(Some(ref s)) if nf::is(s, libc::S_IFDIR)) { return Err(changed()); }
@@ -984,7 +1065,8 @@ fn rollback_locked(jroot: &Path, mid: Option<&str>, f: &Faults) -> Res<Report> {
             if cur != o.post { return Err(tr("changed after the merge; not restored").into()); }
             f.check(&format!("rollback-op:{n}"))?;
             match (&o.pre, o.act.as_str()) {
-                (St::Absent, _) => nf::unlinkat(&l.dir, &l.name, matches!(o.post, St::Dir { .. })).map_err(e(tr("delete")))?,
+                (St::Absent, _) if matches!(o.post, St::Dir { .. }) => nf::unlinkat(&l.dir, &l.name, true).map_err(e(tr("delete")))?,
+                (St::Absent, _) => remove_verified(&j, &format!("rb{n}"), &l, &o.post, f, "rollback-", &o.path)?,
                 (St::Dir { mode }, "chmod") | (St::File { mode, .. }, "chmod") => chmod_exact(&l, &o.post, *mode)?,
                 (St::Dir { mode }, _) => { let key = format!("rb{n}"); let tmp = stage_begin(&j, &key, &l, f)?; stage_dir(&j, &key, &l, &tmp, *mode)?; install_staged(&j, &key, &l, &tmp, true, &cur, f, "rollback-", &o.path)?; }
                 _ => { let key = format!("rb{n}"); let tmp = stage_begin(&j, &key, &l, f)?; stage_backup(&j, n, &key, &l, &tmp, &o.pre)?; install_staged(&j, &key, &l, &tmp, false, &cur, f, "rollback-", &o.path)?; }
