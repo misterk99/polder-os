@@ -48,7 +48,8 @@ fn run(id: &str, args: &[String]) -> ! {
               else if which("xfce4-terminal") { vec!["xfce4-terminal".into(), format!("--title={title}"), "--disable-server".into()] }
               else { vec!["bash".into()] };
     }
-    m.runs.push(format!("{} {}", now(), cmd.join(" "))); let _ = save_meta(&m);
+    let entry = format!("{} {}", now(), cmd.join(" "));
+    m = update_meta(id, |x| x.runs.push(entry)).unwrap_or_else(|x| fail(x));
     let a = runner_argv(&m, net, &cmd).unwrap_or_else(|x| fail(x));
     use std::os::unix::process::CommandExt;
     let err = std::process::Command::new(&a[0]).args(&a[1..]).exec();
@@ -119,7 +120,7 @@ fn main() {
             Err(x) => fail(x) },
         "discard" => { discard(&id).unwrap_or_else(|x| fail(x)); out(json!({"ok": true})) }
         "archive" | "unarchive" => out(info(&archive(&id, c == "archive").unwrap_or_else(|x| fail(x)))),
-        "network" => { let mut m = meta(&id).unwrap_or_else(|x| fail(x)); m.network = a.get(2).map(|s| s == "on").unwrap_or(false); save_meta(&m).unwrap_or_else(|x| fail(x)); out(info(&m)) }
+        "network" => { let on = a.get(2).map(|s| s == "on").unwrap_or(false); out(info(&update_meta(&id, |m| m.network = on).unwrap_or_else(|x| fail(x)))) }
         "du" => out(json!({"total": disk_usage(&data_dir()), "polders": list().iter().map(|m| json!({"id": m.id, "usage": polder_usage(&m.id)})).collect::<Vec<_>>()})),
         "run" => run(&id, &a[2..]),
         "--help" | "-h" | "help" => { println!("{}", usage()); }

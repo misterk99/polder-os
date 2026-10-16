@@ -79,3 +79,8 @@ pending|resume|rollback <id> | discard|archive|unarchive <id> | network <id> on|
 * **Locking**: merge (pending check + ops + reconciliation), resume, rollback and discard hold an exclusive `flock` on
   `journal/.lock`; a second operation gets "This test polder is busy…" (`polder-sluisd` exits 75 with `"busy": true`,
   the app shows it as a message). The kernel releases the lock when the process exits or crashes.
+
+## Staging ownership and locks
+
+- Staging entries are named `.<name>.sluis-<merge-id>-<op>-<random>`, are created exclusively, and are recorded in `journal/<merge-id>/staging/<op>.json` (name + dev/inode/type/mtime). Recovery only removes an entry whose identity matches that record. Anything else stays in place and gets reported, and a name collision stops the merge with a clear error.
+- Locks live at `$XDG_DATA_HOME/polder-sluis/locks/<id>.lock`, outside the workspace, and are never deleted. Create (ID reuse), merge, resume, rollback, discard and every metadata change (archive, network, run log) take the same lock. A busy lock gives exit code 75.

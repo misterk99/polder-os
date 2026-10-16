@@ -3878,12 +3878,12 @@ msgid "All without conflict"
 msgstr "Alles zonder conflict"
 
 #: shell/polder-shelf/src/bin/polder-sluis.rs:259
-#: shell/polder-shelf/src/sluis.rs:453
+#: shell/polder-shelf/src/sluis.rs:472
 msgid "changes permissions"
 msgstr "wijzigt rechten"
 
 #: shell/polder-shelf/src/bin/polder-sluis.rs:259
-#: shell/polder-shelf/src/sluis.rs:450
+#: shell/polder-shelf/src/sluis.rs:469
 #, rust-format
 msgid "symlink points outside the folder: {target}"
 msgstr "symlink wijst buiten de map: {target}"
@@ -4070,33 +4070,33 @@ msgstr "Sluis"
 msgid "Test polders"
 msgstr "Proefpolders"
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:105
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:106
 msgid "no paths chosen: give the paths you want to merge (see `changes`)"
 msgstr "geen paden gekozen: geef de paden die je wilt overnemen (zie `changes`)"
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:108
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:109
 msgid "Changes merged"
 msgstr "Wijzigingen overgenomen"
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:108
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:109
 #, rust-format
 msgid "{} change(s) from ‘{name}’ are now on the mainland."
 msgstr "{} wijziging(en) uit ‘{name}’ staan nu op het vasteland."
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:109
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:110
 msgid "Merge partly succeeded"
 msgstr "Overnemen deels gelukt"
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:109
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:110
 #, rust-format
 msgid "{} succeeded, {} did not (see Sluis)."
 msgstr "{} gelukt, {} niet (zie Sluis)."
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:118
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:119
 msgid "Merge rolled back"
 msgstr "Overname teruggedraaid"
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:118
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:119
 #, rust-format
 msgid "{} file(s) restored on the mainland."
 msgstr "{} bestand(en) teruggezet op het vasteland."
@@ -4114,39 +4114,40 @@ msgstr "Deze proefpolder is gearchiveerd; haal hem eerst uit het archief."
 msgid "[Test polder: {}] Terminal"
 msgstr "[Proefpolder: {}] Terminal"
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:68
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:69
 msgid "Merge interrupted"
 msgstr "Overnemen onderbroken"
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:68
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:69
 #, rust-format
 msgid "Test polder ‘{}’: open Sluis to finish or roll back."
 msgstr "Proefpolder ‘{}’: open Sluis om af te maken of terug te draaien."
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:72
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:73
 msgid "Test polder takes up a lot of space"
 msgstr "Proefpolder neemt veel ruimte in"
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:72
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:73
 #, rust-format
 msgid "‘{}’ uses {:.1} GB. Discard or archive?"
 msgstr "‘{}’ gebruikt {:.1} GB. Weggooien of archiveren?"
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:77
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:78
 msgid "Disk almost full"
 msgstr "Schijf bijna vol"
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:77
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:78
 msgid "Test polders use space on your disk. Clean up old polders in Sluis."
 msgstr "Proefpolders gebruiken ruimte op je schijf. Ruim oude polders op in Sluis."
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:89
-#: shell/polder-shelf/src/sluis.rs:99 shell/polder-shelf/src/sluis.rs:338
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:90
+#: shell/polder-shelf/src/sluis.rs:99 shell/polder-shelf/src/sluis.rs:341
+#: shell/polder-shelf/src/sluis.rs:853
 #, rust-format
 msgid "invalid test polder id: {}"
 msgstr "ongeldige proefpolder-id: {}"
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:93
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:94
 msgid "usage: create <name> <folder> [description]"
 msgstr "gebruik: create <naam> <map> [omschrijving]"
 
@@ -4174,6 +4175,10 @@ msgstr "Polder menu"
 msgid "unknown test polder: {}"
 msgstr "onbekende proefpolder: {}"
 
+#: shell/polder-shelf/src/sluis.rs:1030
+msgid "This test polder is archived."
+msgstr "Deze proefpolder is gearchiveerd."
+
 #: shell/polder-shelf/src/sluis.rs:106
 #, rust-format
 msgid "test polder {} is outside the Sluis storage"
@@ -4184,11 +4189,12 @@ msgid "path contains a NUL byte"
 msgstr "pad bevat een NUL-byte"
 
 #: shell/polder-shelf/src/sluis.rs:188 shell/polder-shelf/src/sluis.rs:189
+#: shell/polder-shelf/src/sluis.rs:845
 #, rust-format
 msgid "refusing to delete {}"
 msgstr "weigert {} te verwijderen"
 
-#: shell/polder-shelf/src/sluis.rs:217 shell/polder-shelf/src/sluis.rs:608
+#: shell/polder-shelf/src/sluis.rs:217 shell/polder-shelf/src/sluis.rs:684
 #, rust-format
 msgid "invalid path: {}"
 msgstr "ongeldig pad: {}"
@@ -4198,7 +4204,7 @@ msgstr "ongeldig pad: {}"
 msgid "{}: a parent folder is a symlink or not a folder; not touched ({})"
 msgstr "{}: een bovenliggende map is een symlink of geen map; niet aangeraakt ({})"
 
-#: shell/polder-shelf/src/sluis.rs:230 shell/polder-shelf/src/sluis.rs:725
+#: shell/polder-shelf/src/sluis.rs:230 shell/polder-shelf/src/sluis.rs:798
 msgid "no sha256"
 msgstr "geen sha256"
 
@@ -4210,7 +4216,7 @@ msgstr "lezen"
 msgid "open"
 msgstr "openen"
 
-#: shell/polder-shelf/src/sluis.rs:242 shell/polder-shelf/src/sluis.rs:596
+#: shell/polder-shelf/src/sluis.rs:242 shell/polder-shelf/src/sluis.rs:672
 msgid "the mainland has changed meanwhile; not touched"
 msgstr "vasteland is intussen gewijzigd; niet aangeraakt"
 
@@ -4219,175 +4225,179 @@ msgstr "vasteland is intussen gewijzigd; niet aangeraakt"
 msgid "{}: unsupported file type (device/fifo/socket)"
 msgstr "{}: niet ondersteund bestandstype (apparaat/fifo/socket)"
 
-#: shell/polder-shelf/src/sluis.rs:306 shell/polder-shelf/src/sluis.rs:307
-#: shell/polder-shelf/src/sluis.rs:308
+#: shell/polder-shelf/src/sluis.rs:308 shell/polder-shelf/src/sluis.rs:309
+#: shell/polder-shelf/src/sluis.rs:310
 msgid "write"
 msgstr "schrijven"
 
-#: shell/polder-shelf/src/sluis.rs:308
+#: shell/polder-shelf/src/sluis.rs:310
 msgid "rename"
 msgstr "hernoemen"
 
-#: shell/polder-shelf/src/sluis.rs:317
+#: shell/polder-shelf/src/sluis.rs:319
 #, rust-format
 msgid "test polder {} has inconsistent metadata"
 msgstr "proefpolder {} heeft inconsistente gegevens"
 
-#: shell/polder-shelf/src/sluis.rs:330
+#: shell/polder-shelf/src/sluis.rs:332
 msgid "Choose a folder."
 msgstr "Kies een map."
 
-#: shell/polder-shelf/src/sluis.rs:332 shell/polder-shelf/src/sluis.rs:339
-#: shell/polder-shelf/src/sluis.rs:341 shell/polder-shelf/src/sluis.rs:690
-#: shell/polder-shelf/src/sluis.rs:691
+#: shell/polder-shelf/src/sluis.rs:334 shell/polder-shelf/src/sluis.rs:346
+#: shell/polder-shelf/src/sluis.rs:348 shell/polder-shelf/src/sluis.rs:761
+#: shell/polder-shelf/src/sluis.rs:763
 msgid "create folder"
 msgstr "map maken"
 
-#: shell/polder-shelf/src/sluis.rs:334
+#: shell/polder-shelf/src/sluis.rs:336
 msgid "A test polder of your whole home folder or the whole system is not possible; choose a project folder."
 msgstr "Een proefpolder van je hele thuismap of het hele systeem kan niet; kies een projectmap."
 
-#: shell/polder-shelf/src/sluis.rs:335
+#: shell/polder-shelf/src/sluis.rs:337
 msgid "This folder contains Sluis's own storage."
 msgstr "Deze map bevat de opslag van Sluis zelf."
 
-#: shell/polder-shelf/src/sluis.rs:352
+#: shell/polder-shelf/src/sluis.rs:359
 msgid "There is an interrupted merge; finish or undo it first."
 msgstr "Er is een onderbroken overname; herstel of maak die eerst ongedaan."
 
-#: shell/polder-shelf/src/sluis.rs:452
+#: shell/polder-shelf/src/sluis.rs:471
 msgid "deletes a file on the mainland"
 msgstr "verwijdert een bestand op het vasteland"
 
-#: shell/polder-shelf/src/sluis.rs:455
+#: shell/polder-shelf/src/sluis.rs:474
 msgid "overwrites a file on the mainland"
 msgstr "overschrijft een bestand op het vasteland"
 
-#: shell/polder-shelf/src/sluis.rs:456
+#: shell/polder-shelf/src/sluis.rs:475
 msgid "also changed on the mainland"
 msgstr "ook gewijzigd op het vasteland"
 
-#: shell/polder-shelf/src/sluis.rs:495
+#: shell/polder-shelf/src/sluis.rs:514
 msgid "invalid path"
 msgstr "ongeldig pad"
 
-#: shell/polder-shelf/src/sluis.rs:496
+#: shell/polder-shelf/src/sluis.rs:515
 msgid "already identical on the mainland"
 msgstr "al gelijk op het vasteland"
 
-#: shell/polder-shelf/src/sluis.rs:497
+#: shell/polder-shelf/src/sluis.rs:516
 msgid "conflict: also changed on the mainland"
 msgstr "conflict: ook gewijzigd op het vasteland"
 
-#: shell/polder-shelf/src/sluis.rs:586 shell/polder-shelf/src/sluis.rs:588
-#: shell/polder-shelf/src/sluis.rs:589 shell/polder-shelf/src/sluis.rs:590
-#: shell/polder-shelf/src/sluis.rs:593
-msgid "backup"
-msgstr "reservekopie"
-
-#: shell/polder-shelf/src/sluis.rs:604 shell/polder-shelf/src/sluis.rs:692
-#: shell/polder-shelf/src/sluis.rs:728
-msgid "permissions"
-msgstr "rechten"
-
-#: shell/polder-shelf/src/sluis.rs:617 shell/polder-shelf/src/sluis.rs:738
+#: shell/polder-shelf/src/sluis.rs:618
 #, rust-format
-msgid "unknown operation {}"
-msgstr "onbekende bewerking {}"
+msgid "{} already exists; Sluis does not touch files it did not create"
+msgstr "{} bestaat al; Sluis komt niet aan bestanden die het niet zelf heeft gemaakt"
 
-#: shell/polder-shelf/src/sluis.rs:621 shell/polder-shelf/src/sluis.rs:622
-#: shell/polder-shelf/src/sluis.rs:624
-msgid "no source"
-msgstr "geen bron"
-
-#: shell/polder-shelf/src/sluis.rs:625 shell/polder-shelf/src/sluis.rs:679
-#: shell/polder-shelf/src/sluis.rs:723 shell/polder-shelf/src/sluis.rs:727
-#: shell/polder-shelf/src/sluis.rs:728
-msgid "copy"
-msgstr "kopiëren"
-
-#: shell/polder-shelf/src/sluis.rs:626 shell/polder-shelf/src/sluis.rs:730
-msgid "the file in the polder has changed meanwhile; review the changes again"
-msgstr "bestand in de polder is intussen veranderd; bekijk de wijzigingen opnieuw"
-
-#: shell/polder-shelf/src/sluis.rs:634
+#: shell/polder-shelf/src/sluis.rs:646
 #, rust-format
 msgid "leftover temporary folder {} is not empty; not touched ({})"
 msgstr "overgebleven tijdelijke map {} is niet leeg; niet aangeraakt ({})"
 
-#: shell/polder-shelf/src/sluis.rs:635 shell/polder-shelf/src/sluis.rs:711
-#: shell/polder-shelf/src/sluis.rs:887
-msgid "delete"
-msgstr "verwijderen"
+#: shell/polder-shelf/src/sluis.rs:649
+msgid "not created by Sluis (or not recognisable); left untouched"
+msgstr "niet door Sluis gemaakt (of niet herkenbaar); niet aangeraakt"
 
-#: shell/polder-shelf/src/sluis.rs:653 shell/polder-shelf/src/sluis.rs:657
+#: shell/polder-shelf/src/sluis.rs:662 shell/polder-shelf/src/sluis.rs:664
+#: shell/polder-shelf/src/sluis.rs:665 shell/polder-shelf/src/sluis.rs:666
+#: shell/polder-shelf/src/sluis.rs:669
+msgid "backup"
+msgstr "reservekopie"
+
+#: shell/polder-shelf/src/sluis.rs:680 shell/polder-shelf/src/sluis.rs:764
+#: shell/polder-shelf/src/sluis.rs:801
+msgid "permissions"
+msgstr "rechten"
+
+#: shell/polder-shelf/src/sluis.rs:693 shell/polder-shelf/src/sluis.rs:812
+#, rust-format
+msgid "unknown operation {}"
+msgstr "onbekende bewerking {}"
+
+#: shell/polder-shelf/src/sluis.rs:697 shell/polder-shelf/src/sluis.rs:698
+#: shell/polder-shelf/src/sluis.rs:700
+msgid "no source"
+msgstr "geen bron"
+
+#: shell/polder-shelf/src/sluis.rs:701 shell/polder-shelf/src/sluis.rs:751
+#: shell/polder-shelf/src/sluis.rs:796 shell/polder-shelf/src/sluis.rs:800
+#: shell/polder-shelf/src/sluis.rs:801
+msgid "copy"
+msgstr "kopiëren"
+
+#: shell/polder-shelf/src/sluis.rs:702 shell/polder-shelf/src/sluis.rs:803
+msgid "the file in the polder has changed meanwhile; review the changes again"
+msgstr "bestand in de polder is intussen veranderd; bekijk de wijzigingen opnieuw"
+
+#: shell/polder-shelf/src/sluis.rs:719 shell/polder-shelf/src/sluis.rs:724
 #, rust-format
 msgid "replace: {}"
 msgstr "vervangen: {}"
 
-#: shell/polder-shelf/src/sluis.rs:656
+#: shell/polder-shelf/src/sluis.rs:722
 msgid "folder is not empty on the mainland (it contains files the polder does not know)"
 msgstr "map is niet leeg op het vasteland (er staan bestanden in die de polder niet kent)"
 
-#: shell/polder-shelf/src/sluis.rs:663 shell/polder-shelf/src/sluis.rs:715
+#: shell/polder-shelf/src/sluis.rs:730 shell/polder-shelf/src/sluis.rs:788
 #, rust-format
 msgid "folder is not empty on the mainland (it contains files the polder does not know): {x}"
 msgstr "map is niet leeg op het vasteland (er staan bestanden die de polder niet kent): {x}"
 
-#: shell/polder-shelf/src/sluis.rs:678 shell/polder-shelf/src/sluis.rs:682
+#: shell/polder-shelf/src/sluis.rs:750 shell/polder-shelf/src/sluis.rs:754
 #, rust-format
 msgid "restoring backup: {x}"
 msgstr "reservekopie terugzetten: {x}"
 
-#: shell/polder-shelf/src/sluis.rs:685 shell/polder-shelf/src/sluis.rs:701
-#: shell/polder-shelf/src/sluis.rs:732
+#: shell/polder-shelf/src/sluis.rs:757 shell/polder-shelf/src/sluis.rs:773
+#: shell/polder-shelf/src/sluis.rs:806
 msgid "unknown operation"
 msgstr "onbekende bewerking"
 
-#: shell/polder-shelf/src/sluis.rs:751
+#: shell/polder-shelf/src/sluis.rs:784 shell/polder-shelf/src/sluis.rs:987
+msgid "delete"
+msgstr "verwijderen"
+
+#: shell/polder-shelf/src/sluis.rs:825
 msgid "This test polder is busy with another operation (merge, finish or roll back). Try again in a moment."
 msgstr "Deze proefpolder is bezig met een andere bewerking (overnemen, afronden of terugzetten). Probeer het zo opnieuw."
 
-#: shell/polder-shelf/src/sluis.rs:766
+#: shell/polder-shelf/src/sluis.rs:863
 #, rust-format
 msgid "interrupted merge {p} must be finished or rolled back first"
 msgstr "onderbroken overname {p} moet eerst hersteld of teruggedraaid worden"
 
-#: shell/polder-shelf/src/sluis.rs:771
+#: shell/polder-shelf/src/sluis.rs:868
 msgid "journal already exists"
 msgstr "journaal bestaat al"
 
-#: shell/polder-shelf/src/sluis.rs:792
+#: shell/polder-shelf/src/sluis.rs:889
 msgid "a rollback of this merge is unfinished; roll back again"
 msgstr "het terugzetten van deze overname is niet af; zet opnieuw terug"
 
-#: shell/polder-shelf/src/sluis.rs:793 shell/polder-shelf/src/sluis.rs:867
+#: shell/polder-shelf/src/sluis.rs:890 shell/polder-shelf/src/sluis.rs:966
 msgid "this merge was rolled back"
 msgstr "deze overname is teruggezet"
 
-#: shell/polder-shelf/src/sluis.rs:848
+#: shell/polder-shelf/src/sluis.rs:947
 #, rust-format
 msgid "invalid merge id: {}"
 msgstr "ongeldige overname-id: {}"
 
-#: shell/polder-shelf/src/sluis.rs:850
+#: shell/polder-shelf/src/sluis.rs:949
 #, rust-format
 msgid "unknown merge: {}"
 msgstr "onbekende overname: {}"
 
-#: shell/polder-shelf/src/sluis.rs:857 shell/polder-shelf/src/sluis.rs:865
+#: shell/polder-shelf/src/sluis.rs:956 shell/polder-shelf/src/sluis.rs:964
 msgid "no interrupted merge"
 msgstr "geen onderbroken overname"
 
-#: shell/polder-shelf/src/sluis.rs:871
+#: shell/polder-shelf/src/sluis.rs:970
 #, rust-format
 msgid "Roll back the newer merge(s) first: {}"
 msgstr "Zet eerst de nieuwere overname(s) terug: {}"
 
-#: shell/polder-shelf/src/sluis.rs:884
+#: shell/polder-shelf/src/sluis.rs:984
 msgid "changed after the merge; not restored"
 msgstr "gewijzigd na de overname; niet teruggezet"
-
-#: shell/polder-shelf/src/sluis.rs:928
-msgid "This test polder is archived."
-msgstr "Deze proefpolder is gearchiveerd."

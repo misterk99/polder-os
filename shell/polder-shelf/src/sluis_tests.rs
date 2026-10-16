@@ -2,7 +2,8 @@
 //! overlayfs mounted by bubblewrap, so whiteouts/opaque dirs/copy-ups are exactly what users get.
 use super::sluis::*;
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::sync::Arc;
 use std::path::{Path, PathBuf};
 
 struct T { root: PathBuf, home: PathBuf, upper: PathBuf, work: PathBuf, j: PathBuf, base: std::collections::BTreeMap<String, Entry> }
@@ -228,15 +229,18 @@ fn crash_mid_write_leaves_no_partial_file() {
     inpolder(&t, "echo nieuw > f");
     let c = ch(&t); let p = plan_for(&t.home, &t.upper, &c, &["f".into()], &[]);
     assert!(apply_plan(&t.j, &t.home, &p, None, &Faults::crash("op:0")).is_err());
+    // a file that merely looks like a temp file is not Sluis-owned: it is never removed
     fs::write(t.home.join(".f.sluis-tmp"), "half").unwrap();
     assert_eq!(rd(t.home.join("f")), "origineel\n");
     rollback_in(&t.j, None, &Faults::none()).unwrap();
-    assert_eq!(fs::read_dir(&t.home).unwrap().count(), 1);
+    assert_eq!(fs::read_dir(&t.home).unwrap().count(), 2); assert_eq!(rd(t.home.join(".f.sluis-tmp")), "half");
     assert_eq!(rd(t.home.join("f")), "origineel\n");
 }
 
 // ======================================================================== review fixes: ids, crash points, races
 /// a file tree outside every Sluis root that must survive everything
+/// serializes the tests that set POLDER_SLUIS_DIR (process-wide)
+static ENV: std::sync::Mutex<()> = std::sync::Mutex::new(());
 fn outside(name: &str) -> PathBuf {
     let o = std::env::temp_dir().join(format!("sluis-outside-{name}-{}", std::process::id()));
     let _ = rm_rf(&o); fs::create_dir_all(o.join("deep")).unwrap();
@@ -252,6 +256,7 @@ fn intact(o: &Path) {
 
 #[test]
 fn id_validation_and_containment() {
+    let _env = ENV.lock().unwrap_or_else(|x| x.into_inner());
     // the only test that sets POLDER_SLUIS_DIR (process-wide), so it is self-contained
     let root = std::env::temp_dir().join(format!("sluis-ids-{}", std::process::id())); let _ = rm_rf(&root);
     let dd = root.join("data"); fs::create_dir_all(dd.join("polders")).unwrap();
@@ -316,7 +321,7 @@ fn bl_has(bl: &Path, k: &str, content: &str) -> bool {
     let b: std::collections::BTreeMap<String, Entry> = read_json(bl).unwrap();
     match b.get(k).map(|e| &e.st) { Some(St::File { hash, .. }) => *hash == hash_str(content), None => content.is_empty(), _ => false }
 }
-fn hash_str(s: &str) -> String { let p = std::env::temp_dir().join(format!("sluis-h-{}-{}", std::process::id(), s.len())); fs::write(&p, s).unwrap(); let h = hash_file(&p).unwrap(); let _ = fs::remove_file(p); h }
+fn hash_str(s: &str) -> String { let mut c = glib::Checksum::new(glib::ChecksumType::Sha256).unwrap(); c.update(s.as_bytes()); c.string().unwrap().to_string() }
 
 #[test]
 fn crash_points_are_recoverable() {
@@ -463,7 +468,7 @@ fn merge_custom(name: &str, init: &str, polder: &str) -> (T, Plan, PathBuf) {
     let p = plan_for(&t.home, &t.upper, &c, &all, &[]);
     (t, p, bl)
 }
-fn no_tmp(home: &Path) -> bool { scan(home).unwrap().keys().all(|k| !k.contains(".sluis-tmp")) }
+fn no_tmp(home: &Path) -> bool { scan(home).unwrap().keys().all(|k| !k.contains(".sluis-")) }
 const TYPE_CHANGES: [(&str, &str, &str); 5] = [
     ("file-dir", "echo f > x", "rm x; mkdir x; echo inhoud > x/in"),
     ("dir-file", "mkdir x; echo c > x/c", "rm -r x; echo bestand > x"),
@@ -552,6 +557,11 @@ fn out_of_order_rollback_is_refused() {
 fn proc_helper() {
     let Ok(mode) = std::env::var("SLUIS_HELPER") else { return };
     let root = PathBuf::from(std::env::var("SLUIS_ROOT").unwrap());
+    if mode == "discard" {      // polder-level (POLDER_SLUIS_DIR + SLUIS_ID set by the parent)
+        let r = discard(&std::env::var("SLUIS_ID").unwrap());
+        fs::write(root.join(format!("result-{}", std::process::id())), match r { Ok(_) => "ok".to_string(), Err(x) => x }).unwrap();
+        return;
+    }
     let (j, home, bl) = (root.join("journal"), root.join("vasteland"), root.join("baseline.json"));
     let plan: Plan = read_json(&root.join("plan.json")).unwrap();
     let sleep: u64 = std::env::var("SLUIS_SLEEP").ok().and_then(|s| s.parse().ok()).unwrap_or(0);
@@ -619,4 +629,114 @@ fn workspace_lock_serializes_processes() {
     assert!(lock_workspace(&t.j).is_ok());
     let r = rollback_in(&t.j, None, &Faults::none()).unwrap(); assert!(r.rolled_back);
     assert_eq!(snapshot(&t.home), before); assert_eq!(fs::read(&bl).unwrap(), bbefore);
+}
+
+// ======================================================================== review round 3: owned staging, stable locks
+fn reserved(kind: &str, home: &Path, name: &str) {
+    let p = home.join(name);
+    match kind { "file" => fs::write(&p, "waardevol\n").unwrap(), "symlink" => std::os::unix::fs::symlink("elders", &p).unwrap(),
+                 _ => { fs::create_dir(&p).unwrap(); fs::write(p.join("binnen"), "waardevol\n").unwrap(); } }
+}
+fn reserved_intact(kind: &str, home: &Path, name: &str) {
+    let p = home.join(name);
+    match kind { "file" => assert_eq!(rd(p), "waardevol\n"), "symlink" => assert_eq!(fs::read_link(&p).unwrap(), PathBuf::from("elders")),
+                 _ => assert_eq!(rd(p.join("binnen")), "waardevol\n") }
+}
+fn owned_left(home: &Path, keep: &str) -> Vec<String> { fs::read_dir(home).unwrap().flatten().map(|d| d.file_name().to_string_lossy().to_string()).filter(|n| n.contains(".sluis-") && n != keep).collect() }
+
+#[test]
+fn staging_never_touches_entries_it_did_not_create() {
+    if !overlay_or_skip("staging_never_touches_entries_it_did_not_create") { return; }
+    for kind in ["file", "symlink", "dir"] {
+        for (case, init, polder) in [("write", "echo oud > f", "echo nieuw > f"), ("filedir", "echo oud > f", "rm f; mkdir f; echo in > f/in")] {
+            // (a) an entry with the OLD reserved name `.f.sluis-tmp`: merge, crash+resume and rollback leave it alone
+            for crash in [None, Some("staged:f"), Some("exchanged:f")] {
+                let (t, p, bl) = merge_custom(&format!("res-{kind}-{case}-{}", crash.map(|c| &c[..3]).unwrap_or("no")), init, polder);
+                reserved(kind, &t.home, ".f.sluis-tmp");
+                let before = snapshot(&t.home);
+                let want = state_of(&t.upper.join("f")).unwrap();
+                let r = apply_plan(&t.j, &t.home, &p, Some(&bl), &crash.map(Faults::crash).unwrap_or_default());
+                if r.is_err() { let r = resume_in(&t.j, &Faults::none()).unwrap(); assert!(r.failed.is_empty(), "{kind} {case}: {:?}", r.failed); }
+                else { assert!(r.as_ref().unwrap().failed.is_empty(), "{kind} {case}: {:?}", r); }
+                assert_eq!(state_of(&t.home.join("f")).unwrap(), want, "{kind} {case} {crash:?}");
+                reserved_intact(kind, &t.home, ".f.sluis-tmp"); assert!(owned_left(&t.home, ".f.sluis-tmp").is_empty(), "{kind} {case} {crash:?}: {:?}", owned_left(&t.home, ".f.sluis-tmp"));
+                let mid = journals(&t.j).last().unwrap().0.clone();
+                assert!(rollback_in(&t.j, Some(&mid), &Faults::none()).unwrap().rolled_back);
+                assert_eq!(snapshot(&t.home), before, "{kind} {case} {crash:?}"); reserved_intact(kind, &t.home, ".f.sluis-tmp");
+            }
+            // (b) something takes the NEW unique staging name right before Sluis creates it: explicit error, kept
+            let (t, p, _) = merge_custom(&format!("col-{kind}-{case}"), init, polder);
+            let (h, k) = (t.home.clone(), kind.to_string());
+            let taken = Arc::new(std::sync::Mutex::new(String::new())); let t2 = taken.clone();
+            let f = Faults::hook(move |pt| if let Some(n) = pt.strip_prefix("stage-name:") { reserved(&k, &h, n); *t2.lock().unwrap() = n.to_string(); });
+            let r = apply_plan(&t.j, &t.home, &p, None, &f).unwrap();
+            let name = taken.lock().unwrap().clone(); assert!(!name.is_empty());
+            let err = &r.failed.iter().find(|(p, _)| p == "f").unwrap_or_else(|| panic!("{kind} {case}: {:?}", r)).1;
+            assert_eq!(*err, crate::i18n::fmt(crate::i18n::tr("{} already exists; Sluis does not touch files it did not create"), &[&name], &[]), "{kind} {case}");
+            reserved_intact(kind, &t.home, &name); assert_eq!(rd(t.home.join("f")), "oud\n");
+        }
+    }
+}
+
+#[test]
+fn crash_cleanup_removes_only_positively_owned_staging() {
+    if !overlay_or_skip("crash_cleanup_removes_only_positively_owned_staging") { return; }
+    // genuinely owned staging of a crashed attempt is removed on resume
+    let (t, p, bl) = merge_custom("own-a", "echo oud > f", "rm f; mkdir f; echo in > f/in");
+    assert!(apply_plan(&t.j, &t.home, &p, Some(&bl), &Faults::crash("staged:f")).is_err());
+    let left = owned_left(&t.home, ""); assert_eq!(left.len(), 1, "{left:?}");
+    let mid = journals(&t.j)[0].0.clone(); assert!(left[0].starts_with(&format!(".f.sluis-{mid}-op")), "{left:?}");
+    resume_in(&t.j, &Faults::none()).unwrap(); assert!(owned_left(&t.home, "").is_empty());
+    // the old object swapped out by an exchange (recorded before the swap) is removed too
+    let (t, p, bl) = merge_custom("own-b", "mkdir f", "rmdir f; echo bestand > f");
+    assert!(apply_plan(&t.j, &t.home, &p, Some(&bl), &Faults::crash("exchanged:f")).is_err());
+    assert_eq!(owned_left(&t.home, "").len(), 1);
+    let r = rollback_in(&t.j, None, &Faults::none()).unwrap(); assert!(r.rolled_back, "{:?}", r.failed);
+    assert!(owned_left(&t.home, "").is_empty()); assert!(fs::metadata(t.home.join("f")).unwrap().is_dir());
+    // after the crash a user replaces the staging entry by their own file with the same name: it is kept
+    let (t, p, bl) = merge_custom("own-c", "echo oud > f", "rm f; mkdir f; echo in > f/in");
+    assert!(apply_plan(&t.j, &t.home, &p, Some(&bl), &Faults::crash("staged:f")).is_err());
+    let n = owned_left(&t.home, "").remove(0); rm_rf(&t.home.join(&n)).unwrap(); fs::write(t.home.join(&n), "van de gebruiker\n").unwrap();
+    let r = resume_in(&t.j, &Faults::none()).unwrap(); assert!(r.failed.is_empty(), "{:?}", r.failed);
+    assert_eq!(rd(t.home.join(&n)), "van de gebruiker\n"); assert!(r.skipped.iter().any(|(p, _)| *p == n), "{:?}", r.skipped);
+}
+
+#[test]
+fn locks_live_outside_workspaces_and_cover_discard_create_and_metadata() {
+    if !overlay_or_skip("locks_live_outside_workspaces_and_cover_discard_create_and_metadata") { return; }
+    let _env = ENV.lock().unwrap_or_else(|x| x.into_inner());
+    let root = std::env::temp_dir().join(format!("sluis-locks-{}", std::process::id())); let _ = rm_rf(&root);
+    let dd = root.join("data"); fs::create_dir_all(&dd).unwrap();
+    std::env::set_var("POLDER_SLUIS_DIR", &dd);
+    let proj = root.join("project"); fs::create_dir_all(&proj).unwrap(); fs::write(proj.join("f"), "x\n").unwrap();
+    let m = create("Proef", &proj, "").unwrap(); assert_eq!(m.id, "proef");
+    let lp = lock_path("proef"); assert!(lp.starts_with(dd.join("locks")) && !lp.starts_with(polder_dir("proef").unwrap()));
+    let ino = || fs::symlink_metadata(&lp).unwrap().ino();
+    let ino0 = ino();
+    // metadata mutations take the lock
+    { let _l = lock_polder("proef").unwrap();
+      for r in [archive("proef", true).err(), update_meta("proef", |m| m.network = true).err(), merge("proef", &["f".into()], &[]).err(), resume("proef").err(), rollback("proef", None).err(), discard("proef").err()] {
+          assert_eq!(r.as_deref(), Some(busy_msg())); } }
+    // a discard in another process holds the stable lock across the whole deletion
+    let mut c = std::process::Command::new(std::env::current_exe().unwrap());
+    c.args(["--exact", "tests::proc_helper", "--ignored", "--test-threads=1", "-q"]).env("SLUIS_HELPER", "discard").env("SLUIS_ROOT", &root)
+     .env("SLUIS_ID", "proef").env("POLDER_SLUIS_DIR", &dd).env("SLUIS_DISCARD_PAUSE", &root).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    let mut child = c.spawn().unwrap();
+    for stage in ["before", "after"] {
+        wait_for(&root.join(format!("discard-{stage}")));
+        assert_eq!(merge("proef", &["f".into()], &[]).unwrap_err(), busy_msg(), "{stage}");
+        assert_eq!(resume("proef").unwrap_err(), busy_msg()); assert_eq!(rollback("proef", None).unwrap_err(), busy_msg());
+        assert_eq!(archive("proef", true).unwrap_err(), busy_msg()); assert!(lock_polder("proef").is_err());
+        assert_eq!(fs::symlink_metadata(&lp).unwrap().ino(), ino0, "{stage}: lock file must keep its inode");
+        // create never reuses an id whose lock is held, even once its folder is gone
+        let n = create("Proef", &proj, "").unwrap(); assert_ne!(n.id, "proef", "{stage}");
+        if stage == "after" { assert!(polder_dir("proef").is_err()); }
+    }
+    assert!(child.wait().unwrap().success());
+    assert_eq!(fs::read_to_string(root.join(format!("result-{}", child.id()))).unwrap(), "ok");
+    assert!(lp.exists() && ino() == ino0, "discard must not unlink the lock file");
+    // the id is free again and uses the very same lock inode
+    let again = create("Proef", &proj, "").unwrap(); assert_eq!(again.id, "proef"); assert_eq!(ino(), ino0);
+    std::env::remove_var("POLDER_SLUIS_DIR");
+    let _ = rm_rf(&root);
 }
