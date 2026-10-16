@@ -15,7 +15,7 @@ fn notify(title: &str, body: &str, icon: &str) {
     let _ = std::process::Command::new("notify-send").args(["-a", tr("Polder Sluis"), "-i", icon, title, body]).status();
 }
 fn out(v: serde_json::Value) { println!("{}", serde_json::to_string(&v).unwrap()); }
-fn fail(m: String) -> ! { out(json!({"ok": false, "error": m})); std::process::exit(1) }
+fn fail(m: String) -> ! { let busy = m == busy_msg(); out(json!({"ok": false, "error": m, "busy": busy})); std::process::exit(if busy { 75 } else { 1 }) }
 
 fn info(m: &Meta) -> serde_json::Value {
     let ch = changes(&m.id).unwrap_or_default();

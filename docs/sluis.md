@@ -68,3 +68,14 @@ pending|resume|rollback <id> | discard|archive|unarchive <id> | network <id> on|
   mainland mode changed) on an `O_NOFOLLOW` directory fd walked component by component from the project root;
   writes go to a temp file in that directory and are re-validated right before `renameat`; chmod uses an
   `O_PATH|O_NOFOLLOW` fd, so a directory swapped for a symlink is refused. Journal paths are validated on resume.
+* **Type changes** (file↔folder, symlink↔folder, file↔symlink): the replacement is staged as `.name.sluis-tmp` next to
+  the target and put in place with `renameat2(RENAME_EXCHANGE)` (or an atomic `renameat`/`RENAME_NOREPLACE` when no
+  folder is involved); the old object is removed only after the swap. At every instant the target is either the old
+  or the new object, never absent; stale staging is cleaned on resume/rollback. Rollback restages the saved original
+  the same way (hard link or copy from the journal, so it also works when the journal is on another filesystem).
+  Writes that replace a folder run after the deletions that empty it.
+* **History**: only the newest merge that is not rolled back can be undone ("Roll back the newer merge(s) first"), so a
+  historical rollback can never restore a baseline snapshot that predates later merges.
+* **Locking**: merge (pending check + ops + reconciliation), resume, rollback and discard hold an exclusive `flock` on
+  `journal/.lock`; a second operation gets "This test polder is busy…" (`polder-sluisd` exits 75 with `"busy": true`,
+  the app shows it as a message). The kernel releases the lock when the process exits or crashes.

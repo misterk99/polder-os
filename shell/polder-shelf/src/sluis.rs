@@ -151,6 +151,13 @@ mod nf {
     }
     pub fn renameat(fd1: libc::c_int, n1: &CStr, d2: &OwnedFd, n2: &CStr) -> IoRes<()> { chk(unsafe { libc::renameat(fd1, n1.as_ptr(), d2.as_raw_fd(), n2.as_ptr()) }) }
     pub fn linkat(d: &OwnedFd, n: &CStr, to: &CStr) -> IoRes<()> { chk(unsafe { libc::linkat(d.as_raw_fd(), n.as_ptr(), libc::AT_FDCWD, to.as_ptr(), 0) }) }
+    /// renameat2(2) within one directory: flags RENAME_NOREPLACE (1) or RENAME_EXCHANGE (2)
+    pub fn rename2(d: &OwnedFd, a: &CStr, b: &CStr, flags: libc::c_uint) -> IoRes<()> {
+        chk(unsafe { libc::syscall(libc::SYS_renameat2, d.as_raw_fd() as libc::c_long, a.as_ptr(), d.as_raw_fd() as libc::c_long, b.as_ptr(), flags as libc::c_long) } as libc::c_int)
+    }
+    pub const NOREPLACE: libc::c_uint = 1;
+    pub const EXCHANGE: libc::c_uint = 2;
+    pub fn link_in(from: &CStr, d: &OwnedFd, n: &CStr) -> IoRes<()> { chk(unsafe { libc::linkat(libc::AT_FDCWD, from.as_ptr(), d.as_raw_fd(), n.as_ptr(), 0) }) }
     pub fn fsync(d: &OwnedFd) { unsafe { libc::fsync(d.as_raw_fd()); } }
     /// chmod an fd, also an O_PATH one (via its /proc/self/fd magic link, which resolves to exactly that inode)
     pub fn chmod_fd(fd: &OwnedFd, mode: u32) -> IoRes<()> {
@@ -245,7 +252,8 @@ pub fn state_rel(root: &OwnedFd, rel: &str) -> Res<St> { match locate(root, rel)
 // ---------------------------------------------------------------- hashing / state (read-only scans)
 pub fn hash_file(p: &Path) -> Res<String> { hash_reader(&mut fs::File::open(p).map_err(e(tr("open")))?) }
 pub fn state_of(p: &Path) -> Res<St> {
-    let m = match fs::symlink_metadata(p) { Ok(m) => m, Err(x) if x.kind() == std::io::ErrorKind::NotFound => return Ok(St::Absent), Err(x) => return Err(format!("{}: {x}", p.display())) };
+    // ENOTDIR: a parent is not a directory (e.g. the mainland still has a file where the polder made a folder)
+    let m = match fs::symlink_metadata(p) { Ok(m) => m, Err(x) if x.kind() == std::io::ErrorKind::NotFound || x.raw_os_error() == Some(libc::ENOTDIR) => return Ok(St::Absent), Err(x) => return Err(format!("{}: {x}", p.display())) };
     let ft = m.file_type();
     Ok(if ft.is_symlink() { St::Link { target: fs::read_link(p).map_err(e("readlink"))?.to_string_lossy().into() } }
        else if ft.is_dir() { St::Dir { mode: m.mode() & 0o7777 } }
@@ -340,6 +348,7 @@ pub fn create(name: &str, origin: &Path, description: &str) -> Res<Meta> {
 
 pub fn discard(id: &str) -> Res<()> {
     let d = polder_dir(id)?;
+    let _lock = lock_workspace(&d.join("journal"))?;  // no merge/resume/rollback may run while the polder is removed
     if pending_in(&d.join("journal")).is_some() { return Err(tr("There is an interrupted merge; finish or undo it first.").into()); }
     let d = polder_dir(id)?;                      // re-check right before the destructive step
     rm_rf(&d)
@@ -509,9 +518,10 @@ pub fn plan_for(origin: &Path, upper: &Path, ch: &[Change], selected: &[String],
                            src: if act == "write" { Some(upper.join(&c.path).to_string_lossy().into()) } else { None } });
     }
     // order: mkdir/write/chmod top-down, then deletions deepest first
-    let (mut del, mut rest): (Vec<Op>, Vec<Op>) = plan.ops.drain(..).partition(|o| o.act == "delete" || o.act == "rmdir");
+    // a write that replaces a directory runs after the deletions (which empty that directory first)
+    let (mut del, mut rest): (Vec<Op>, Vec<Op>) = plan.ops.drain(..).partition(|o| o.act == "delete" || o.act == "rmdir" || (o.act == "write" && matches!(o.pre, St::Dir { .. })));
     rest.sort_by(|a, b| (a.path.matches('/').count(), a.act != "mkdir", a.path.clone()).cmp(&(b.path.matches('/').count(), b.act != "mkdir", b.path.clone())));
-    del.sort_by(|a, b| b.path.matches('/').count().cmp(&a.path.matches('/').count()).then(b.path.cmp(&a.path)));
+    del.sort_by(|a, b| b.path.matches('/').count().cmp(&a.path.matches('/').count()).then((a.act == "write").cmp(&(b.act == "write"))).then(b.path.cmp(&a.path)));
     plan.ops = rest; plan.ops.extend(del);
     plan
 }
@@ -616,6 +626,71 @@ fn open_src(o: &Op) -> Res<fs::File> {
     if !nf::is(&nf::fstat(&fd).map_err(e("stat"))?, libc::S_IFREG) { return Err(tr("the file in the polder has changed meanwhile; review the changes again").into()); }
     Ok(fs::File::from(fd))
 }
+/// Remove a stale staging object `.name.sluis-tmp` left by a crash (a file, symlink or EMPTY directory).
+fn clean_tmp(l: &Loc) -> Res<()> {
+    let tmp = tmp_cname(l)?;
+    match nf::lstatat(&l.dir, &tmp).map_err(e("stat"))? {
+        None => Ok(()),
+        Some(s) if nf::is(&s, libc::S_IFDIR) => nf::unlinkat(&l.dir, &tmp, true).map_err(|x| tf!("leftover temporary folder {} is not empty; not touched ({})", tmp.to_string_lossy(), x)),
+        Some(_) => nf::unlinkat(&l.dir, &tmp, false).map_err(e(tr("delete"))),
+    }
+}
+fn dir_is_empty(l: &Loc, n: &CStr) -> Res<bool> {
+    let d = nf::openat(&l.dir, n, nf::DIRF, 0).map_err(|_| changed())?;
+    Ok(nf::ls(&d).map_err(e("readdir"))?.is_empty())
+}
+/// Put the staged object `.name.sluis-tmp` in place of `name`, so that at EVERY instant `name` is either the old
+/// object (`old`) or the new one: absent target -> renameat2(NOREPLACE); file/link replaced by file/link -> renameat
+/// (atomic); any replacement involving a directory -> renameat2(EXCHANGE), after which the old object sits at the
+/// temp name and is removed (a directory only when empty; otherwise the exchange is undone).
+/// Crash points: "<pfx>staged:<path>" (staged, nothing swapped) and "<pfx>exchanged:<path>" (swapped, old not removed).
+fn install_staged(l: &Loc, staged_dir: bool, old: &St, f: &Faults, pfx: &str, path: &str) -> Res<()> {
+    let tmp = tmp_cname(l)?;
+    let undo = |x: String| { let _ = nf::unlinkat(&l.dir, &tmp, staged_dir); x };
+    f.check(&format!("{pfx}staged:{path}"))?;
+    match old {
+        St::Absent => nf::rename2(&l.dir, &tmp, &l.name, nf::NOREPLACE).map_err(|_| undo(changed()))?,
+        St::File { .. } | St::Link { .. } if !staged_dir => nf::renameat(l.dir.as_raw_fd(), &tmp, &l.dir, &l.name).map_err(|x| undo(tf!("replace: {}", x)))?,
+        _ => {
+            let old_dir = matches!(old, St::Dir { .. });
+            if old_dir && !dir_is_empty(l, &l.name)? { return Err(undo(tr("folder is not empty on the mainland (it contains files the polder does not know)").into())); }
+            nf::rename2(&l.dir, &tmp, &l.name, nf::EXCHANGE).map_err(|x| undo(tf!("replace: {}", x)))?;
+            nf::fsync(&l.dir);
+            f.check(&format!("{pfx}exchanged:{path}"))?;
+            if let Err(x) = nf::unlinkat(&l.dir, &tmp, old_dir) {
+                // a file appeared in the old directory meanwhile: swap back, keep everything
+                let _ = nf::rename2(&l.dir, &tmp, &l.name, nf::EXCHANGE); let _ = nf::unlinkat(&l.dir, &tmp, staged_dir);
+                return Err(tf!("folder is not empty on the mainland (it contains files the polder does not know): {x}" ; x));
+            }
+        }
+    }
+    Ok(())
+}
+/// Stage the backup of op n (the original file or symlink) as `.name.sluis-tmp` next to the target (hard link, or a
+/// copy when the journal is on another filesystem). The journal backup itself stays intact, so this is re-runnable.
+fn stage_backup(j: &Path, n: usize, l: &Loc, pre: &St) -> Res<()> {
+    let b = j.join("backup").join(n.to_string());
+    let tmp = tmp_cname(l)?;
+    match pre {
+        St::Link { target } => nf::symlinkat(target, &l.dir, &tmp),
+        St::File { mode, .. } => {
+            if nf::link_in(&nf::cp(&b)?, &l.dir, &tmp).is_ok() { return Ok(()); }
+            let mut src = fs::File::open(&b).map_err(|x| tf!("restoring backup: {x}" ; x))?;
+            let fd = nf::openat(&l.dir, &tmp, libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW, 0o600).map_err(e(tr("copy")))?;
+            let mut out = fs::File::from(fd);
+            let r = std::io::copy(&mut src, &mut out).and_then(|_| out.set_permissions(fs::Permissions::from_mode(*mode))).and_then(|_| out.sync_all());
+            if let Err(x) = r { let _ = nf::unlinkat(&l.dir, &tmp, false); return Err(tf!("restoring backup: {x}" ; x)); }
+            Ok(())
+        }
+        _ => Err(tr("unknown operation").into()),
+    }
+}
+fn stage_dir(l: &Loc, mode: u32) -> Res<()> {
+    let tmp = tmp_cname(l)?;
+    nf::mkdirat(&l.dir, &tmp, 0o700).map_err(e(tr("create folder")))?;
+    let d = nf::openat(&l.dir, &tmp, nf::DIRF, 0).map_err(e(tr("create folder")))?;
+    nf::chmod_fd(&d, mode).map_err(e(tr("permissions")))
+}
 fn apply_op(j: &Path, n: usize, root: &OwnedFd, o: &Op, f: &Faults) -> Res<()> {
     let l = locate(root, &o.path)?.ok_or_else(changed)?;
     if state_at(&l)? != o.pre { return Err(changed()); }                          // revalidate on the fd we will use
@@ -624,10 +699,10 @@ fn apply_op(j: &Path, n: usize, root: &OwnedFd, o: &Op, f: &Faults) -> Res<()> {
     match o.act.as_str() {
         "mkdir" => {
             let St::Dir { mode } = o.post else { return Err(tr("unknown operation").into()) };
-            if !o.pre.is_absent() { nf::unlinkat(&l.dir, &l.name, false).map_err(e(tr("replace")))?; }
-            nf::mkdirat(&l.dir, &l.name, 0o700).map_err(e(tr("create folder")))?;
-            let d = nf::openat(&l.dir, &l.name, nf::DIRF, 0).map_err(e(tr("create folder")))?;
-            nf::chmod_fd(&d, mode).map_err(e(tr("permissions")))?;
+            clean_tmp(&l)?; stage_dir(&l, mode)?;
+            f.call(&format!("replace:{}", o.path));
+            if state_at(&l)? != o.pre { let _ = nf::unlinkat(&l.dir, &tmp_cname(&l)?, true); return Err(changed()); }
+            install_staged(&l, true, &o.pre, f, "", &o.path)?;
         }
         "chmod" => { f.call(&format!("chmod:{}", o.path)); chmod_exact(&l, &o.pre, o.post.mode().unwrap_or(0o644))?; }
         "delete" => {
@@ -640,7 +715,7 @@ fn apply_op(j: &Path, n: usize, root: &OwnedFd, o: &Op, f: &Faults) -> Res<()> {
             nf::unlinkat(&l.dir, &l.name, true).map_err(|x| tf!("folder is not empty on the mainland (it contains files the polder does not know): {x}" ; x))?;
         }
         "write" => {
-            let tmp = tmp_cname(&l)?; let _ = nf::unlinkat(&l.dir, &tmp, false);
+            clean_tmp(&l)?; let tmp = tmp_cname(&l)?;
             match &o.post {
                 St::Link { target } => nf::symlinkat(target, &l.dir, &tmp)?,
                 St::File { mode, hash, .. } => {
@@ -658,8 +733,7 @@ fn apply_op(j: &Path, n: usize, root: &OwnedFd, o: &Op, f: &Faults) -> Res<()> {
             }
             f.call(&format!("replace:{}", o.path));
             if state_at(&l)? != o.pre { let _ = nf::unlinkat(&l.dir, &tmp, false); return Err(changed()); }
-            if let St::Dir { .. } = o.pre { nf::unlinkat(&l.dir, &l.name, true).map_err(e(tr("replace folder")))?; }
-            nf::renameat(l.dir.as_raw_fd(), &tmp, &l.dir, &l.name).map_err(e(tr("replace")))?;   // atomic replace
+            install_staged(&l, false, &o.pre, f, "", &o.path)?;
         }
         x => return Err(tf!("unknown operation {}", x)),
     }
@@ -667,7 +741,28 @@ fn apply_op(j: &Path, n: usize, root: &OwnedFd, o: &Op, f: &Faults) -> Res<()> {
     Ok(())
 }
 
+// ---------------------------------------------------------------- per-workspace lock
+/// Exclusive per-workspace lock: flock(2) on `journal/.lock`, held for the whole merge (pending check, ops,
+/// reconciliation), resume, rollback and discard. The kernel releases it when the process exits or crashes.
+pub struct WsLock(fs::File);
+// explicit unlock: a fork()ed child (between fork and exec in another thread) shares the open file description,
+// so merely closing our fd would keep the lock until that child execs
+impl Drop for WsLock { fn drop(&mut self) { unsafe { libc::flock(self.0.as_raw_fd(), libc::LOCK_UN); } } }
+pub fn busy_msg() -> &'static str { tr("This test polder is busy with another operation (merge, finish or roll back). Try again in a moment.") }
+pub fn lock_workspace(jroot: &Path) -> Res<WsLock> {
+    use std::os::unix::fs::OpenOptionsExt;
+    fs::create_dir_all(jroot).map_err(e("journal"))?;
+    let f = fs::OpenOptions::new().create(true).read(true).write(true).custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC).mode(0o600)
+        .open(jroot.join(".lock")).map_err(e("lock"))?;
+    if unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
+        let x = std::io::Error::last_os_error();
+        return Err(if x.raw_os_error() == Some(libc::EWOULDBLOCK) { busy_msg().to_string() } else { format!("lock: {x}") });
+    }
+    Ok(WsLock(f))
+}
+
 pub fn apply_plan(jroot: &Path, origin: &Path, plan: &Plan, baseline: Option<&Path>, f: &Faults) -> Res<Report> {
+    let _lock = lock_workspace(jroot)?;
     if let Some(p) = pending_in(jroot) { return Err(tf!("interrupted merge {p} must be finished or rolled back first" ; p)); }
     static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let ns = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
@@ -720,6 +815,7 @@ fn run_ops(j: &Path, origin: &Path, plan: &Plan, f: &Faults, mid: String) -> Res
         if done_before.contains(&n) { r.done.push(o.path.clone()); continue; }
         let res = (|| -> Res<bool> {
             check_op(o)?;
+            if let Some(l) = locate(&root, &o.path)? { clean_tmp(&l)?; }      // stale staging of a crashed attempt
             let cur = state_rel(&root, &o.path)?;
             if cur == o.post { return Ok(false); }                       // already applied (resume)
             if cur != o.pre { return Err(changed()); }                   // exact: type, content AND mode
@@ -728,6 +824,7 @@ fn run_ops(j: &Path, origin: &Path, plan: &Plan, f: &Faults, mid: String) -> Res
         })();
         match res {
             Ok(_) => { log_line(j, &format!("done {n}"))?; r.done.push(o.path.clone()); }
+            Err(x) if x.starts_with("CRASH (test)") => return Err(x),          // injected crash: stop like a dead process
             Err(x) => { log_line(j, &format!("fail {n}"))?; r.failed.push((o.path.clone(), x)); }
         }
     }
@@ -736,14 +833,16 @@ fn run_ops(j: &Path, origin: &Path, plan: &Plan, f: &Faults, mid: String) -> Res
 fn done_set(j: &Path) -> BTreeSet<usize> {
     fs::read_to_string(j.join("log")).unwrap_or_default().lines().filter_map(|l| l.strip_prefix("done ").and_then(|n| n.parse().ok())).collect()
 }
-/// The newest journal that is not in a final phase.
-pub fn pending_state_in(jroot: &Path) -> Option<(String, Phase)> {
-    let mut v: Vec<(String, Phase)> = fs::read_dir(jroot).ok()?.flatten()
+fn merge_key(m: &str) -> (u128, String) { (m.split('-').next().and_then(|x| x.parse().ok()).unwrap_or(0), m.to_string()) }
+/// All journals of a workspace (merge id, phase), oldest first.
+pub fn journals(jroot: &Path) -> Vec<(String, Phase)> {
+    let mut v: Vec<(String, Phase)> = fs::read_dir(jroot).map(|r| r.flatten()
         .filter(|d| d.file_type().map(|t| t.is_dir()).unwrap_or(false) && d.path().join("plan.json").exists())
-        .filter_map(|d| { let n = d.file_name().to_string_lossy().to_string(); if !valid_merge_id(&n) { return None; } let p = phase(&d.path()); (!p.is_final()).then_some((n, p)) })
-        .collect();
-    v.sort_by(|a, b| a.0.cmp(&b.0)); v.pop()
+        .filter_map(|d| { let n = d.file_name().to_string_lossy().to_string(); valid_merge_id(&n).then(|| (n, phase(&d.path()))) }).collect()).unwrap_or_default();
+    v.sort_by_key(|x| merge_key(&x.0)); v
 }
+/// The newest journal that is not in a final phase.
+pub fn pending_state_in(jroot: &Path) -> Option<(String, Phase)> { journals(jroot).into_iter().filter(|x| !x.1.is_final()).last() }
 pub fn pending_in(jroot: &Path) -> Option<String> { pending_state_in(jroot).map(|x| x.0) }
 fn journal(jroot: &Path, mid: &str) -> Res<PathBuf> {
     if !valid_merge_id(mid) { return Err(tf!("invalid merge id: {}", mid.escape_debug())); }
@@ -754,6 +853,7 @@ fn journal(jroot: &Path, mid: &str) -> Res<PathBuf> {
 
 /// Continue an interrupted merge where it stopped (ops are idempotent: already-applied ones are recognised).
 pub fn resume_in(jroot: &Path, f: &Faults) -> Res<Report> {
+    let _lock = lock_workspace(jroot)?;
     let (mid, _) = pending_state_in(jroot).ok_or(tr("no interrupted merge"))?;
     drive(&jroot.join(&mid), f)
 }
@@ -761,9 +861,14 @@ pub fn resume_in(jroot: &Path, f: &Faults) -> Res<Report> {
 /// rolled back when every op is restored and the baseline is put back; otherwise it stays pending as rollback-partial
 /// with the failures in rollback.json, and rolling back again retries the remaining ops.
 pub fn rollback_in(jroot: &Path, mid: Option<&str>, f: &Faults) -> Res<Report> {
+    let _lock = lock_workspace(jroot)?;
     let mid = match mid { Some(m) => m.to_string(), None => pending_in(jroot).ok_or(tr("no interrupted merge"))? };
     let j = journal(jroot, &mid)?;
     if phase(&j) == Phase::RolledBack { return Err(tr("this merge was rolled back").into()); }
+    // only the newest merge that is not rolled back can be undone: an older one's baseline snapshot and backups
+    // predate the later merges, so undoing it first would erase their accepted baseline state
+    let newer: Vec<String> = journals(jroot).into_iter().filter(|(k, p)| merge_key(k) > merge_key(&mid) && *p != Phase::RolledBack).map(|x| x.0).collect();
+    if !newer.is_empty() { return Err(tf!("Roll back the newer merge(s) first: {}", newer.join(", "))); }
     let (origin, plan): (String, Plan) = read_json(&j.join("plan.json"))?;
     let root = nf::open_dir(Path::new(&origin))?;
     set_phase(&j, Phase::RollingBack)?;
@@ -771,8 +876,9 @@ pub fn rollback_in(jroot: &Path, mid: Option<&str>, f: &Faults) -> Res<Report> {
     for (n, o) in plan.ops.iter().enumerate().rev() {
         let res = (|| -> Res<bool> {
             check_op(o)?;
-            let l = match locate(&root, &o.path)? { Some(l) => l, None if o.pre.is_absent() => return Ok(false), None => return Err(changed()) };
-            if let Ok(tmp) = tmp_cname(&l) { if let Ok(Some(s)) = nf::lstatat(&l.dir, &tmp) { if nf::is(&s, libc::S_IFREG) || nf::is(&s, libc::S_IFLNK) { let _ = nf::unlinkat(&l.dir, &tmp, false); } } }
+            // a path that did not exist before (pre Absent) and whose parent is missing or not a folder holds nothing to undo
+            let l = match locate(&root, &o.path) { Ok(Some(l)) => l, Ok(None) | Err(_) if o.pre.is_absent() => return Ok(false), Ok(None) => return Err(changed()), Err(x) => return Err(x) };
+            clean_tmp(&l)?;
             let cur = state_at(&l)?;
             if cur == o.pre { return Ok(false); }                                 // never applied, or already restored
             if cur != o.post { return Err(tr("changed after the merge; not restored").into()); }
@@ -780,16 +886,8 @@ pub fn rollback_in(jroot: &Path, mid: Option<&str>, f: &Faults) -> Res<Report> {
             match (&o.pre, o.act.as_str()) {
                 (St::Absent, _) => nf::unlinkat(&l.dir, &l.name, matches!(o.post, St::Dir { .. })).map_err(e(tr("delete")))?,
                 (St::Dir { mode }, "chmod") | (St::File { mode, .. }, "chmod") => chmod_exact(&l, &o.post, *mode)?,
-                (St::Dir { mode }, _) => {
-                    if !matches!(o.post, St::Absent) { nf::unlinkat(&l.dir, &l.name, false).map_err(e(tr("delete")))?; }
-                    nf::mkdirat(&l.dir, &l.name, 0o700).map_err(e(tr("create folder")))?;
-                    let d = nf::openat(&l.dir, &l.name, nf::DIRF, 0).map_err(e(tr("create folder")))?; nf::chmod_fd(&d, *mode).map_err(e(tr("permissions")))?;
-                }
-                _ => {
-                    let b = nf::cp(&j.join("backup").join(n.to_string()))?;
-                    if matches!(cur, St::Dir { .. }) { nf::unlinkat(&l.dir, &l.name, true).map_err(e(tr("remove folder")))?; }
-                    nf::renameat(libc::AT_FDCWD, &b, &l.dir, &l.name).map_err(|x| tf!("restoring backup: {x}" ; x))?;
-                }
+                (St::Dir { mode }, _) => { stage_dir(&l, *mode)?; install_staged(&l, true, &cur, f, "rollback-", &o.path)?; }
+                _ => { stage_backup(&j, n, &l, &o.pre)?; install_staged(&l, false, &cur, f, "rollback-", &o.path)?; }
             }
             nf::fsync(&l.dir); Ok(true)
         })();

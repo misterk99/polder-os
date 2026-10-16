@@ -277,6 +277,10 @@ fn id_validation_and_containment() {
     fs::create_dir_all(d.join("work/work/locked")).unwrap(); fs::set_permissions(d.join("work/work"), fs::Permissions::from_mode(0o000)).unwrap();
     // meta.json naming another id is refused
     let mut wrong = meta(&m.id).unwrap(); wrong.id = "evil".into(); assert!(save_meta(&wrong).is_err());
+    {   // discard takes the workspace lock too
+        let _held = lock_workspace(&d.join("journal")).unwrap();
+        assert_eq!(discard(&m.id).unwrap_err(), busy_msg()); assert!(d.exists());
+    }
     discard(&m.id).unwrap();
     assert!(fs::symlink_metadata(&d).is_err());
     intact(&o); assert!(dd.join("polders/evil").symlink_metadata().is_ok());
@@ -365,7 +369,7 @@ fn partial_rollback_stays_pending_and_is_retryable() {
     // a failing baseline restore also keeps the rollback pending
     let (t2, p2, bl2) = merge_setup("partial-bl");
     apply_plan(&t2.j, &t2.home, &p2, Some(&bl2), &Faults::none()).unwrap();
-    let mid2 = fs::read_dir(&t2.j).unwrap().next().unwrap().unwrap().file_name().to_string_lossy().to_string();
+    let mid2 = journals(&t2.j)[0].0.clone();
     let r = rollback_in(&t2.j, Some(&mid2), &Faults::crash("rollback-baseline")).unwrap(); assert!(!r.rolled_back);
     assert_eq!(pending_state_in(&t2.j).unwrap().1, Phase::RollbackPartial);
     assert!(rollback_in(&t2.j, None, &Faults::none()).unwrap().rolled_back);
@@ -448,4 +452,171 @@ fn journal_paths_are_validated() {
     let r = apply_plan(&t.j, &t.home, &plan, None, &Faults::none()).unwrap(); assert_eq!(r.failed.len(), 1, "{:?}", r);
     assert_eq!(rd(t.home.join("f")), "x\n"); assert!(!valid_merge_id("../x") && rollback_in(&t.j, Some("../x"), &Faults::none()).is_err());
     let _ = rm_rf(&o);
+}
+
+// ======================================================================== review round 2: type changes, history, locking
+fn merge_custom(name: &str, init: &str, polder: &str) -> (T, Plan, PathBuf) {
+    let t = setup(name, init);
+    inpolder(&t, polder);
+    let bl = t.root.join("baseline.json"); write_json(&bl, &t.base).unwrap();
+    let c = ch(&t); let all: Vec<String> = c.iter().map(|x| x.path.clone()).collect();
+    let p = plan_for(&t.home, &t.upper, &c, &all, &[]);
+    (t, p, bl)
+}
+fn no_tmp(home: &Path) -> bool { scan(home).unwrap().keys().all(|k| !k.contains(".sluis-tmp")) }
+const TYPE_CHANGES: [(&str, &str, &str); 5] = [
+    ("file-dir", "echo f > x", "rm x; mkdir x; echo inhoud > x/in"),
+    ("dir-file", "mkdir x; echo c > x/c", "rm -r x; echo bestand > x"),
+    ("file-link", "echo f > x", "rm x; ln -s doel x"),
+    ("link-dir", "ln -s doel x", "rm x; mkdir x; echo inhoud > x/in"),
+    ("dir-link", "mkdir x; chmod 750 x", "rmdir x; ln -s doel x"),
+];
+
+#[test]
+fn type_changes_are_recoverable_at_every_stage() {
+    if !overlay_or_skip("type_changes_are_recoverable_at_every_stage") { return; }
+    for (name, init, polder) in TYPE_CHANGES {
+        for point in ["staged:x", "exchanged:x"] {
+            // --- crash, then resume
+            let (t, p, bl) = merge_custom(&format!("tc-{name}-{}", &point[..3]), init, polder);
+            let want = state_of(&t.upper.join("x")).unwrap();
+            let before = snapshot(&t.home); let bbefore = fs::read(&bl).unwrap();
+            let r = apply_plan(&t.j, &t.home, &p, Some(&bl), &Faults::crash(point));
+            if r.is_ok() { assert_eq!(point, "exchanged:x", "{name}: no staging crash point: {:?} {:?}", p.ops, r); assert_eq!(state_of(&t.home.join("x")).unwrap(), want); continue; }  // plain atomic rename, no exchange stage
+            assert!(r.unwrap_err().starts_with("CRASH"));
+            let _ = bbefore; let mid_state = state_of(&t.home.join("x")).unwrap();
+            assert!(!mid_state.is_absent(), "{name} {point}: target absent after crash");
+            let r = resume_in(&t.j, &Faults::none()).unwrap(); assert!(r.failed.is_empty(), "{name} {point}: {:?} done={:?} x={:?} log={:?}", r.failed, r.done, state_of(&t.home.join("x")), fs::read_dir(&t.j).unwrap().flatten().map(|d| fs::read_to_string(d.path().join("log")).unwrap_or_default()).collect::<Vec<_>>());
+            assert_eq!(state_of(&t.home.join("x")).unwrap(), want, "{name} {point}");
+            assert!(no_tmp(&t.home), "{name} {point}: staging left behind");
+            let b: std::collections::BTreeMap<String, Entry> = read_json(&bl).unwrap(); assert_eq!(b.get("x").map(|e| e.st.clone()), Some(want.clone()), "{name} {point}: baseline");
+            // --- the same crash, then rollback: everything as before, including the baseline
+            let (t2, p2, bl2) = merge_custom(&format!("tr-{name}-{}", &point[..3]), init, polder); let bbefore = fs::read(&bl2).unwrap();
+            let _ = apply_plan(&t2.j, &t2.home, &p2, Some(&bl2), &Faults::crash(point));
+            let r = rollback_in(&t2.j, None, &Faults::none()).unwrap(); assert!(r.rolled_back, "{name} {point}: {:?}", r.failed);
+            assert_eq!(snapshot(&t2.home), before, "{name} {point}"); assert_eq!(fs::read(&bl2).unwrap(), bbefore);
+            // --- a finished merge whose rollback is interrupted at the same stages: never absent, retry completes
+            let (t3, p3, bl3) = merge_custom(&format!("tb-{name}-{}", &point[..3]), init, polder); let bbefore = fs::read(&bl3).unwrap();
+            let mid = apply_plan(&t3.j, &t3.home, &p3, Some(&bl3), &Faults::none()).unwrap().merge_id;
+            let r = rollback_in(&t3.j, Some(&mid), &Faults::crash(&format!("rollback-{point}"))).unwrap();
+            assert!(!state_of(&t3.home.join("x")).unwrap().is_absent(), "{name} rollback-{point}: target absent");
+            if !r.rolled_back { assert_eq!(pending_state_in(&t3.j).unwrap().1, Phase::RollbackPartial);
+                                let r = rollback_in(&t3.j, None, &Faults::none()).unwrap(); assert!(r.rolled_back, "{name}: {:?}", r.failed); }
+            assert_eq!(snapshot(&t3.home), before, "{name} rollback-{point}"); assert_eq!(fs::read(&bl3).unwrap(), bbefore);
+        }
+    }
+}
+
+#[test]
+fn replacing_a_dir_keeps_unknown_mainland_files() {
+    if !overlay_or_skip("replacing_a_dir_keeps_unknown_mainland_files") { return; }
+    let (t, p, _) = merge_custom("dirkeep", "mkdir x; echo c > x/c", "rm -r x; echo bestand > x");
+    sh(&t.home, "echo van-vasteland > x/nieuw");               // unknown to the polder
+    let r = apply_plan(&t.j, &t.home, &p, None, &Faults::none()).unwrap();
+    assert!(r.failed.iter().any(|(p, _)| p == "x"), "{:?}", r);
+    assert_eq!(rd(t.home.join("x/nieuw")), "van-vasteland\n"); assert!(no_tmp(&t.home));
+}
+
+#[test]
+fn out_of_order_rollback_is_refused() {
+    if !overlay_or_skip("out_of_order_rollback_is_refused") { return; }
+    let t = setup("history", "echo a > a.txt; echo b > b.txt");
+    inpolder(&t, "echo A > a.txt; echo B > b.txt");
+    let bl = t.root.join("baseline.json"); write_json(&bl, &t.base).unwrap();
+    let mut mids = vec![];
+    for f in ["a.txt", "b.txt"] {
+        let base: std::collections::BTreeMap<String, Entry> = read_json(&bl).unwrap();
+        let c = changes_for(&t.home, &t.upper, &base).unwrap();
+        let p = plan_for(&t.home, &t.upper, &c, &[f.to_string()], &[]);
+        let r = apply_plan(&t.j, &t.home, &p, Some(&bl), &Faults::none()).unwrap(); assert!(r.failed.is_empty() && r.done == vec![f.to_string()]);
+        mids.push(r.merge_id);
+    }
+    let blh = |k: &str, v: &str| bl_has(&bl, k, v);
+    assert!(blh("a.txt", "A\n") && blh("b.txt", "B\n"));
+    // rolling back the OLDER merge is refused with a clear error, nothing changes
+    let err = rollback_in(&t.j, Some(&mids[0]), &Faults::none()).unwrap_err();
+    assert!(err.contains(&mids[1]), "{err}");
+    assert_eq!(err, crate::i18n::fmt(crate::i18n::tr("Roll back the newer merge(s) first: {}"), &[&mids[1]], &[]));
+    assert_eq!(rd(t.home.join("a.txt")), "A\n"); assert_eq!(rd(t.home.join("b.txt")), "B\n");
+    assert!(blh("a.txt", "A\n") && blh("b.txt", "B\n"), "baseline of the later merge must be kept");
+    // newest first works and keeps the other merge's baseline entry
+    assert!(rollback_in(&t.j, Some(&mids[1]), &Faults::none()).unwrap().rolled_back);
+    assert_eq!(rd(t.home.join("b.txt")), "b\n"); assert!(blh("b.txt", "b\n") && blh("a.txt", "A\n"));
+    assert!(rollback_in(&t.j, Some(&mids[0]), &Faults::none()).unwrap().rolled_back);
+    assert_eq!(rd(t.home.join("a.txt")), "a\n"); assert!(blh("a.txt", "a\n") && blh("b.txt", "b\n"));
+}
+
+// ---- multi-process locking. `proc_helper` runs in a child process (the test binary re-executed).
+#[test]
+#[ignore]
+fn proc_helper() {
+    let Ok(mode) = std::env::var("SLUIS_HELPER") else { return };
+    let root = PathBuf::from(std::env::var("SLUIS_ROOT").unwrap());
+    let (j, home, bl) = (root.join("journal"), root.join("vasteland"), root.join("baseline.json"));
+    let plan: Plan = read_json(&root.join("plan.json")).unwrap();
+    let sleep: u64 = std::env::var("SLUIS_SLEEP").ok().and_then(|s| s.parse().ok()).unwrap_or(0);
+    let tag = std::process::id();
+    let (r2, m2) = (root.clone(), mode.clone());
+    let once = std::sync::Once::new();
+    let f = Faults::hook(move |pt| if pt.starts_with("pre-op:") {
+        once.call_once(|| {
+            fs::write(r2.join(format!("inside-{tag}")), "").unwrap();
+            if m2 == "crash" { std::process::abort(); }
+            std::thread::sleep(std::time::Duration::from_millis(sleep));
+        });
+    });
+    // a start barrier so simultaneous children really race
+    if let Ok(go) = std::env::var("SLUIS_GO") { while !Path::new(&go).exists() { std::thread::sleep(std::time::Duration::from_millis(5)); } }
+    let r = match mode.as_str() { "merge" | "crash" => apply_plan(&j, &home, &plan, Some(&bl), &f), "resume" => resume_in(&j, &f), _ => rollback_in(&j, None, &f) };
+    fs::write(root.join(format!("result-{tag}")), match r { Ok(_) => "ok".to_string(), Err(x) => x }).unwrap();
+}
+fn spawn(root: &Path, mode: &str, sleep: u64, go: Option<&Path>) -> std::process::Child {
+    let mut c = std::process::Command::new(std::env::current_exe().unwrap());
+    c.args(["--exact", "tests::proc_helper", "--ignored", "--test-threads=1", "-q"]).env("SLUIS_HELPER", mode).env("SLUIS_ROOT", root).env("SLUIS_SLEEP", sleep.to_string())
+     .stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    if let Some(g) = go { c.env("SLUIS_GO", g); }
+    c.spawn().unwrap()
+}
+fn result_of(root: &Path, c: &std::process::Child) -> Option<String> { fs::read_to_string(root.join(format!("result-{}", c.id()))).ok() }
+fn wait_for(p: &Path) { for _ in 0..2000 { if p.exists() { return; } std::thread::sleep(std::time::Duration::from_millis(10)); } panic!("timeout waiting for {}", p.display()); }
+
+#[test]
+fn workspace_lock_serializes_processes() {
+    if !overlay_or_skip("workspace_lock_serializes_processes") { return; }
+    // (a) a merge in another process holds the lock across check + ops + reconciliation: everything else is "busy"
+    let (t, p, bl) = merge_setup("lock-a"); write_json(&t.root.join("plan.json"), &p).unwrap();
+    let mut a = spawn(&t.root, "merge", 1500, None);
+    wait_for(&t.root.join(format!("inside-{}", a.id())));
+    assert_eq!(apply_plan(&t.j, &t.home, &p, Some(&bl), &Faults::none()).unwrap_err(), busy_msg());
+    assert_eq!(resume_in(&t.j, &Faults::none()).unwrap_err(), busy_msg());
+    assert_eq!(rollback_in(&t.j, None, &Faults::none()).unwrap_err(), busy_msg());
+    assert!(lock_workspace(&t.j).is_err());
+    let mut b = spawn(&t.root, "merge", 0, None); assert!(b.wait().unwrap().success());
+    assert_eq!(result_of(&t.root, &b).as_deref(), Some(busy_msg()));
+    assert!(a.wait().unwrap().success()); assert_eq!(result_of(&t.root, &a).as_deref(), Some("ok"));
+    let js = journals(&t.j); assert_eq!(js.len(), 1, "{js:?}"); assert_eq!(js[0].1, Phase::Committed);
+    assert!(bl_has(&bl, "a", "A\n") && bl_has(&bl, "nieuw", "N\n"));
+    assert!(lock_workspace(&t.j).is_ok());                                     // released after the merge
+
+    // (b) two merges started at the same instant: exactly one runs, the other is refused; one journal
+    let (t, p, _) = merge_setup("lock-b"); write_json(&t.root.join("plan.json"), &p).unwrap();
+    let go = t.root.join("go");
+    let mut kids: Vec<_> = (0..2).map(|_| spawn(&t.root, "merge", 600, Some(&go))).collect();
+    std::thread::sleep(std::time::Duration::from_millis(300)); fs::write(&go, "").unwrap();
+    for k in kids.iter_mut() { assert!(k.wait().unwrap().success()); }
+    let res: Vec<String> = kids.iter().map(|k| result_of(&t.root, k).unwrap()).collect();
+    assert_eq!(res.iter().filter(|r| *r == "ok").count(), 1, "{res:?}");
+    assert_eq!(res.iter().filter(|r| r.as_str() == busy_msg()).count(), 1, "{res:?}");
+    assert_eq!(journals(&t.j).len(), 1);
+
+    // (c) a process that crashes while holding the lock releases it; the merge is recoverable
+    let (t, p, bl) = merge_setup("lock-c"); write_json(&t.root.join("plan.json"), &p).unwrap();
+    let before = snapshot(&t.home); let bbefore = fs::read(&bl).unwrap();
+    let mut c = spawn(&t.root, "crash", 0, None);
+    assert!(!c.wait().unwrap().success());
+    assert!(result_of(&t.root, &c).is_none());
+    assert!(pending_in(&t.j).is_some());
+    assert!(lock_workspace(&t.j).is_ok());
+    let r = rollback_in(&t.j, None, &Faults::none()).unwrap(); assert!(r.rolled_back);
+    assert_eq!(snapshot(&t.home), before); assert_eq!(fs::read(&bl).unwrap(), bbefore);
 }
