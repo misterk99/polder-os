@@ -656,7 +656,7 @@ fn build(app: &gtk::Application, new_folder: Option<String>) -> A {
             a3.borrow_mut().allow_close = true;
             let win = a3.borrow().win.clone(); win.close();
         });
-        let a3 = a2.clone(); d.connect_destroy(move |_| a3.borrow_mut().close_prompt = false);
+        let a3 = a2.clone(); d.connect_close_request(move |_| { a3.borrow_mut().close_prompt = false; glib::Propagation::Proceed });
         glib::Propagation::Stop
     });
     let a2 = a.clone(); win.connect_is_active_notify(move |w| { if w.is_active() { reload(&a2, None); } });
