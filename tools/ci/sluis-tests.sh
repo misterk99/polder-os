@@ -10,7 +10,7 @@ WORK=${WORK:-/work}
 SKIP_LOG=${SKIP_LOG:-$WORK/sluis-skips.txt}
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y --no-install-recommends ca-certificates cargo rustc pkgconf libgtk-4-dev libgtk4-layer-shell-dev \
+apt-get install -y --no-install-recommends ca-certificates cargo rustc pkgconf python3 libgtk-4-dev libgtk4-layer-shell-dev \
     librust-gtk4-dev librust-gtk4-layer-shell-dev librust-glib-dev librust-serde-dev librust-serde-derive-dev \
     librust-serde-json-dev librust-libc-dev bubblewrap
 install -d -o nobody -g nogroup "$WORK/home" "$WORK/tmp" "$WORK/cargo" "$WORK/target"
@@ -35,4 +35,6 @@ echo "kernel: $(uname -r); unprivileged_userns_clone=$(cat /proc/sys/kernel/unpr
 as_user cargo build --release --offline -j2 --bins
 as_user cargo test --release --offline -j2 --bin polder-sluisd -- --test-threads=2
 as_user env POLDER_LANG=en cargo test --release --offline -j2 --bin polder-sluisd -- --test-threads=2
+as_user cargo test --release --offline -j2 --bin polder-sluis -- --test-threads=2
+as_user env POLDER_SLUISD="$WORK/target/release/polder-sluisd" python3 "$SRC/tools/testing/test-sluis-cli.py"
 if [[ -s $SKIP_LOG ]]; then echo "Skipped (environment):"; cat "$SKIP_LOG"; else echo "Skipped (environment): none"; fi

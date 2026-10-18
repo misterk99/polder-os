@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Polder OS\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-16 20:36+0200\n"
+"POT-Creation-Date: 2026-10-18 21:52+0200\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -241,9 +241,9 @@ msgstr ""
 #: shell/polder-shelf/src/bin/polder-phonehub.rs:235
 #: shell/polder-shelf/src/bin/polder-quicksettings.rs:285
 #: shell/polder-shelf/src/bin/polder-safeharbor.rs:149
-#: shell/polder-shelf/src/bin/polder-sluis.rs:99
-#: shell/polder-shelf/src/bin/polder-sluis.rs:451
-#: shell/polder-shelf/src/bin/polder-sluis.rs:458
+#: shell/polder-shelf/src/bin/polder-sluis.rs:184
+#: shell/polder-shelf/src/bin/polder-sluis.rs:585
+#: shell/polder-shelf/src/bin/polder-sluis.rs:592
 msgid "Cancel"
 msgstr ""
 
@@ -478,7 +478,7 @@ msgstr ""
 
 #: config/capture/capture.py:248 config/settings/instellingen.py:604
 #: config/settings/instellingen.py:462
-#: shell/polder-shelf/src/bin/polder-sluis.rs:451
+#: shell/polder-shelf/src/bin/polder-sluis.rs:585
 msgid "Choose"
 msgstr ""
 
@@ -792,7 +792,7 @@ msgstr ""
 
 #: config/launcher/launcher.py:291 config/store/store.py:22
 #: shell/polder-shelf/src/bin/polder-launcher.rs:288
-#: shell/polder-shelf/src/bin/polder-sluis.rs:180
+#: shell/polder-shelf/src/bin/polder-sluis.rs:297
 msgid "Internet"
 msgstr ""
 
@@ -1101,7 +1101,7 @@ msgstr ""
 #: config/wm/overview.py:165 shell/polder-shelf/src/bin/polder-notifyd.rs:161
 #: shell/polder-shelf/src/bin/polder-phonehub.rs:262
 #: shell/polder-shelf/src/bin/polder-quicksettings.rs:202
-#: shell/polder-shelf/src/bin/polder-sluis.rs:415
+#: shell/polder-shelf/src/bin/polder-sluis.rs:550
 #: shell/polder-shelf/src/main.rs:366
 msgid "Close"
 msgstr ""
@@ -1446,6 +1446,7 @@ msgid "Apply"
 msgstr ""
 
 #: config/settings/instellingen.py:208 config/settings/instellingen.py:506
+#: shell/polder-shelf/src/bin/polder-sluis.rs:626
 msgid "Refresh"
 msgstr ""
 
@@ -2181,7 +2182,7 @@ msgid "Folder"
 msgstr ""
 
 #: config/settings/instellingen.py:608
-#: shell/polder-shelf/src/bin/polder-sluis.rs:443
+#: shell/polder-shelf/src/bin/polder-sluis.rs:577
 msgid "No folder chosen yet"
 msgstr ""
 
@@ -3729,175 +3730,99 @@ msgstr ""
 msgid "Timeline"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:140
+#: shell/polder-shelf/src/bin/polder-sluis.rs:117
+msgid "Starting terminal in the test polder…"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:118
+#, rust-format
+msgid "Could not start the terminal: {}"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:125
+msgid "The terminal stopped unexpectedly."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:139
+#, rust-format
+msgid "Could not check the terminal: {}"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:153
+#, rust-format
+msgid "Terminal in ‘{}’: {}"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:198
+msgid "Could not load the test polders."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:229
 msgid "No test polders yet"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:141
+#: shell/polder-shelf/src/bin/polder-sluis.rs:230
 msgid "A test polder is a copy of a project folder where you can experiment freely. Your original folder, the mainland, stays untouched until you let changes through the lock."
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:143
-#: shell/polder-shelf/src/bin/polder-sluis.rs:436
-#: shell/polder-shelf/src/bin/polder-sluis.rs:439
-#: shell/polder-shelf/src/bin/polder-sluis.rs:491
+#: shell/polder-shelf/src/bin/polder-sluis.rs:232
+#: shell/polder-shelf/src/bin/polder-sluis.rs:570
+#: shell/polder-shelf/src/bin/polder-sluis.rs:573
+#: shell/polder-shelf/src/bin/polder-sluis.rs:625
 msgid "New test polder"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:147
+#: shell/polder-shelf/src/bin/polder-sluis.rs:236
 msgid "Active"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:147
+#: shell/polder-shelf/src/bin/polder-sluis.rs:236
 msgid "Archived"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:147
-#: shell/polder-shelf/src/bin/polder-sluis.rs:256
+#: shell/polder-shelf/src/bin/polder-sluis.rs:236
+#: shell/polder-shelf/src/bin/polder-sluis.rs:378
 msgid "Conflict"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:147
+#: shell/polder-shelf/src/bin/polder-sluis.rs:236
 msgid "Ready to merge"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:174
-msgid "Terminal in the polder"
+#: shell/polder-shelf/src/bin/polder-sluis.rs:269
+msgid "Internet is off for new programs in this test polder"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:177
-msgid "Terminal starts in the test polder"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:184
-msgid "Internet is off in this test polder"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:185
-msgid "With internet, programs in the test polder can send data, download or do things online. Sluis cannot undo that: only files in your project folder stay in the polder. Only turn it on for programs you trust."
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:188
-msgid "Turn on internet"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:188
-msgid "Turn on internet in this test polder?"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:189
+#: shell/polder-shelf/src/bin/polder-sluis.rs:269
 msgid "Internet is on for new programs in this test polder"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:196
+#: shell/polder-shelf/src/bin/polder-sluis.rs:292
+msgid "Terminal in the polder"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:299
+msgid "Applies to newly started programs. Running programs keep their internet access."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:308
+msgid "With internet, programs in the test polder can send data, download or do things online. Sluis cannot undo that: only files in your project folder stay in the polder. Only turn it on for programs you trust."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:311
+msgid "Turn on internet"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:311
+msgid "Turn on internet in this test polder?"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:318
 msgid "Archive"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:196
+#: shell/polder-shelf/src/bin/polder-sluis.rs:318
 msgid "Unarchive"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:199
-msgid "Test polder archived"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:199
-msgid "Test polder is active again"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:201
-#: shell/polder-shelf/src/bin/polder-sluis.rs:206
-msgid "Discard"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:204
-#, rust-format
-msgid "All changes in ‘{name}’ that you have not merged will be lost. Your original folder stays as it is."
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:206
-msgid "Discard test polder?"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:207
-msgid "Test polder discarded"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:215
-msgid "An earlier merge was not finished (for example because of a crash or power failure). Finish it or roll everything back; until then you cannot merge anything else."
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:215
-msgid "Merge was interrupted"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:217
-msgid "Rolling back was only partly possible. Fix the files below and roll back again:"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:222
-msgid "Finish"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:222
-msgid "Roll back"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:226
-msgid "Finished"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:226
-msgid "Rolled back"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:226
-#, rust-format
-msgid "{}: {} file(s), {} failed"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:232
-msgid "Programs in the polder can only change your project folder inside the polder; the rest of your home folder is a throwaway copy there. It is not a secured virtual machine: what happens via the internet or devices cannot be undone."
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:242
-#, rust-format
-msgid ", {n_conf} conflict(s)"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:243
-msgid "All without conflict"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:259
-#: shell/polder-shelf/src/sluis.rs:472
-msgid "changes permissions"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:259
-#: shell/polder-shelf/src/sluis.rs:469
-#, rust-format
-msgid "symlink points outside the folder: {target}"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:270
-msgid "No changes yet. Open a terminal in the polder and go ahead."
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:270
-msgid "No changes."
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:277
-msgid "Choose a change to compare."
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:287
-msgid "Nothing reaches the mainland without your permission. You first see exactly what will happen."
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluis.rs:288
-msgid "Merge selected…"
 msgstr ""
 
 #: shell/polder-shelf/src/bin/polder-sluis.rs:32
@@ -3924,233 +3849,375 @@ msgstr ""
 msgid "Type changed"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:320
+#: shell/polder-shelf/src/bin/polder-sluis.rs:321
+msgid "Test polder archived"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:321
+msgid "Test polder is active again"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:323
+#: shell/polder-shelf/src/bin/polder-sluis.rs:328
+msgid "Discard"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:326
+#, rust-format
+msgid "All changes in ‘{name}’ that you have not merged will be lost. Your original folder stays as it is."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:328
+msgid "Discard test polder?"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:329
+msgid "Test polder discarded"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:337
+msgid "An earlier merge was not finished (for example because of a crash or power failure). Finish it or roll everything back; until then you cannot merge anything else."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:337
+msgid "Merge was interrupted"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:339
+msgid "Rolling back was only partly possible. Fix the files below and roll back again:"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:344
+msgid "Finish"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:344
+msgid "Roll back"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:348
+msgid "Finished"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:348
+msgid "Rolled back"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:348
+#, rust-format
+msgid "{}: {} file(s), {} failed"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:354
+msgid "Programs in the polder can only change your project folder inside the polder; the rest of your home folder is a throwaway copy there. It is not a secured virtual machine: what happens via the internet or devices cannot be undone."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:364
+#, rust-format
+msgid ", {n_conf} conflict(s)"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:365
+msgid "All without conflict"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:381
+#: shell/polder-shelf/src/sluis.rs:472
+msgid "changes permissions"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:381
+#: shell/polder-shelf/src/sluis.rs:469
+#, rust-format
+msgid "symlink points outside the folder: {target}"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:392
+msgid "No changes yet. Open a terminal in the polder and go ahead."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:392
+msgid "No changes."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:399
+msgid "Choose a change to compare."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:409
+msgid "Nothing reaches the mainland without your permission. You first see exactly what will happen."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:410
+msgid "Merge selected…"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:442
 #, rust-format
 msgid ""
 "file · {} · permissions {:o}\n"
 "sha256 {}…"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:323
+#: shell/polder-shelf/src/bin/polder-sluis.rs:445
 msgid "does not exist"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:334
+#: shell/polder-shelf/src/bin/polder-sluis.rs:456
 msgid "Conflict: this file was also changed on the mainland since the polder was created. Merging replaces that change."
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:335
+#: shell/polder-shelf/src/bin/polder-sluis.rs:457
 msgid "Choose the polder version anyway (replace the mainland version)"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:343
+#: shell/polder-shelf/src/bin/polder-sluis.rs:465
 msgid "Mainland (now)"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:343
-#: shell/polder-shelf/src/bin/polder-sluis.rs:464
+#: shell/polder-shelf/src/bin/polder-sluis.rs:465
+#: shell/polder-shelf/src/bin/polder-sluis.rs:598
 msgid "Test polder"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:361
+#: shell/polder-shelf/src/bin/polder-sluis.rs:483
 msgid "(too large to compare line by line)"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:375
+#: shell/polder-shelf/src/bin/polder-sluis.rs:497
 msgid "Open both versions"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:397
+#: shell/polder-shelf/src/bin/polder-sluis.rs:520
+msgid "This preview cannot be verified. Refresh and review the changes again."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:526
 msgid "Select one or more changes first"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:404
+#: shell/polder-shelf/src/bin/polder-sluis.rs:539
 msgid "Dry run: this is how your original folder will change. Nothing has been changed yet."
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:407
+#: shell/polder-shelf/src/bin/polder-sluis.rs:542
 msgid "There is nothing to merge."
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:410
+#: shell/polder-shelf/src/bin/polder-sluis.rs:545
 msgid "Sluis checks every file right before it replaces it and keeps changes made by other programs in the meantime. A program that still has a file open can, after the merge, keep writing to the old version; that cannot be prevented. Close programs that are editing these files first."
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:412
+#: shell/polder-shelf/src/bin/polder-sluis.rs:547
 msgid "Note:"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:414
+#: shell/polder-shelf/src/bin/polder-sluis.rs:549
 msgid "Skipped:"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:415
+#: shell/polder-shelf/src/bin/polder-sluis.rs:550
 msgid "Nothing to merge"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:417
+#: shell/polder-shelf/src/bin/polder-sluis.rs:552
 msgid "Merge"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:417
+#: shell/polder-shelf/src/bin/polder-sluis.rs:552
 #, rust-format
 msgid "Merge {} change(s)?"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:421
+#: shell/polder-shelf/src/bin/polder-sluis.rs:555
 #, rust-format
 msgid "Merge failed: {e}"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:423
+#: shell/polder-shelf/src/bin/polder-sluis.rs:555
+msgid "Refresh and review the changes again."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:557
 #, rust-format
 msgid "{} change(s) merged to the mainland"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:424
+#: shell/polder-shelf/src/bin/polder-sluis.rs:558
 #, rust-format
 msgid "{} merged, {nf} not: {}"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:440
+#: shell/polder-shelf/src/bin/polder-sluis.rs:574
 msgid "Sluis pumps a new polder dry next to your folder: you experiment freely in it, your original folder stays untouched."
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:441
+#: shell/polder-shelf/src/bin/polder-sluis.rs:575
 msgid "Name, for example New design"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:442
+#: shell/polder-shelf/src/bin/polder-sluis.rs:576
 msgid "Description (optional)"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:444
+#: shell/polder-shelf/src/bin/polder-sluis.rs:578
 msgid "Choose folder…"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:446
+#: shell/polder-shelf/src/bin/polder-sluis.rs:580
 msgid "Folder (the mainland)"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:446
+#: shell/polder-shelf/src/bin/polder-sluis.rs:580
 msgid "Name"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:447
+#: shell/polder-shelf/src/bin/polder-sluis.rs:581
 #, rust-format
 msgid "{} – experiment"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:451
+#: shell/polder-shelf/src/bin/polder-sluis.rs:585
 msgid "Choose a project folder"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:458
+#: shell/polder-shelf/src/bin/polder-sluis.rs:592
 msgid "Create polder"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:463
+#: shell/polder-shelf/src/bin/polder-sluis.rs:597
 msgid "Choose a folder first"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:465
+#: shell/polder-shelf/src/bin/polder-sluis.rs:599
 msgid "Pumping dry…"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:471
+#: shell/polder-shelf/src/bin/polder-sluis.rs:605
 msgid "Test polder ready. Open a terminal to get started."
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:482
-#: shell/polder-shelf/src/bin/polder-sluis.rs:489
+#: shell/polder-shelf/src/bin/polder-sluis.rs:616
+#: shell/polder-shelf/src/bin/polder-sluis.rs:623
 #: config/sluis/polder-sluis.desktop:3
 msgid "Sluis"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluis.rs:489
+#: shell/polder-shelf/src/bin/polder-sluis.rs:623
 #: config/sluis/polder-sluis.desktop:4
 msgid "Test polders"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:106
+#: shell/polder-shelf/src/bin/polder-sluis.rs:652
+#, rust-format
+msgid "Closing Sluis stops all {} running terminals and their programs. Unsaved work may be lost. Keep Sluis open until they finish, or close and stop them now."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:655
+msgid "Close and stop programs"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:655
+msgid "Stop running programs and close Sluis?"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:87
+msgid "Loading changes…"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluis.rs:92
+#, rust-format
+msgid "Running terminals: {}"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:103
+msgid "Disk almost full"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:103
+msgid "Test polders use space on your disk. Clean up old polders in Sluis."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:115
+#: shell/polder-shelf/src/sluis.rs:99 shell/polder-shelf/src/sluis.rs:341
+#: shell/polder-shelf/src/sluis.rs:1007
+#, rust-format
+msgid "invalid test polder id: {}"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:119
+msgid "usage: create <name> <folder> [description]"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:137
 msgid "no paths chosen: give the paths you want to merge (see `changes`)"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:109
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:141
 msgid "Changes merged"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:109
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:141
 #, rust-format
 msgid "{} change(s) from ‘{name}’ are now on the mainland."
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:110
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:142
 msgid "Merge partly succeeded"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:110
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:142
 #, rust-format
 msgid "{} succeeded, {} did not (see Sluis)."
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:119
-msgid "Merge rolled back"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:119
-#, rust-format
-msgid "{} file(s) restored on the mainland."
 msgstr ""
 
 #: shell/polder-shelf/src/bin/polder-sluisd.rs:15
 msgid "Polder Sluis"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:41
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:151
+msgid "Merge rolled back"
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:151
+#, rust-format
+msgid "{} file(s) restored on the mainland."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:47
+#, rust-format
+msgid "Unknown runner option: {}. Put the command after --."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:57
+msgid "A valid preview token is required. Review the changes again."
+msgstr ""
+
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:66
 msgid "This test polder is archived; unarchive it first."
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:45
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:70
 #, rust-format
 msgid "[Test polder: {}] Terminal"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:69
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:94
 msgid "Merge interrupted"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:69
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:94
 #, rust-format
 msgid "Test polder ‘{}’: open Sluis to finish or roll back."
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:73
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:98
 msgid "Test polder takes up a lot of space"
 msgstr ""
 
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:73
+#: shell/polder-shelf/src/bin/polder-sluisd.rs:98
 #, rust-format
 msgid "‘{}’ uses {:.1} GB. Discard or archive?"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:78
-msgid "Disk almost full"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:78
-msgid "Test polders use space on your disk. Clean up old polders in Sluis."
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:90
-#: shell/polder-shelf/src/sluis.rs:99 shell/polder-shelf/src/sluis.rs:341
-#: shell/polder-shelf/src/sluis.rs:934
-#, rust-format
-msgid "invalid test polder id: {}"
-msgstr ""
-
-#: shell/polder-shelf/src/bin/polder-sluisd.rs:94
-msgid "usage: create <name> <folder> [description]"
 msgstr ""
 
 #: shell/polder-shelf/src/kdc.rs:107
@@ -4177,23 +4244,21 @@ msgstr ""
 msgid "unknown test polder: {}"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:1028
+#: shell/polder-shelf/src/sluis.rs:1017
 #, rust-format
-msgid "invalid merge id: {}"
+msgid "interrupted merge {p} must be finished or rolled back first"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:1030
-#, rust-format
-msgid "unknown merge: {}"
+#: shell/polder-shelf/src/sluis.rs:1022
+msgid "journal already exists"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:1037 shell/polder-shelf/src/sluis.rs:1045
-msgid "no interrupted merge"
+#: shell/polder-shelf/src/sluis.rs:1043
+msgid "a rollback of this merge is unfinished; roll back again"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:1051
-#, rust-format
-msgid "Roll back the newer merge(s) first: {}"
+#: shell/polder-shelf/src/sluis.rs:1044 shell/polder-shelf/src/sluis.rs:1149
+msgid "this merge was rolled back"
 msgstr ""
 
 #: shell/polder-shelf/src/sluis.rs:106
@@ -4201,25 +4266,48 @@ msgstr ""
 msgid "test polder {} is outside the Sluis storage"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:1065
-msgid "changed after the merge; not restored"
+#: shell/polder-shelf/src/sluis.rs:1130
+#, rust-format
+msgid "invalid merge id: {}"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:1112
-msgid "This test polder is archived."
+#: shell/polder-shelf/src/sluis.rs:1132
+#, rust-format
+msgid "unknown merge: {}"
+msgstr ""
+
+#: shell/polder-shelf/src/sluis.rs:1139 shell/polder-shelf/src/sluis.rs:1147
+msgid "no interrupted merge"
+msgstr ""
+
+#: shell/polder-shelf/src/sluis.rs:1153
+#, rust-format
+msgid "Roll back the newer merge(s) first: {}"
+msgstr ""
+
+#: shell/polder-shelf/src/sluis.rs:1167
+msgid "changed after the merge; not restored"
 msgstr ""
 
 #: shell/polder-shelf/src/sluis.rs:118 shell/polder-shelf/src/sluis.rs:119
 msgid "path contains a NUL byte"
 msgstr ""
 
+#: shell/polder-shelf/src/sluis.rs:1222
+msgid "This test polder is archived."
+msgstr ""
+
+#: shell/polder-shelf/src/sluis.rs:1224
+msgid "The files changed since the preview. Review the changes again."
+msgstr ""
+
 #: shell/polder-shelf/src/sluis.rs:186 shell/polder-shelf/src/sluis.rs:187
-#: shell/polder-shelf/src/sluis.rs:926
+#: shell/polder-shelf/src/sluis.rs:999
 #, rust-format
 msgid "refusing to delete {}"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:215 shell/polder-shelf/src/sluis.rs:713
+#: shell/polder-shelf/src/sluis.rs:215 shell/polder-shelf/src/sluis.rs:773
 #, rust-format
 msgid "invalid path: {}"
 msgstr ""
@@ -4229,12 +4317,12 @@ msgstr ""
 msgid "{}: a parent folder is a symlink or not a folder; not touched ({})"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:228 shell/polder-shelf/src/sluis.rs:672
-#: shell/polder-shelf/src/sluis.rs:879
+#: shell/polder-shelf/src/sluis.rs:228 shell/polder-shelf/src/sluis.rs:722
+#: shell/polder-shelf/src/sluis.rs:952
 msgid "no sha256"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:230 shell/polder-shelf/src/sluis.rs:674
+#: shell/polder-shelf/src/sluis.rs:230 shell/polder-shelf/src/sluis.rs:724
 msgid "read"
 msgstr ""
 
@@ -4242,7 +4330,7 @@ msgstr ""
 msgid "open"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:242 shell/polder-shelf/src/sluis.rs:701
+#: shell/polder-shelf/src/sluis.rs:242 shell/polder-shelf/src/sluis.rs:751
 msgid "the mainland has changed meanwhile; not touched"
 msgstr ""
 
@@ -4270,8 +4358,8 @@ msgid "Choose a folder."
 msgstr ""
 
 #: shell/polder-shelf/src/sluis.rs:334 shell/polder-shelf/src/sluis.rs:346
-#: shell/polder-shelf/src/sluis.rs:348 shell/polder-shelf/src/sluis.rs:843
-#: shell/polder-shelf/src/sluis.rs:845
+#: shell/polder-shelf/src/sluis.rs:348 shell/polder-shelf/src/sluis.rs:913
+#: shell/polder-shelf/src/sluis.rs:915
 msgid "create folder"
 msgstr ""
 
@@ -4299,124 +4387,112 @@ msgstr ""
 msgid "also changed on the mainland"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:514
+#: shell/polder-shelf/src/sluis.rs:511
+msgid "The rename destination was not accepted or changed; the original file was kept."
+msgstr ""
+
+#: shell/polder-shelf/src/sluis.rs:563
 msgid "invalid path"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:515
+#: shell/polder-shelf/src/sluis.rs:565
 msgid "already identical on the mainland"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:516
+#: shell/polder-shelf/src/sluis.rs:566
 msgid "conflict: also changed on the mainland"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:618
+#: shell/polder-shelf/src/sluis.rs:668
 #, rust-format
 msgid "{} already exists; Sluis does not touch files it did not create"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:646
+#: shell/polder-shelf/src/sluis.rs:696
 #, rust-format
 msgid "leftover temporary folder {} is not empty; not touched ({})"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:649
+#: shell/polder-shelf/src/sluis.rs:699
 msgid "not created by Sluis (or not recognisable); left untouched"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:666 shell/polder-shelf/src/sluis.rs:667
-#: shell/polder-shelf/src/sluis.rs:668 shell/polder-shelf/src/sluis.rs:670
-#: shell/polder-shelf/src/sluis.rs:671 shell/polder-shelf/src/sluis.rs:730
-#: shell/polder-shelf/src/sluis.rs:832 shell/polder-shelf/src/sluis.rs:877
-#: shell/polder-shelf/src/sluis.rs:881 shell/polder-shelf/src/sluis.rs:882
+#: shell/polder-shelf/src/sluis.rs:716 shell/polder-shelf/src/sluis.rs:717
+#: shell/polder-shelf/src/sluis.rs:718 shell/polder-shelf/src/sluis.rs:720
+#: shell/polder-shelf/src/sluis.rs:721 shell/polder-shelf/src/sluis.rs:790
+#: shell/polder-shelf/src/sluis.rs:902 shell/polder-shelf/src/sluis.rs:950
+#: shell/polder-shelf/src/sluis.rs:954 shell/polder-shelf/src/sluis.rs:955
 msgid "copy"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:687 shell/polder-shelf/src/sluis.rs:689
-#: shell/polder-shelf/src/sluis.rs:692 shell/polder-shelf/src/sluis.rs:698
+#: shell/polder-shelf/src/sluis.rs:737 shell/polder-shelf/src/sluis.rs:739
+#: shell/polder-shelf/src/sluis.rs:742 shell/polder-shelf/src/sluis.rs:748
 msgid "backup"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:709 shell/polder-shelf/src/sluis.rs:846
-#: shell/polder-shelf/src/sluis.rs:882
+#: shell/polder-shelf/src/sluis.rs:769 shell/polder-shelf/src/sluis.rs:916
+#: shell/polder-shelf/src/sluis.rs:955
 msgid "permissions"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:722 shell/polder-shelf/src/sluis.rs:893
+#: shell/polder-shelf/src/sluis.rs:782 shell/polder-shelf/src/sluis.rs:966
 #, rust-format
 msgid "unknown operation {}"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:726 shell/polder-shelf/src/sluis.rs:727
-#: shell/polder-shelf/src/sluis.rs:729
+#: shell/polder-shelf/src/sluis.rs:786 shell/polder-shelf/src/sluis.rs:787
+#: shell/polder-shelf/src/sluis.rs:789
 msgid "no source"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:731 shell/polder-shelf/src/sluis.rs:884
+#: shell/polder-shelf/src/sluis.rs:791 shell/polder-shelf/src/sluis.rs:957
 msgid "the file in the polder has changed meanwhile; review the changes again"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:742
+#: shell/polder-shelf/src/sluis.rs:802
 #, rust-format
 msgid "{} was changed by another program during the merge; that version is kept and nothing was replaced"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:759
+#: shell/polder-shelf/src/sluis.rs:819
 msgid "folder is not empty on the mainland (it contains files the polder does not know)"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:767
+#: shell/polder-shelf/src/sluis.rs:827
 #, rust-format
 msgid "replace: {}"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:782 shell/polder-shelf/src/sluis.rs:869
+#: shell/polder-shelf/src/sluis.rs:842 shell/polder-shelf/src/sluis.rs:942
 #, rust-format
 msgid "folder is not empty on the mainland (it contains files the polder does not know): {x}"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:804
+#: shell/polder-shelf/src/sluis.rs:865 shell/polder-shelf/src/sluis.rs:874
+#: shell/polder-shelf/src/sluis.rs:1075
 #, rust-format
 msgid "{} was changed by another program during the merge; that version was moved to {}"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:807 shell/polder-shelf/src/sluis.rs:1068
+#: shell/polder-shelf/src/sluis.rs:877 shell/polder-shelf/src/sluis.rs:1170
 msgid "delete"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:820
+#: shell/polder-shelf/src/sluis.rs:890
 #, rust-format
 msgid "the backup of {} does not match what was recorded (size/sha256); not restored"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:835
+#: shell/polder-shelf/src/sluis.rs:905
 #, rust-format
 msgid "restoring backup: {x}"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:839 shell/polder-shelf/src/sluis.rs:855
-#: shell/polder-shelf/src/sluis.rs:887
+#: shell/polder-shelf/src/sluis.rs:909 shell/polder-shelf/src/sluis.rs:926
+#: shell/polder-shelf/src/sluis.rs:960
 msgid "unknown operation"
 msgstr ""
 
-#: shell/polder-shelf/src/sluis.rs:906
+#: shell/polder-shelf/src/sluis.rs:979
 msgid "This test polder is busy with another operation (merge, finish or roll back). Try again in a moment."
-msgstr ""
-
-#: shell/polder-shelf/src/sluis.rs:944
-#, rust-format
-msgid "interrupted merge {p} must be finished or rolled back first"
-msgstr ""
-
-#: shell/polder-shelf/src/sluis.rs:949
-msgid "journal already exists"
-msgstr ""
-
-#: shell/polder-shelf/src/sluis.rs:970
-msgid "a rollback of this merge is unfinished; roll back again"
-msgstr ""
-
-#: shell/polder-shelf/src/sluis.rs:971 shell/polder-shelf/src/sluis.rs:1047
-msgid "this merge was rolled back"
 msgstr ""

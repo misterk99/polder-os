@@ -264,7 +264,7 @@ pub fn state_of(p: &Path) -> Res<St> {
 fn state_cached(p: &Path, base: Option<&Entry>) -> Res<St> {
     if let (Some(b), Ok(m)) = (base, fs::symlink_metadata(p)) {
         if let St::File { mode: _, size, hash } = &b.st {
-            if m.file_type().is_file() && m.len() == *size && m.mtime() * 1_000_000_000 + m.mtime_nsec() == b.mtime && m.ino() == b.ino {
+            if b.ino != 0 && m.file_type().is_file() && m.len() == *size && m.mtime() * 1_000_000_000 + m.mtime_nsec() == b.mtime && m.ino() == b.ino {
                 return Ok(St::File { mode: m.mode() & 0o7777, size: *size, hash: hash.clone() });
             }
         }
@@ -499,19 +499,69 @@ pub fn status_of(ch: &[Change], m: &Meta) -> &'static str {
 // ---------------------------------------------------------------- merge plan (dry run)
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Op { pub path: String, pub act: String, pub pre: St, pub post: St, pub src: Option<String> }
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct RenameDependency { pub source: String, pub destination: String, pub post: St }
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
-pub struct Plan { pub ops: Vec<Op>, pub warnings: Vec<String>, pub skipped: Vec<(String, String)> }
+pub struct Plan {
+    pub ops: Vec<Op>, pub warnings: Vec<String>, pub skipped: Vec<(String, String)>,
+    // None identifies pre-dependency journals; Some([]) explicitly means no renames in a new plan.
+    #[serde(default, skip_serializing_if = "Option::is_none")] pub renames: Option<Vec<RenameDependency>>,
+}
+
+fn rename_kept() -> String { tr("The rename destination was not accepted or changed; the original file was kept.").into() }
+fn rename_ready(root: &OwnedFd, dep: Option<&RenameDependency>) -> Res<()> {
+    if let Some(dep) = dep { if state_rel(root, &dep.destination)? != dep.post { return Err(rename_kept()); } }
+    Ok(())
+}
+
+/// Old journals did not record rename relationships. Infer conservative dependencies from content-matching
+/// writes and deletions, so resuming an older failed rename cannot delete its only remaining mainland copy.
+fn rename_dependencies(plan: &Plan) -> Vec<RenameDependency> {
+    if let Some(deps) = &plan.renames { return deps.clone(); }
+    let mut writes: Vec<_> = plan.ops.iter().filter(|o| o.act == "write" && matches!(o.post, St::File { .. })).collect();
+    let mut deletes: Vec<_> = plan.ops.iter().filter(|o| o.act == "delete" && matches!(o.pre, St::File { .. })).collect();
+    writes.sort_by(|a, b| a.path.cmp(&b.path)); deletes.sort_by(|a, b| a.path.cmp(&b.path));
+    let mut used = BTreeSet::new(); let mut deps = vec![];
+    for dst in writes {
+        if let Some(src) = deletes.iter().find(|src| src.pre.same_content(&dst.post) && !used.contains(&src.path)) {
+            used.insert(src.path.clone());
+            deps.push(RenameDependency { source: src.path.clone(), destination: dst.path.clone(), post: dst.post.clone() });
+        }
+    }
+    deps
+}
+
+/// Canonical compact JSON with sorted object keys; arrays retain their operation order.
+pub fn review_token(plan: &Plan) -> String {
+    fn canonical(v: serde_json::Value) -> serde_json::Value {
+        match v {
+            serde_json::Value::Object(m) => serde_json::to_value(m.into_iter().map(|(k, v)| (k, canonical(v))).collect::<BTreeMap<_, _>>()).unwrap(),
+            serde_json::Value::Array(a) => serde_json::Value::Array(a.into_iter().map(canonical).collect()),
+            v => v,
+        }
+    }
+    let bytes = serde_json::to_vec(&canonical(serde_json::to_value(plan).unwrap())).unwrap();
+    hash_reader(&mut bytes.as_slice()).expect("sha256 of an in-memory plan")
+}
 
 /// Build the ops for the selected paths. A conflict is only taken when listed in `force` (explicit "polderversie kiezen").
 pub fn plan_for(origin: &Path, upper: &Path, ch: &[Change], selected: &[String], force: &[String]) -> Plan {
     let mut plan = Plan::default();
     let mut sel: BTreeSet<String> = selected.iter().cloned().collect();
-    for c in ch { if let Some(f) = &c.renamed_from { if sel.contains(&c.path) { sel.insert(f.clone()); } } }  // a rename = add + delete
+    let mut deps = vec![];
+    let mut blocked_sources = BTreeSet::new();
+    for c in ch { if let Some(f) = &c.renamed_from { if sel.contains(&c.path) {
+        sel.insert(f.clone());
+        deps.push(RenameDependency { source: f.clone(), destination: c.path.clone(), post: c.branch.clone() });
+        if !valid_rel(&c.path) || (c.conflict && !force.contains(&c.path)) { blocked_sources.insert(f.clone()); }
+    } } }
+    plan.renames = Some(deps);
     let mut want: Vec<&Change> = ch.iter().filter(|c| sel.contains(&c.path)).collect();
     want.sort_by(|a, b| a.path.cmp(&b.path));
     let mut dirs_needed = BTreeSet::new();
     for c in &want {
         if !valid_rel(&c.path) { plan.skipped.push((c.path.clone(), tr("invalid path").into())); continue; }
+        if blocked_sources.contains(&c.path) { plan.skipped.push((c.path.clone(), rename_kept())); continue; }
         if c.home == c.branch { plan.skipped.push((c.path.clone(), tr("already identical on the mainland").into())); continue; }
         if c.conflict && !force.contains(&c.path) { plan.skipped.push((c.path.clone(), tr("conflict: also changed on the mainland").into())); continue; }
         for w in &c.warnings { plan.warnings.push(format!("{}: {w}", c.path)); }
@@ -700,12 +750,22 @@ fn backup(j: &Path, n: usize, l: &Loc, cur: &St) -> Res<()> {
 }
 fn changed() -> String { tr("the mainland has changed meanwhile; not touched").into() }
 /// Exact precondition check + chmod on the very inode: opened O_PATH|O_NOFOLLOW, so a symlink swapped in is refused.
-fn chmod_exact(l: &Loc, expect: &St, mode: u32) -> Res<()> {
+fn chmod_exact(l: &Loc, expect: &St, expected_id: Option<Full>, mode: u32) -> Res<()> {
     let pf = nf::openat(&l.dir, &l.name, libc::O_PATH | libc::O_NOFOLLOW, 0).map_err(|_| changed())?;
     let st = nf::fstat(&pf).map_err(e("stat"))?;
+    if Some(full(&st)) != expected_id { return Err(changed()); }
     let ok = match expect { St::Dir { mode: m } => nf::is(&st, libc::S_IFDIR) && st.st_mode as u32 & 0o7777 == *m,
                             St::File { mode: m, .. } => nf::is(&st, libc::S_IFREG) && st.st_mode as u32 & 0o7777 == *m, _ => false };
     if !ok { return Err(changed()); }
+    if let St::File { size, hash, .. } = expect {
+        let fd = nf::openat(&l.dir, &l.name, libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK, 0).map_err(|_| changed())?;
+        if full(&nf::fstat(&fd).map_err(e("stat"))?) != full(&st) || st.st_size as u64 != *size { return Err(changed()); }
+        let mut file = fs::File::from(fd);
+        if hash_reader(&mut file)? != *hash { return Err(changed()); }
+    }
+    // Both the opened inode and its name must still denote the state whose contents were validated.
+    if full(&nf::fstat(&pf).map_err(e("stat"))?) != full(&st)
+        || nf::lstatat(&l.dir, &l.name).map_err(e("stat"))?.map(|s| full(&s)) != Some(full(&st)) { return Err(changed()); }
     nf::chmod_fd(&pf, mode).map_err(e(tr("permissions")))
 }
 /// Structural validation of a journal op (plans are read back from disk on resume).
@@ -789,13 +849,14 @@ fn install_staged(j: &Path, key: &str, l: &Loc, tmp: &CStr, staged_dir: bool, ol
 /// Remove the file or symlink at `l` only if it is exactly `expect`: it is first moved aside to an owned staging name
 /// (renameat2 NOREPLACE), verified there (identity + content as in install_staged), and only then unlinked; on a
 /// mismatch it is moved back and a conflict is reported.
-fn remove_verified(j: &Path, key: &str, l: &Loc, expect: &St, f: &Faults, pfx: &str, path: &str) -> Res<()> {
+fn remove_verified(j: &Path, key: &str, l: &Loc, expect: &St, guard: impl Fn() -> Res<()>, f: &Faults, pfx: &str, path: &str) -> Res<()> {
     let (now, st0) = state_stat(l)?;
     if now != *expect { return Err(changed()); }
     let id0 = st0.map(|s| full(&s));
     let tmp = stage_begin(j, key, l, f)?;
     stage_own(j, key, l, &l.name)?;
     f.call(&format!("{pfx}pre-swap:{path}"));
+    if let Err(x) = guard() { stage_end(j, key); return Err(x); }
     if let Err(x) = nf::rename2(&l.dir, &l.name, &tmp, nf::NOREPLACE) { stage_end(j, key); return Err(if x.raw_os_error() == Some(libc::EEXIST) { in_the_way(&tmp) } else { changed() }); }
     nf::fsync(&l.dir);
     let ok = match state_n(&l.dir, &tmp) { Ok((got, st1)) => got == *expect && st1.map(|s| full(&s)) == id0, Err(_) => false };
@@ -803,6 +864,15 @@ fn remove_verified(j: &Path, key: &str, l: &Loc, expect: &St, f: &Faults, pfx: &
         let back = nf::rename2(&l.dir, &tmp, &l.name, nf::NOREPLACE); nf::fsync(&l.dir); stage_end(j, key);
         if back.is_err() { return Err(tf!("{} was changed by another program during the merge; that version was moved to {}", path, tmp.to_string_lossy())); }
         return Err(conflict(path));
+    }
+    f.call(&format!("{pfx}pre-unlink:{path}"));
+    f.check(&format!("{pfx}pre-unlink:{path}"))?;
+    if let Err(x) = guard() {
+        // A rename destination changed while the original was being verified. Put the original name back;
+        // NOREPLACE preserves any new entry another program created there in the meantime.
+        let back = nf::rename2(&l.dir, &tmp, &l.name, nf::NOREPLACE); nf::fsync(&l.dir); stage_end(j, key);
+        if back.is_err() { return Err(tf!("{} was changed by another program during the merge; that version was moved to {}", path, tmp.to_string_lossy())); }
+        return Err(x);
     }
     nf::unlinkat(&l.dir, &tmp, false).map_err(e(tr("delete")))?;
     nf::fsync(&l.dir); stage_end(j, key); Ok(())
@@ -845,9 +915,10 @@ fn stage_dir(j: &Path, key: &str, l: &Loc, tmp: &CStr, mode: u32) -> Res<()> {
     let d = nf::openat(&l.dir, tmp, nf::DIRF, 0).map_err(e(tr("create folder")))?;
     nf::chmod_fd(&d, mode).map_err(e(tr("permissions")))
 }
-fn apply_op(j: &Path, n: usize, root: &OwnedFd, o: &Op, f: &Faults) -> Res<()> {
+fn apply_op(j: &Path, n: usize, root: &OwnedFd, o: &Op, dep: Option<&RenameDependency>, f: &Faults) -> Res<()> {
     let l = locate(root, &o.path)?.ok_or_else(changed)?;
-    if state_at(&l)? != o.pre { return Err(changed()); }                          // revalidate on the fd we will use
+    let (cur, cur_stat) = state_stat(&l)?;
+    if cur != o.pre { return Err(changed()); }                          // revalidate on the fd we will use
     backup(j, n, &l, &o.pre)?;
     log_line(j, &format!("start {n}"))?;
     match o.act.as_str() {
@@ -859,12 +930,14 @@ fn apply_op(j: &Path, n: usize, root: &OwnedFd, o: &Op, f: &Faults) -> Res<()> {
             if state_at(&l)? != o.pre { let _ = nf::unlinkat(&l.dir, &tmp, true); stage_end(j, &key); return Err(changed()); }
             install_staged(j, &key, &l, &tmp, true, &o.pre, f, "", &o.path)?;
         }
-        "chmod" => { f.call(&format!("chmod:{}", o.path)); chmod_exact(&l, &o.pre, o.post.mode().unwrap_or(0o644))?; }
+        "chmod" => { f.call(&format!("chmod:{}", o.path)); chmod_exact(&l, &o.pre, cur_stat.map(|s| full(&s)), o.post.mode().unwrap_or(0o644))?; }
         "delete" => {
             f.call(&format!("delete:{}", o.path));
-            remove_verified(j, &format!("op{n}"), &l, &o.pre, f, "", &o.path)?;
+            rename_ready(root, dep)?;
+            remove_verified(j, &format!("op{n}"), &l, &o.pre, || rename_ready(root, dep), f, "", &o.path)?;
         }
         "rmdir" => {
+            rename_ready(root, dep)?;
             if !matches!(nf::lstatat(&l.dir, &l.name), Ok(Some(ref s)) if nf::is(s, libc::S_IFDIR)) { return Err(changed()); }
             nf::unlinkat(&l.dir, &l.name, true).map_err(|x| tf!("folder is not empty on the mainland (it contains files the polder does not know): {x}" ; x))?;
         }
@@ -964,8 +1037,8 @@ fn drive(j: &Path, f: &Faults) -> Res<Report> {
         match phase(j) {
             Phase::Applying => { let r = run_ops(j, Path::new(&origin), &plan, f, mid.clone())?; write_json(&j.join("report.json"), &r)?;
                                  f.check("ops-done")?; set_phase(j, Phase::Applied)?; f.check("applied")?; }
-            Phase::Applied => { reconcile(j, Path::new(&origin))?; f.check("baseline")?; set_phase(j, Phase::Reconciled)?; f.check("reconciled")?; }
-            Phase::Reconciled => { set_phase(j, Phase::Committed)?; }
+            Phase::Applied => { reconcile(j)?; f.check("baseline")?; set_phase(j, Phase::Reconciled)?; f.check("reconciled")?; }
+            Phase::Reconciled => { reconcile(j)?; set_phase(j, Phase::Committed)?; }
             Phase::Committed => return read_json(&j.join("report.json")),
             Phase::RollingBack | Phase::RollbackPartial => return Err(tr("a rollback of this merge is unfinished; roll back again").into()),
             Phase::RolledBack => return Err(tr("this merge was rolled back").into()),
@@ -976,30 +1049,59 @@ fn baseline_target(j: &Path) -> Option<PathBuf> {
     if !j.join("baseline.before.json").exists() { return None; }
     j.parent().and_then(|r| r.parent()).map(|p| p.join("baseline.json"))
 }
-/// baseline.json := baseline.before.json + the current state of every applied path (deterministic, so re-runnable)
-fn reconcile(j: &Path, origin: &Path) -> Res<()> {
+/// The common ancestor is what this merge applied, not a later mainland edit. Stat caching is disabled for these
+/// entries: pairing a planned hash with metadata read from a later version could otherwise hide an external edit.
+fn reconcile(j: &Path) -> Res<()> {
     let Some(target) = baseline_target(j) else { return Ok(()) };
     let mut b: BTreeMap<String, Entry> = read_json(&j.join("baseline.before.json"))?;
     let r: Report = read_json(&j.join("report.json"))?;
-    rebase(&mut b, origin, &r.done);
+    let (_, plan): (String, Plan) = read_json(&j.join("plan.json"))?;
+    for o in &plan.ops {
+        if !r.done.contains(&o.path) { continue; }
+        if o.post.is_absent() { b.remove(&o.path); }
+        else { b.insert(o.path.clone(), Entry { st: o.post.clone(), mtime: 0, ino: 0 }); }
+    }
     write_json(&target, &b)
+}
+/// A crashed rename deletion can still have its original at the staging name. Re-check the destination before
+/// generic cleanup is allowed to remove that original; if it changed, restore or preserve the original instead.
+fn recover_rename_source(j: &Path, key: &str, l: &Loc, root: &OwnedFd, dep: Option<&RenameDependency>, path: &str) -> Res<()> {
+    let Some(dep) = dep else { return Ok(()) };
+    let Ok(rec) = read_json::<StageRec>(&stage_rec_path(j, key)) else { return Ok(()) };
+    let tmp = nf::cs(&rec.name)?;
+    let Some(st) = nf::lstatat(&l.dir, &tmp).map_err(e("stat"))? else { return Ok(()) };
+    if !rec.ids.contains(&ident(&st)) || rename_ready(root, Some(dep)).is_ok() { return Ok(()) }
+    let back = nf::rename2(&l.dir, &tmp, &l.name, nf::NOREPLACE); nf::fsync(&l.dir); stage_end(j, key);
+    if back.is_err() { return Err(tf!("{} was changed by another program during the merge; that version was moved to {}", path, tmp.to_string_lossy())); }
+    Err(rename_kept())
 }
 fn run_ops(j: &Path, origin: &Path, plan: &Plan, f: &Faults, mid: String) -> Res<Report> {
     let root = nf::open_dir(origin)?;
     let mut r = Report { merge_id: mid, skipped: plan.skipped.clone(), ..Default::default() };
     let done_before = done_set(j);
+    let deps = rename_dependencies(plan);
     let mut notes = vec![];
     for (n, o) in plan.ops.iter().enumerate() {
         f.check(&format!("op:{n}"))?;
         if done_before.contains(&n) { r.done.push(o.path.clone()); continue; }
         let res = (|| -> Res<bool> {
             check_op(o)?;
-            if let Some(l) = locate(&root, &o.path)? { stage_cleanup(j, &format!("op{n}"), &l, &mut notes)?; }   // owned staging of a crashed attempt
+            let dep = deps.iter().find(|d| d.source == o.path);
+            if let Some(l) = locate(&root, &o.path)? {
+                if o.act == "delete" { recover_rename_source(j, &format!("op{n}"), &l, &root, dep, &o.path)?; }
+                stage_cleanup(j, &format!("op{n}"), &l, &mut notes)?;
+            }
             let cur = state_rel(&root, &o.path)?;
             if cur == o.post { return Ok(false); }                       // already applied (resume)
             if cur != o.pre { return Err(changed()); }                   // exact: type, content AND mode
+            // A legacy plan may have skipped a rename destination entirely, leaving no post state from which
+            // to reconstruct its dependency. Preserve uncertain originals; a fresh preview can select them again.
+            if plan.renames.is_none() && dep.is_none() && o.act == "delete" && matches!(o.pre, St::File { .. }) && !plan.skipped.is_empty() { return Err(rename_kept()); }
+            if let Some(dep) = dep {
+                if plan.ops.iter().any(|dst| dst.path == dep.destination) && !r.done.contains(&dep.destination) { return Err(rename_kept()); }
+            }
             f.call(&format!("pre-op:{}", o.path));
-            apply_op(j, n, &root, o, f)?; Ok(true)
+            apply_op(j, n, &root, o, dep, f)?; Ok(true)
         })();
         match res {
             Ok(_) => { log_line(j, &format!("done {n}"))?; r.done.push(o.path.clone()); }
@@ -1060,14 +1162,14 @@ fn rollback_locked(jroot: &Path, mid: Option<&str>, f: &Faults) -> Res<Report> {
             // a path that did not exist before (pre Absent) and whose parent is missing or not a folder holds nothing to undo
             let l = match locate(&root, &o.path) { Ok(Some(l)) => l, Ok(None) | Err(_) if o.pre.is_absent() => return Ok(false), Ok(None) => return Err(changed()), Err(x) => return Err(x) };
             stage_cleanup(&j, &format!("op{n}"), &l, &mut notes)?; stage_cleanup(&j, &format!("rb{n}"), &l, &mut notes)?;
-            let cur = state_at(&l)?;
+            let (cur, cur_stat) = state_stat(&l)?;
             if cur == o.pre { return Ok(false); }                                 // never applied, or already restored
             if cur != o.post { return Err(tr("changed after the merge; not restored").into()); }
             f.check(&format!("rollback-op:{n}"))?;
             match (&o.pre, o.act.as_str()) {
                 (St::Absent, _) if matches!(o.post, St::Dir { .. }) => nf::unlinkat(&l.dir, &l.name, true).map_err(e(tr("delete")))?,
-                (St::Absent, _) => remove_verified(&j, &format!("rb{n}"), &l, &o.post, f, "rollback-", &o.path)?,
-                (St::Dir { mode }, "chmod") | (St::File { mode, .. }, "chmod") => chmod_exact(&l, &o.post, *mode)?,
+                (St::Absent, _) => remove_verified(&j, &format!("rb{n}"), &l, &o.post, || Ok(()), f, "rollback-", &o.path)?,
+                (St::Dir { mode }, "chmod") | (St::File { mode, .. }, "chmod") => chmod_exact(&l, &o.post, cur_stat.map(|s| full(&s)), *mode)?,
                 (St::Dir { mode }, _) => { let key = format!("rb{n}"); let tmp = stage_begin(&j, &key, &l, f)?; stage_dir(&j, &key, &l, &tmp, *mode)?; install_staged(&j, &key, &l, &tmp, true, &cur, f, "rollback-", &o.path)?; }
                 _ => { let key = format!("rb{n}"); let tmp = stage_begin(&j, &key, &l, f)?; stage_backup(&j, n, &key, &l, &tmp, &o.pre)?; install_staged(&j, &key, &l, &tmp, false, &cur, f, "rollback-", &o.path)?; }
             }
@@ -1108,9 +1210,18 @@ fn jroot_of(id: &str) -> Res<PathBuf> { Ok(polder_dir(id)?.join("journal")) }
 pub fn pending_merge(id: &str) -> Option<String> { pending_in(&jroot_of(id).ok()?) }
 pub fn pending_state(id: &str) -> Option<(String, Phase)> { pending_state_in(&jroot_of(id).ok()?) }
 pub fn merge(id: &str, selected: &[String], force: &[String]) -> Res<Report> {
+    merge_with_review(id, selected, force, None)
+}
+/// Apply exactly the plan the user previewed. Rebuild and compare under the same lock used for the merge,
+/// before creating a journal or touching the mainland.
+pub fn merge_reviewed(id: &str, selected: &[String], force: &[String], token: &str) -> Res<Report> {
+    merge_with_review(id, selected, force, Some(token))
+}
+fn merge_with_review(id: &str, selected: &[String], force: &[String], token: Option<&str>) -> Res<Report> {
     let _lock = lock_polder(id)?;                 // before reading anything: plan, ops and reconciliation under one lock
     let m = meta(id)?; if m.archived { return Err(tr("This test polder is archived.").into()); }
     let p = plan(id, selected, force)?;
+    if let Some(token) = token { if review_token(&p) != token { return Err(tr("The files changed since the preview. Review the changes again.").into()); } }
     let d = polder_dir(id)?;
     apply_plan_locked(&d.join("journal"), Path::new(&m.origin), &p, Some(&d.join("baseline.json")), &Faults::from_env())
 }

@@ -29,6 +29,8 @@ Components: `polder-sluisd` (CLI + small notification daemon) and `polder-sluis`
 - Discard, archive and disk usage; the daemon warns about an unfinished merge, a polder > 2 GB, and < 5% free disk.
 - Integration: Thunar right-click "Openen in Sluis", a launcher entry, and a shelf badge ("polder") on terminals
   started in a polder (app_id `nl.polderos.sluis.<id>`, title `[Proefpolder: name] …`).
+- The change list refreshes when Sluis regains focus and has a Refresh button. Running terminals are counted;
+  closing Sluis while they are active asks for confirmation because closing also stops those programs.
 
 ## Honest limits
 - **This is not a VM and not a hardened sandbox.** The same kernel; no seccomp filter yet; the Wayland socket is
@@ -50,9 +52,14 @@ Components: `polder-sluisd` (CLI + small notification daemon) and `polder-sluis`
 - The network toggle is per polder, not per program.
 
 ## CLI
-`polder-sluisd list | create <dir> [name] [description] | info|changes|plan <id> [paths] | merge <id> <paths…> [--force P] |
-pending|resume|rollback <id> | discard|archive|unarchive <id> | network <id> on|off | du | run <id> [--net] [--terminal] [-- cmd] | daemon`
+`polder-sluisd list | create <name> <dir> [description] | info|changes|plan <id> [paths] | merge <id> [--review-token TOKEN] <paths…> [--force P] |
+pending|resume <id> | rollback <id> [merge-id] | discard|archive|unarchive <id> | network <id> on|off | du | run <id> [--net] [--terminal] [-- cmd] | daemon`
 (JSON output). `merge` without paths refuses.
+
+`plan` returns a `review_token` alongside its operations. The desktop app passes that token and the same selected
+paths to `merge`; Sluis recomputes the plan under the workspace lock and refuses it if either version has changed
+since the preview. CLI callers can use the same option. Runner options (`--net`, `--terminal`) are only interpreted
+before `--`; everything after it is passed to the child command unchanged.
 
 ## Safety and recovery guarantees (review fixes)
 
@@ -60,7 +67,8 @@ pending|resume|rollback <id> | discard|archive|unarchive <id> | network <id> on|
   in the inventory directly under the canonical `polders` dir; the canonical path is re-checked before every read,
   write and delete. `rm_rf` is fd-relative and never follows symlinks (inode checked on every directory it enters).
 * **Merge state machine** (`journal/<merge-id>/state`): `applying` → `applied` → `reconciled` → `committed`.
-  `baseline.before.json` is saved before the first mainland change; reconciliation rebuilds `baseline.json` from it,
+  `baseline.before.json` is saved before the first mainland change; reconciliation rebuilds `baseline.json` from it
+  and the successfully applied states in the journal, preserving later mainland edits as conflicts,
   so every step can be re-run after a crash (`resume`). Rollback: `rolling-back` → `rolled-back` only when every op and
   the baseline were restored; otherwise `rollback-partial` (still pending, details in `rollback.json`, shown in the app,
   retry with *Roll back*).
@@ -72,13 +80,15 @@ pending|resume|rollback <id> | discard|archive|unarchive <id> | network <id> on|
   the target and put in place with `renameat2(RENAME_EXCHANGE)` (or an atomic `renameat`/`RENAME_NOREPLACE` when no
   folder is involved); the old object is removed only after the swap. At every instant the target is either the old
   or the new object, never absent; stale staging is cleaned on resume/rollback. Rollback restages the saved original
-  the same way (hard link or copy from the journal, so it also works when the journal is on another filesystem).
+  the same way (an independent verified copy from the journal, also across filesystems).
   Writes that replace a folder run after the deletions that empty it.
 * **History**: only the newest merge that is not rolled back can be undone ("Roll back the newer merge(s) first"), so a
   historical rollback can never restore a baseline snapshot that predates later merges.
 * **Locking**: merge (pending check + ops + reconciliation), resume, rollback and discard hold an exclusive `flock` on
-  `journal/.lock`; a second operation gets "This test polder is busy…" (`polder-sluisd` exits 75 with `"busy": true`,
+  `locks/<id>.lock` outside the workspace; a second operation gets "This test polder is busy…" (`polder-sluisd` exits 75 with `"busy": true`,
   the app shows it as a message). The kernel releases the lock when the process exits or crashes.
+* **Renames**: a selected rename only removes its source after the destination was accepted and successfully
+  installed. A conflicted, failed or subsequently changed destination leaves the source in place.
 
 ## Staging ownership and locks
 

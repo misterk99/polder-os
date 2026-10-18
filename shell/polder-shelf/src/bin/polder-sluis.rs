@@ -8,7 +8,7 @@
 #[path = "../theme.rs"] mod theme;
 use gtk::{gio, glib, pango, prelude::*};
 use serde_json::{json, Value};
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::{Cell, RefCell}, io::{Read, Seek, SeekFrom}, rc::Rc};
 
 fn sluisd() -> String {
     if let Ok(p) = std::env::var("POLDER_SLUISD") { return p; }
@@ -68,8 +68,93 @@ struct App {
     win: gtk::ApplicationWindow, plist: gtk::ListBox, detail: gtk::Box, toast: gtk::Revealer, toast_l: gtk::Label,
     polders: Vec<Value>, cur: Option<String>, changes: Value, selected: std::collections::BTreeSet<String>,
     force: std::collections::BTreeSet<String>, diff: gtk::Box, busy: bool,
+    generation: u64, sessions: Vec<Session>, session_status: gtk::Label, allow_close: bool, close_prompt: bool,
 }
 type A = Rc<RefCell<App>>;
+
+struct Session {
+    child: std::process::Child, id: String, output: std::fs::File, wait_error_shown: bool,
+}
+
+fn next_generation(a: &A) -> u64 { let mut x = a.borrow_mut(); x.generation += 1; x.generation }
+fn choose(a: &A, id: Option<String>) {
+    let detail = {
+        let mut x = a.borrow_mut();
+        if x.cur == id { return; }
+        x.selected.clear(); x.force.clear(); x.cur = id;
+        x.detail.clone()
+    };
+    clear(&detail); detail.append(&lbl(tr("Loading changes…"), "sub"));
+}
+
+fn update_session_status(a: &A) {
+    let x = a.borrow();
+    x.session_status.set_label(&tf!("Running terminals: {}", x.sessions.len()));
+}
+
+/// Keep launch diagnostics private without leaving temporary files behind after a crash.
+fn session_output() -> std::io::Result<std::fs::File> {
+    use std::os::unix::fs::OpenOptionsExt;
+    static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    loop {
+        let p = std::env::temp_dir().join(format!("polder-sluis-{}-{}.log", std::process::id(), SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
+        match std::fs::OpenOptions::new().read(true).write(true).create_new(true).mode(0o600).open(&p) {
+            Ok(f) => { std::fs::remove_file(p)?; return Ok(f); }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+fn start_terminal(a: &A, id: &str) {
+    let launch = (|| -> std::io::Result<Session> {
+        let output = session_output()?;
+        let child = std::process::Command::new(sluisd()).args(["run", id, "--terminal"])
+            .stdin(std::process::Stdio::null()).stdout(output.try_clone()?).stderr(output.try_clone()?).spawn()?;
+        Ok(Session { child, id: id.into(), output, wait_error_shown: false })
+    })();
+    match launch {
+        Ok(s) => { a.borrow_mut().sessions.push(s); update_session_status(a); toast(a, tr("Starting terminal in the test polder…")); }
+        Err(e) => toast(a, &tf!("Could not start the terminal: {}", e)),
+    }
+}
+
+fn session_failure(output: &str) -> String {
+    let text = output.trim();
+    if let Ok(v) = serde_json::from_str::<Value>(text) { if let Some(e) = err_of(&v) { return e; } }
+    if text.is_empty() { tr("The terminal stopped unexpectedly.").into() } else { text.chars().take(1000).collect() }
+}
+
+fn poll_sessions(a: &A) {
+    let mut completed = vec![];
+    let mut errors = vec![];
+    {
+        let mut x = a.borrow_mut();
+        for n in (0..x.sessions.len()).rev() {
+            match x.sessions[n].child.try_wait() {
+                Ok(Some(status)) => completed.push((x.sessions.remove(n), status)),
+                Ok(None) => {},
+                Err(e) if !x.sessions[n].wait_error_shown => {
+                    x.sessions[n].wait_error_shown = true;
+                    errors.push(tf!("Could not check the terminal: {}", e));
+                }
+                Err(_) => {},
+            }
+        }
+    }
+    for e in errors { toast(a, &e); }
+    if completed.is_empty() { return; }
+    update_session_status(a);
+    for (mut session, status) in completed {
+        if !status.success() {
+            let mut output = String::new();
+            let _ = session.output.seek(SeekFrom::Start(0));
+            let _ = session.output.take(16 * 1024).read_to_string(&mut output);
+            toast(a, &tf!("Terminal in ‘{}’: {}", session.id, session_failure(&output)));
+        }
+    }
+    reload(a, None);
+}
 
 fn tilde(p: &str) -> String { let h = std::env::var("HOME").unwrap_or_default(); if !h.is_empty() && p.starts_with(&h) { format!("~{}", &p[h.len()..]) } else { p.to_string() } }
 fn lbl(t: &str, cls: &str) -> gtk::Label { let l = gtk::Label::builder().label(t).xalign(0.0).wrap(!cls.split(' ').any(|c| c == "tag")).build(); l.set_wrap_mode(pango::WrapMode::WordChar); if !cls.is_empty() { for c in cls.split(' ') { l.add_css_class(c); } } l }
@@ -89,7 +174,7 @@ fn bg(a: &A, args: Vec<String>, done: impl FnOnce(&A, Value) + 'static) {
     });
 }
 
-fn dialog(a: &A, title: &str, body: &gtk::Widget, ok: &str, danger: bool, on_ok: impl Fn() + 'static) {
+fn dialog(a: &A, title: &str, body: &gtk::Widget, ok: &str, danger: bool, on_ok: impl Fn() + 'static) -> gtk::Window {
     let parent = a.borrow().win.clone();
     let d = gtk::Window::builder().transient_for(&parent).modal(true).resizable(false).default_width(500).title(title).build();
     d.add_css_class("sl");
@@ -100,13 +185,17 @@ fn dialog(a: &A, title: &str, body: &gtk::Widget, ok: &str, danger: bool, on_ok:
     row.append(&c); row.append(&o); v.append(&row); d.set_child(Some(&v));
     let d1 = d.clone(); c.connect_clicked(move |_| d1.close());
     let d2 = d.clone(); o.connect_clicked(move |_| { d2.close(); on_ok(); });
-    d.present();
+    d.present(); d
 }
 
 // ------------------------------------------------------------------ list + detail
 fn reload(a: &A, select: Option<String>) {
+    if select.is_some() { choose(a, select); }
+    let generation = next_generation(a);
     bg(a, vec!["list".into()], move |a, v| {
-        let polders = v.as_array().cloned().unwrap_or_default();
+        if a.borrow().generation != generation { return; }
+        if let Some(e) = err_of(&v) { toast(a, &e); return; }
+        let Some(polders) = v.as_array().cloned() else { toast(a, tr("Could not load the test polders.")); return; };
         let plist = a.borrow().plist.clone();
         while let Some(c) = plist.first_child() { plist.remove(&c); }
         for p in &polders {
@@ -124,13 +213,13 @@ fn reload(a: &A, select: Option<String>) {
             r.set_child(Some(&b)); unsafe { r.set_data("id", p["meta"]["id"].as_str().unwrap_or("").to_string()); }
             plist.append(&r);
         }
-        let want = select.or_else(|| a.borrow().cur.clone()).filter(|w| polders.iter().any(|p| p["meta"]["id"].as_str() == Some(w)))
+        let want = a.borrow().cur.clone().filter(|w| polders.iter().any(|p| p["meta"]["id"].as_str() == Some(w)))
             .or_else(|| polders.first().and_then(|p| p["meta"]["id"].as_str().map(String::from)));
         a.borrow_mut().polders = polders.clone();
         if let Some(w) = want {
             let mut i = 0; while let Some(r) = plist.row_at_index(i) { if unsafe { r.data::<String>("id").map(|d| d.as_ref() == &w).unwrap_or(false) } { plist.select_row(Some(&r)); break; } i += 1; }
             open(a, &w);
-        } else { a.borrow_mut().cur = None; empty_state(a); }
+        } else { choose(a, None); empty_state(a); }
     });
 }
 fn empty_state(a: &A) {
@@ -148,9 +237,38 @@ fn status_label(st: &str) -> String { match st { "Actief" => tr("Active"), "Klaa
 fn polder(a: &A, id: &str) -> Value { a.borrow().polders.iter().find(|p| p["meta"]["id"].as_str() == Some(id)).cloned().unwrap_or(Value::Null) }
 
 fn open(a: &A, id: &str) {
-    { let mut x = a.borrow_mut(); if x.cur.as_deref() != Some(id) { x.selected.clear(); x.force.clear(); } x.cur = Some(id.to_string()); }
+    choose(a, Some(id.to_string()));
+    let generation = next_generation(a);
     let id2 = id.to_string();
-    bg(a, vec!["changes".into(), id.into()], move |a, v| { a.borrow_mut().changes = v; render(a, &id2); });
+    bg(a, vec!["changes".into(), id.into()], move |a, v| {
+        if a.borrow().generation != generation || a.borrow().cur.as_deref() != Some(&id2) { return; }
+        {
+            let mut x = a.borrow_mut();
+            if let Some(changes) = v["changes"].as_array() {
+                x.selected.retain(|p| changes.iter().any(|c| c["path"].as_str() == Some(p) && c["home"] != c["branch"]));
+                let old = x.changes.clone();
+                x.force.retain(|p| changes.iter().any(|c| c["path"].as_str() == Some(p) && c["conflict"] == true
+                    && old["changes"].as_array().map(|cs| cs.iter().any(|o| o["path"] == c["path"] && o["home"] == c["home"] && o["branch"] == c["branch"])).unwrap_or(false)));
+            }
+            x.changes = v;
+        }
+        render(a, &id2);
+    });
+}
+
+fn set_network(a: &A, id: &str, on: bool, sw: &gtk::Switch, updating: &Rc<Cell<bool>>) {
+    let old = sw.state();
+    sw.set_sensitive(false);
+    let (sw, updating) = (sw.clone(), updating.clone());
+    bg(a, vec!["network".into(), id.into(), if on { "on" } else { "off" }.into()], move |a, v| {
+        let error = err_of(&v);
+        let state = if error.is_some() { old } else { on };
+        updating.set(true); sw.set_active(state); sw.set_state(state); updating.set(false);
+        sw.set_sensitive(true);
+        if let Some(e) = error { toast(a, &e); }
+        else { toast(a, if on { tr("Internet is on for new programs in this test polder") } else { tr("Internet is off for new programs in this test polder") }); }
+        reload(a, None);
+    });
 }
 
 fn render(a: &A, id: &str) {
@@ -173,21 +291,25 @@ fn render(a: &A, id: &str) {
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     let term = btn(tr("Terminal in the polder"), "pill"); term.set_sensitive(!archived);
     let a2 = a.clone(); let i2 = id.to_string(); term.connect_clicked(move |_| {
-        let _ = std::process::Command::new(sluisd()).args(["run", &i2, "--terminal"]).spawn();
-        toast(&a2, tr("Terminal starts in the test polder"));
+        start_terminal(&a2, &i2);
     });
     row.append(&term);
     let netl = lbl(tr("Internet"), "sub"); netl.set_wrap(false); netl.set_margin_start(8); row.append(&netl);
     let sw = gtk::Switch::new(); sw.set_active(m["network"].as_bool().unwrap_or(false)); sw.set_valign(gtk::Align::Center); sw.set_sensitive(!archived);
+    sw.set_tooltip_text(Some(tr("Applies to newly started programs. Running programs keep their internet access.")));
+    let updating = Rc::new(Cell::new(false));
     let a2 = a.clone(); let i2 = id.to_string();
     sw.connect_state_set(move |s, on| {
-        if !on { let a3 = a2.clone(); bg(&a2, vec!["network".into(), i2.clone(), "off".into()], move |a, _| { toast(a, tr("Internet is off in this test polder")); let _ = a3; }); return glib::Propagation::Proceed; }
+        if updating.get() { return glib::Propagation::Proceed; }
+        // The active thumb follows the user gesture; restore it until persistence succeeds.
+        let old = s.state();
+        updating.set(true); s.set_active(old); updating.set(false);
+        if !on { set_network(&a2, &i2, false, s, &updating); return glib::Propagation::Stop; }
         let body = lbl(tr("With internet, programs in the test polder can send data, download or do things online. Sluis cannot undo that: only files in your project folder stay in the polder. Only turn it on for programs you trust."), "sub");
         body.set_max_width_chars(56);
-        let (a3, i3, s2) = (a2.clone(), i2.clone(), s.clone());
+        let (a3, i3, s2, updating2) = (a2.clone(), i2.clone(), s.clone(), updating.clone());
         dialog(&a2, tr("Turn on internet in this test polder?"), body.upcast_ref(), tr("Turn on internet"), true, move || {
-            bg(&a3, vec!["network".into(), i3.clone(), "on".into()], |a, _| toast(a, tr("Internet is on for new programs in this test polder")));
-            s2.set_active(true);
+            set_network(&a3, &i3, true, &s2, &updating2);
         });
         glib::Propagation::Stop
     });
@@ -195,8 +317,8 @@ fn render(a: &A, id: &str) {
     let sp = gtk::Box::new(gtk::Orientation::Horizontal, 0); sp.set_hexpand(true); row.append(&sp);
     let arch = btn(if archived { tr("Unarchive") } else { tr("Archive") }, "flat2");
     let a2 = a.clone(); let i2 = id.to_string();
-    arch.connect_clicked(move |_| { let i3 = i2.clone(); bg(&a2, vec![if archived { "unarchive" } else { "archive" }.into(), i2.clone()], move |a, v| {
-        if let Some(e) = err_of(&v) { toast(a, &e) } else { toast(a, if archived { tr("Test polder is active again") } else { tr("Test polder archived") }); reload(a, Some(i3)); } }); });
+    arch.connect_clicked(move |_| { bg(&a2, vec![if archived { "unarchive" } else { "archive" }.into(), i2.clone()], move |a, v| {
+        if let Some(e) = err_of(&v) { toast(a, &e) } else { toast(a, if archived { tr("Test polder is active again") } else { tr("Test polder archived") }); reload(a, None); } }); });
     row.append(&arch);
     let del = btn(tr("Discard"), "flat2 danger");
     let a2 = a.clone(); let i2 = id.to_string(); let name = m["name"].as_str().unwrap_or("").to_string();
@@ -204,7 +326,7 @@ fn render(a: &A, id: &str) {
         let body = lbl(&tf!("All changes in ‘{name}’ that you have not merged will be lost. Your original folder stays as it is." ; name), "sub"); body.set_max_width_chars(56);
         let (a3, i3) = (a2.clone(), i2.clone());
         dialog(&a2, tr("Discard test polder?"), body.upcast_ref(), tr("Discard"), true, move || bg(&a3, vec!["discard".into(), i3.clone()], |a, v| {
-            if let Some(e) = err_of(&v) { toast(a, &e) } else { a.borrow_mut().cur = None; toast(a, tr("Test polder discarded")); reload(a, None); } }));
+            if let Some(e) = err_of(&v) { toast(a, &e) } else { toast(a, tr("Test polder discarded")); reload(a, None); } }));
     });
     row.append(&del);
     d.append(&row);
@@ -222,8 +344,8 @@ fn render(a: &A, id: &str) {
         let f = btn(tr("Finish"), "pill"); f.set_sensitive(!partial); let r = btn(tr("Roll back"), "flat2");
         for (w, cmd) in [(&f, "resume"), (&r, "rollback")] {
             let a2 = a.clone(); let i2 = id.to_string(); let c = cmd.to_string(); let _ = pm;
-            w.connect_clicked(move |_| { let i3 = i2.clone(); let c2 = c.clone(); bg(&a2, vec![c.clone(), i2.clone()], move |a, v| {
-                if let Some(e) = err_of(&v) { toast(a, &e) } else { let r = &v["report"]; toast(a, &tf!("{}: {} file(s), {} failed", if c2 == "resume" { tr("Finished") } else { tr("Rolled back") }, r["done"].as_array().map(|x| x.len()).unwrap_or(0), r["failed"].as_array().map(|x| x.len()).unwrap_or(0))); reload(a, Some(i3)); } }); });
+            w.connect_clicked(move |_| { let c2 = c.clone(); bg(&a2, vec![c.clone(), i2.clone()], move |a, v| {
+                if let Some(e) = err_of(&v) { toast(a, &e) } else { let r = &v["report"]; toast(a, &tf!("{}: {} file(s), {} failed", if c2 == "resume" { tr("Finished") } else { tr("Rolled back") }, r["done"].as_array().map(|x| x.len()).unwrap_or(0), r["failed"].as_array().map(|x| x.len()).unwrap_or(0))); reload(a, None); } }); });
             w.set_valign(gtk::Align::Center); b.append(w);
         }
         d.append(&b);
@@ -393,12 +515,25 @@ fn sel_args(a: &A) -> Vec<String> {
     for p in &x.selected { if x.force.contains(p) { v.push("--force".into()); } v.push(p.clone()); }
     v
 }
+fn reviewed_merge_args(id: &str, chosen: &[String], preview: &Value) -> Result<Vec<String>, String> {
+    let token = preview["review_token"].as_str().filter(|s| !s.is_empty())
+        .ok_or_else(|| tr("This preview cannot be verified. Refresh and review the changes again.").to_string())?;
+    let mut args = vec!["merge".into(), id.into(), "--review-token".into(), token.into()];
+    args.extend_from_slice(chosen);
+    Ok(args)
+}
 fn dry_run(a: &A, id: &str) {
     if a.borrow().selected.is_empty() { toast(a, tr("Select one or more changes first")); return; }
-    let mut args = vec!["plan".into(), id.into()]; args.extend(sel_args(a));
+    let chosen = sel_args(a);
+    let mut args = vec!["plan".into(), id.into()]; args.extend(chosen.clone());
     let id2 = id.to_string();
     bg(a, args, move |a, v| {
+        if a.borrow().cur.as_deref() != Some(&id2) { return; }
         if let Some(e) = err_of(&v) { toast(a, &e); return; }
+        let merge_args = match reviewed_merge_args(&id2, &chosen, &v) {
+            Ok(args) => args,
+            Err(e) => { toast(a, &e); reload(a, None); return; }
+        };
         let ops = v["ops"].as_array().cloned().unwrap_or_default();
         let body = gtk::Box::new(gtk::Orientation::Vertical, 8);
         body.append(&lbl(tr("Dry run: this is how your original folder will change. Nothing has been changed yet."), "sub"));
@@ -415,16 +550,15 @@ fn dry_run(a: &A, id: &str) {
         if ops.is_empty() { dialog(a, tr("Nothing to merge"), body.upcast_ref(), tr("Close"), false, || {}); return; }
         let (a2, i2) = (a.clone(), id2.clone());
         dialog(a, &tf!("Merge {} change(s)?", ops.len()), body.upcast_ref(), tr("Merge"), false, move || {
-            let mut args = vec!["merge".into(), i2.clone()]; args.extend(sel_args(&a2));
             let i3 = i2.clone();
-            bg(&a2, args, move |a, v| {
-                if let Some(e) = err_of(&v) { toast(a, &tf!("Merge failed: {e}" ; e)); reload(a, Some(i3)); return; }
+            bg(&a2, merge_args.clone(), move |a, v| {
+                if let Some(e) = err_of(&v) { toast(a, &format!("{} {}", tf!("Merge failed: {e}" ; e), tr("Refresh and review the changes again."))); reload(a, None); return; }
                 let r = &v["report"]; let nf = r["failed"].as_array().map(|x| x.len()).unwrap_or(0);
                 let msg = if nf == 0 { tf!("{} change(s) merged to the mainland", r["done"].as_array().map(|x| x.len()).unwrap_or(0)) }
                           else { tf!("{} merged, {nf} not: {}", r["done"].as_array().map(|x| x.len()).unwrap_or(0), r["failed"][0][1].as_str().unwrap_or("") ; nf) };
                 toast(a, &msg);
-                { let mut x = a.borrow_mut(); x.selected.clear(); x.force.clear(); }
-                reload(a, Some(i3));
+                { let mut x = a.borrow_mut(); if x.cur.as_deref() == Some(&i3) { x.selected.clear(); x.force.clear(); } }
+                reload(a, None);
             });
         });
     });
@@ -489,6 +623,8 @@ fn build(app: &gtk::Application, new_folder: Option<String>) -> A {
     let tv = gtk::Box::new(gtk::Orientation::Vertical, 0); tv.append(&lbl(tr("Sluis"), "h1")); tv.append(&lbl(tr("Test polders"), "sub")); hb.append(&tv);
     side.append(&hb);
     let nb = btn(tr("New test polder"), "pill"); side.append(&nb);
+    let refresh = btn(tr("Refresh"), "flat2"); side.append(&refresh);
+    let session_status = lbl("", "sub"); side.append(&session_status);
     let plist = gtk::ListBox::new(); plist.add_css_class("polders");
     side.append(&gtk::ScrolledWindow::builder().child(&plist).vexpand(true).hscrollbar_policy(gtk::PolicyType::Never).build());
     root.append(&side);
@@ -500,10 +636,36 @@ fn build(app: &gtk::Application, new_folder: Option<String>) -> A {
     let toast = gtk::Revealer::builder().child(&toast_l).halign(gtk::Align::Center).valign(gtk::Align::End).margin_bottom(60).build();
     ov.add_overlay(&toast); win.set_child(Some(&ov));
     let a = Rc::new(RefCell::new(App { win: win.clone(), plist: plist.clone(), detail, toast, toast_l, polders: vec![], cur: None, changes: Value::Null,
-        selected: Default::default(), force: Default::default(), diff: gtk::Box::new(gtk::Orientation::Vertical, 0), busy: false }));
+        selected: Default::default(), force: Default::default(), diff: gtk::Box::new(gtk::Orientation::Vertical, 0), busy: false,
+        generation: 0, sessions: vec![], session_status, allow_close: false, close_prompt: false }));
     let a2 = a.clone(); nb.connect_clicked(move |_| new_dialog(&a2, None));
+    let a2 = a.clone(); refresh.connect_clicked(move |_| reload(&a2, None));
     let a2 = a.clone();
     plist.connect_row_activated(move |_, r| { if let Some(id) = unsafe { r.data::<String>("id").map(|d| d.as_ref().clone()) } { reload(&a2, Some(id)); } });
+    let a2 = a.clone();
+    win.connect_close_request(move |_| {
+        poll_sessions(&a2);
+        let (count, allow, prompt) = { let x = a2.borrow(); (x.sessions.len(), x.allow_close, x.close_prompt) };
+        if allow || count == 0 { return glib::Propagation::Proceed; }
+        if prompt { return glib::Propagation::Stop; }
+        a2.borrow_mut().close_prompt = true;
+        let body = lbl(&tf!("Closing Sluis stops all {} running terminals and their programs. Unsaved work may be lost. Keep Sluis open until they finish, or close and stop them now.", count), "sub");
+        body.set_max_width_chars(56);
+        let a3 = a2.clone();
+        let d = dialog(&a2, tr("Stop running programs and close Sluis?"), body.upcast_ref(), tr("Close and stop programs"), true, move || {
+            a3.borrow_mut().allow_close = true;
+            let win = a3.borrow().win.clone(); win.close();
+        });
+        let a3 = a2.clone(); d.connect_destroy(move |_| a3.borrow_mut().close_prompt = false);
+        glib::Propagation::Stop
+    });
+    let a2 = a.clone(); win.connect_is_active_notify(move |w| { if w.is_active() { reload(&a2, None); } });
+    let weak = Rc::downgrade(&a);
+    glib::timeout_add_seconds_local(1, move || {
+        let Some(a) = weak.upgrade() else { return glib::ControlFlow::Break; };
+        poll_sessions(&a); glib::ControlFlow::Continue
+    });
+    update_session_status(&a);
     win.present();
     reload(&a, None);
     if let Some(f) = new_folder { let a2 = a.clone(); glib::timeout_add_local_once(std::time::Duration::from_millis(300), move || new_dialog(&a2, Some(f))); }
@@ -517,4 +679,31 @@ fn main() -> glib::ExitCode {
     let keep: Rc<RefCell<Option<A>>> = Rc::new(RefCell::new(None)); let k = keep.clone();
     app.connect_activate(move |ap| { if k.borrow().is_none() { *k.borrow_mut() = Some(build(ap, new_folder.clone())); } });
     app.run_with_args::<&str>(&[])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn confirmation_uses_the_reviewed_selection_and_token() {
+        let mut chosen = vec!["--force".into(), "a file".into(), "nested/b".into()];
+        let args = reviewed_merge_args("project", &chosen, &json!({"review_token": "reviewed-content"})).unwrap();
+        chosen.clear(); // A subsequent refresh or selection edit cannot change the reviewed request.
+        assert_eq!(args, ["merge", "project", "--review-token", "reviewed-content", "--force", "a file", "nested/b"]);
+    }
+
+    #[test]
+    fn confirmation_refuses_a_missing_or_empty_review_token() {
+        for preview in [json!({"ops": []}), json!({"review_token": ""}), json!({"review_token": null})] {
+            assert!(reviewed_merge_args("project", &["f".into()], &preview).is_err());
+        }
+    }
+
+    #[test]
+    fn failed_terminal_launch_reports_cli_and_bubblewrap_errors() {
+        assert_eq!(session_failure(r#"{"ok":false,"error":"This test polder is busy","busy":true}"#), "This test polder is busy");
+        assert_eq!(session_failure("bwrap: Creating new namespace failed\n"), "bwrap: Creating new namespace failed");
+        assert!(!session_failure("").is_empty());
+    }
 }

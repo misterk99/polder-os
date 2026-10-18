@@ -813,3 +813,190 @@ fn changes_by_other_programs_just_before_the_swap_are_kept() {
         let r = rollback_in(&t.j, None, &Faults::none()).unwrap(); assert!(!r.rolled_back, "user edits must still block: {:?}", r);
     }
 }
+
+// These regressions construct regular upper files directly, so the safety checks also run without overlayfs.
+fn rename_case(name: &str, conflicting_destination: bool) -> (T, Vec<Change>) {
+    let t = setup(name, "printf 'original\n' > a");
+    fs::copy(t.home.join("a"), t.upper.join("b")).unwrap();
+    if conflicting_destination { fs::write(t.home.join("b"), "mainland\n").unwrap(); }
+    let original = t.base["a"].st.clone(); let destination = state_of(&t.upper.join("b")).unwrap();
+    let home_b = state_of(&t.home.join("b")).unwrap();
+    let changes = vec![
+        Change { path: "a".into(), kind: "verwijderd".into(), base: original.clone(), home: original, branch: St::Absent,
+            conflict: false, home_changed: false, renamed_from: None, warnings: vec![] },
+        Change { path: "b".into(), kind: "hernoemd".into(), base: St::Absent, home: home_b, branch: destination,
+            conflict: conflicting_destination, home_changed: conflicting_destination, renamed_from: Some("a".into()), warnings: vec![] },
+    ];
+    (t, changes)
+}
+
+#[test]
+fn renamed_sources_survive_skipped_or_failed_destinations() {
+    let (t, c) = rename_case("rename-conflict", true);
+    let p = plan_for(&t.home, &t.upper, &c, &["b".into()], &[]);
+    assert!(p.ops.is_empty(), "{:?}", p);
+    let r = apply_plan(&t.j, &t.home, &p, None, &Faults::none()).unwrap();
+    assert!(r.skipped.iter().any(|(p, _)| p == "a") && r.skipped.iter().any(|(p, _)| p == "b"));
+    assert_eq!(rd(t.home.join("a")), "original\n"); assert_eq!(rd(t.home.join("b")), "mainland\n");
+
+    for legacy in [false, true] {
+        let (t, c) = rename_case(&format!("rename-copy-failure-{legacy}"), false);
+        let mut p = plan_for(&t.home, &t.upper, &c, &["b".into()], &[]);
+        if legacy { p.renames = None; }
+        fs::write(t.upper.join("b"), "changed after planning\n").unwrap();
+        let r = apply_plan(&t.j, &t.home, &p, None, &Faults::none()).unwrap();
+        assert!(r.failed.iter().any(|(p, _)| p == "a") && r.failed.iter().any(|(p, _)| p == "b"), "{:?}", r);
+        assert_eq!(rd(t.home.join("a")), "original\n"); assert!(!t.home.join("b").exists());
+        // A failed rename journal remains reversible without deleting the preserved original.
+        assert!(rollback_in(&t.j, Some(&r.merge_id), &Faults::none()).unwrap().rolled_back);
+        fs::copy(t.home.join("a"), t.upper.join("b")).unwrap();
+        let r = apply_plan(&t.j, &t.home, &p, None, &Faults::none()).unwrap();
+        assert!(r.failed.is_empty(), "{:?}", r); assert!(!t.home.join("a").exists());
+        assert_eq!(rd(t.home.join("b")), "original\n");
+    }
+    // Older conflict-skipped plans contain only the deletion; no destination state was persisted.
+    let (t, c) = rename_case("rename-legacy-skipped", true);
+    let legacy = Plan { ops: vec![Op { path: "a".into(), act: "delete".into(), pre: c[0].home.clone(), post: St::Absent, src: None }],
+        skipped: vec![("b".into(), "conflict".into())], ..Default::default() };
+    let decoded: Plan = serde_json::from_value(serde_json::to_value(&legacy).unwrap()).unwrap(); assert!(decoded.renames.is_none());
+    let _ = apply_plan(&t.j, &t.home, &decoded, None, &Faults::crash("op:0"));
+    let r = resume_in(&t.j, &Faults::none()).unwrap();
+    assert!(r.failed.iter().any(|(p, _)| p == "a")); assert_eq!(rd(t.home.join("a")), "original\n");
+}
+
+#[test]
+fn rename_dependencies_survive_recovery_and_recheck_the_destination() {
+    for legacy in [false, true] {
+        let (t, c) = rename_case(&format!("rename-resume-{legacy}"), false);
+        let mut p = plan_for(&t.home, &t.upper, &c, &["b".into()], &[]); if legacy { p.renames = None; }
+        assert_eq!(p.ops[0].path, "b"); assert_eq!(p.ops[1].path, "a");
+        let _ = apply_plan(&t.j, &t.home, &p, None, &Faults::crash("op:1"));
+        fs::write(t.home.join("b"), "external\n").unwrap();
+        let r = resume_in(&t.j, &Faults::none()).unwrap();
+        assert!(r.failed.iter().any(|(p, _)| p == "a"), "{:?}", r);
+        assert_eq!(rd(t.home.join("a")), "original\n"); assert_eq!(rd(t.home.join("b")), "external\n");
+    }
+    // Even an already-identical destination omitted from the ops must be checked at the last deletion stages.
+    for point in ["delete:a", "pre-swap:a", "pre-unlink:a"] {
+        let (t, mut c) = rename_case(&format!("rename-identical-{}", point.replace(':', "")), false);
+        fs::copy(t.upper.join("b"), t.home.join("b")).unwrap(); c[1].home = c[1].branch.clone();
+        let p = plan_for(&t.home, &t.upper, &c, &["b".into()], &[]);
+        assert_eq!(p.ops.len(), 1);
+        let h = t.home.clone(); let point = point.to_string();
+        let f = Faults::hook(move |pt| if pt == point { fs::write(h.join("b"), "external\n").unwrap(); });
+        let r = apply_plan(&t.j, &t.home, &p, None, &f).unwrap();
+        assert!(r.failed.iter().any(|(p, _)| p == "a")); assert_eq!(rd(t.home.join("a")), "original\n");
+        assert_eq!(rd(t.home.join("b")), "external\n"); assert!(no_tmp(&t.home));
+    }
+}
+
+#[test]
+fn interrupted_rename_deletion_preserves_the_staged_original() {
+    for legacy in [false, true] {
+        for (changed, collision) in [(false, false), (true, false), (true, true)] {
+            let (t, c) = rename_case(&format!("rename-staged-{legacy}-{changed}-{collision}"), false);
+            let mut p = plan_for(&t.home, &t.upper, &c, &["b".into()], &[]); if legacy { p.renames = None; }
+            let err = apply_plan(&t.j, &t.home, &p, None, &Faults::crash("pre-unlink:a")).unwrap_err();
+            assert!(err.starts_with("CRASH")); assert!(!t.home.join("a").exists());
+            assert!(!no_tmp(&t.home), "the interrupted deletion must retain its owned original");
+            if changed { fs::write(t.home.join("b"), "external\n").unwrap(); }
+            if collision { fs::write(t.home.join("a"), "new source\n").unwrap(); }
+            let r = resume_in(&t.j, &Faults::none()).unwrap();
+            if !changed {
+                assert!(r.failed.is_empty(), "{:?}", r); assert!(!t.home.join("a").exists());
+                assert_eq!(rd(t.home.join("b")), "original\n"); assert!(no_tmp(&t.home));
+            } else {
+                assert!(r.failed.iter().any(|(p, _)| p == "a"), "{:?}", r);
+                assert_eq!(rd(t.home.join("b")), "external\n");
+                if collision {
+                    assert_eq!(rd(t.home.join("a")), "new source\n");
+                    let left = owned_left(&t.home, ""); assert_eq!(left.len(), 1);
+                    assert_eq!(rd(t.home.join(&left[0])), "original\n");
+                    assert!(r.failed.iter().any(|(_, reason)| reason.contains(&left[0])), "{:?}", r);
+                } else { assert_eq!(rd(t.home.join("a")), "original\n"); assert!(no_tmp(&t.home)); }
+            }
+        }
+    }
+}
+
+#[test]
+fn recovery_keeps_applied_post_states_and_external_edits_as_conflicts() {
+    for point in ["op:1", "applied", "baseline", "reconciled"] {
+        for external in [false, true] {
+            let t = setup(&format!("recovery-external-{}-{external}", point.replace(':', "")), "printf 'base\n' > a; printf 'base\n' > z");
+            fs::write(t.upper.join("a"), "post\n").unwrap(); fs::write(t.upper.join("z"), "last\n").unwrap();
+            let mut p = plan_for(&t.home, &t.upper, &ch(&t), &["a".into(), "z".into()], &[]);
+            if point == "reconciled" { p.renames = None; } // a journal produced before dependencies existed
+            let bl = t.root.join("baseline.json"); write_json(&bl, &t.base).unwrap();
+            assert!(apply_plan(&t.j, &t.home, &p, Some(&bl), &Faults::crash(point)).is_err());
+            if external { fs::write(t.home.join("a"), "edit\n").unwrap(); } // same size as post: exercise the stat cache
+            if point == "reconciled" {
+                // Old Sluis could already have reconciled the external version and its metadata before crashing.
+                let mut old: std::collections::BTreeMap<String, Entry> = read_json(&bl).unwrap();
+                rebase(&mut old, &t.home, &["a".into()]); write_json(&bl, &old).unwrap();
+            }
+            let r = resume_in(&t.j, &Faults::none()).unwrap(); assert!(r.failed.is_empty(), "{:?}", r);
+            let base: std::collections::BTreeMap<String, Entry> = read_json(&bl).unwrap();
+            assert_eq!(base["a"].st, state_of(&t.upper.join("a")).unwrap()); assert_eq!(base["a"].ino, 0);
+            assert!(changes_for(&t.home, &t.upper, &base).unwrap().is_empty(), "recovery must not invent a branch edit");
+            fs::write(t.upper.join("a"), "next\n").unwrap();
+            let c = changes_for(&t.home, &t.upper, &base).unwrap(); assert_eq!(get(&c, "a").conflict, external);
+            let p = plan_for(&t.home, &t.upper, &c, &["a".into()], &[]);
+            let r = apply_plan(&t.j, &t.home, &p, Some(&bl), &Faults::none()).unwrap();
+            if external { assert!(r.done.is_empty()); assert_eq!(rd(t.home.join("a")), "edit\n"); }
+            else { assert_eq!(r.done, vec!["a"]); assert_eq!(rd(t.home.join("a")), "next\n"); }
+        }
+    }
+}
+
+#[test]
+fn chmod_refuses_same_mode_content_and_inode_changes() {
+    for how in ["atomic", "in-place-restored-mtime", "same-content-new-inode"] {
+        let t = setup(&format!("chmod-content-{how}"), "printf 'orig\n' > f; chmod 644 f");
+        fs::copy(t.home.join("f"), t.upper.join("f")).unwrap(); fs::set_permissions(t.upper.join("f"), fs::Permissions::from_mode(0o600)).unwrap();
+        let p = plan_for(&t.home, &t.upper, &ch(&t), &["f".into()], &[]); assert_eq!(p.ops[0].act, "chmod");
+        let h = t.home.clone(); let how2 = how.to_string();
+        let f = Faults::hook(move |pt| if pt == "chmod:f" {
+            let p = h.join("f");
+            if how2 == "in-place-restored-mtime" {
+                use std::os::unix::ffi::OsStrExt;
+                let before = fs::metadata(&p).unwrap(); fd_write(&p, "EDIT\n");
+                let times = [libc::timespec { tv_sec: before.atime(), tv_nsec: before.atime_nsec() }, libc::timespec { tv_sec: before.mtime(), tv_nsec: before.mtime_nsec() }];
+                let name = std::ffi::CString::new(p.as_os_str().as_bytes()).unwrap();
+                assert_eq!(unsafe { libc::utimensat(libc::AT_FDCWD, name.as_ptr(), times.as_ptr(), libc::AT_SYMLINK_NOFOLLOW) }, 0);
+            } else {
+                let tmp = h.join("replacement"); fs::write(&tmp, if how2 == "atomic" { "EDIT\n" } else { "orig\n" }).unwrap();
+                fs::set_permissions(&tmp, fs::Permissions::from_mode(0o644)).unwrap(); fs::rename(tmp, p).unwrap();
+            }
+        });
+        let r = apply_plan(&t.j, &t.home, &p, None, &f).unwrap(); assert_eq!(r.failed.len(), 1, "{how}: {:?}", r);
+        assert_eq!(fs::metadata(t.home.join("f")).unwrap().mode() & 0o777, 0o644);
+        assert_eq!(rd(t.home.join("f")), if how == "same-content-new-inode" { "orig\n" } else { "EDIT\n" });
+    }
+}
+
+#[test]
+fn reviewed_merge_checks_the_preview_before_creating_a_journal() {
+    let _env = ENV.lock().unwrap_or_else(|x| x.into_inner());
+    let t = setup("reviewed-merge", "printf 'base\n' > f");
+    let previous = std::env::var_os("POLDER_SLUIS_DIR"); std::env::set_var("POLDER_SLUIS_DIR", t.root.join("data"));
+    let m = create("Reviewed", &t.home, "").unwrap(); let d = polder_dir(&m.id).unwrap(); let selected = vec!["f".into()];
+    fs::write(d.join("upper/f"), "post\n").unwrap();
+    let preview = plan(&m.id, &selected, &[]).unwrap(); let token = review_token(&preview);
+    assert_eq!(token.len(), 64); assert!(token.bytes().all(|b| b.is_ascii_hexdigit()));
+    let decoded: Plan = serde_json::from_value(serde_json::to_value(&preview).unwrap()).unwrap(); assert_eq!(review_token(&decoded), token);
+    // Branch changes invalidate the reviewed plan, including explicit conflict choices.
+    fs::write(d.join("upper/f"), "next\n").unwrap();
+    let err = merge_reviewed(&m.id, &selected, &[], &token).unwrap_err();
+    assert_eq!(err, crate::i18n::tr("The files changed since the preview. Review the changes again."));
+    assert!(journals(&d.join("journal")).is_empty()); assert_eq!(rd(t.home.join("f")), "base\n");
+    fs::write(t.home.join("f"), "edit\n").unwrap();
+    let forced = vec!["f".into()]; let token = review_token(&plan(&m.id, &selected, &forced).unwrap());
+    fs::write(t.home.join("f"), "more\n").unwrap();
+    assert!(merge_reviewed(&m.id, &selected, &forced, &token).is_err());
+    assert!(journals(&d.join("journal")).is_empty()); assert_eq!(rd(t.home.join("f")), "more\n");
+    let token = review_token(&plan(&m.id, &selected, &forced).unwrap());
+    { let _lock = lock_polder(&m.id).unwrap(); assert_eq!(merge_reviewed(&m.id, &selected, &forced, &token).unwrap_err(), busy_msg()); }
+    let r = merge_reviewed(&m.id, &selected, &forced, &token).unwrap(); assert!(r.failed.is_empty()); assert_eq!(rd(t.home.join("f")), "next\n");
+    match previous { Some(value) => std::env::set_var("POLDER_SLUIS_DIR", value), None => std::env::remove_var("POLDER_SLUIS_DIR") }
+}
